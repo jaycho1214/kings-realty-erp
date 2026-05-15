@@ -1,0 +1,20 @@
+{
+  "name": "kingsrealty",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter crm dev",
+    "build": "pnpm --filter crm build",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @kingsrealty/db migrate",
+    "db:migrate:down": "pnpm --filter @kingsrealty/db migrate:down",
+    "db:generate": "pnpm --filter @kingsrealty/db generate",
+    "db:seed": "pnpm --filter @kingsrealty/db seed"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0"
+  }
+}

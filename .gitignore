@@ -1,0 +1,36 @@
+node_modules
+.next
+.env
+.env.local
+.env*.local
+dist
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Turbo
+.turbo
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# Claude Code
+.claude/settings.local.json
+.claude/skills
+.agents/skills
+skills-lock.json
+
+# npm lockfile (using pnpm)
+package-lock.json
