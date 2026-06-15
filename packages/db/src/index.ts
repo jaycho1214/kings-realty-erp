@@ -45,5 +45,6 @@ export function getDb(): Kysely<DB> {
   return _db;
 }
 
+export { sql } from "kysely";
 export type { DB } from "./types";
 export * from "./types";
