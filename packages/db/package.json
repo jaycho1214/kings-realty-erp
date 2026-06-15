@@ -16,17 +16,17 @@
     "migrate:crm": "tsx src/migrate-crm.ts"
   },
   "dependencies": {
-    "@vercel/functions": "^2.0.0",
-    "kysely": "^0.28.11",
-    "pg": "^8.20.0"
+    "@vercel/functions": "^3.7.1",
+    "kysely": "^0.29.2",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
-    "@better-auth/kysely-adapter": "^1.5.4",
-    "@types/pg": "^8.11.6",
-    "better-auth": "^1.5.4",
-    "dotenv": "^17.3.1",
+    "@better-auth/kysely-adapter": "^1.6.18",
+    "@types/pg": "^8.20.0",
+    "better-auth": "^1.6.18",
+    "dotenv": "^17.4.2",
     "kysely-codegen": "^0.20.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3"
   }
 }
