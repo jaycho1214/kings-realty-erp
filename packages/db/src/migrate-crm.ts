@@ -734,7 +734,7 @@ async function main() {
     .selectFrom("base_location")
     .selectAll()
     .execute();
-  const locationMap = new Map<string, string>();
+  const locationMap = new Map<string, number>();
   for (const loc of existingLocations) {
     locationMap.set(loc.name.toLowerCase(), loc.id);
     if (loc.name_ko) locationMap.set(loc.name_ko.toLowerCase(), loc.id);
@@ -754,7 +754,7 @@ async function main() {
     .selectFrom("utility_type")
     .selectAll()
     .execute();
-  const utilityTypeMap = new Map<string, string>();
+  const utilityTypeMap = new Map<string, number>();
   for (const ut of utilityTypes) {
     utilityTypeMap.set(ut.name, ut.id);
   }
@@ -811,9 +811,9 @@ async function main() {
 
   // ── Step 5: Create landlords with family member splitting ──────────
   console.log("\n--- Creating Landlords ---");
-  const landlordMap = new Map<string, string>(); // ownerKey → landlord ID
+  const landlordMap = new Map<string, number>(); // ownerKey → landlord ID
   // Also map by primary phone for dedup
-  const landlordByPhone = new Map<string, string>(); // phone → landlord ID
+  const landlordByPhone = new Map<string, number>(); // phone → landlord ID
 
   // Collect all unique owner entries
   const seenOwnerKeys = new Set<string>();
@@ -927,7 +927,7 @@ async function main() {
 
   // ── Step 6: Create tenants from DATA.xlsx ──────────────────────────
   console.log("\n--- Creating Tenants ---");
-  const tenantMap = new Map<string, string>();
+  const tenantMap = new Map<string, number>();
   const dataRowMap = new Map<string, DataRow>();
 
   let tenantCount = 0;
@@ -1052,7 +1052,7 @@ async function main() {
   console.log("\n--- Creating Properties & Leases (from SALES) ---");
   let propertyCount = 0;
   let leaseCount = 0;
-  const tenantLeaseMap = new Map<string, string>();
+  const tenantLeaseMap = new Map<number, number>();
   const today = new Date("2026-03-13");
 
   for (const [customerKey, sales] of salesByCustomer) {
@@ -1089,7 +1089,7 @@ async function main() {
 
     // Landlord lookup — try by name+phone key, then by phone alone
     const ob = clean(saleWithContract.owner_birth);
-    let landlordId: string | undefined;
+    let landlordId: number | undefined;
     if (ob) {
       const lKey = ownerKey(saleWithContract);
       landlordId = landlordMap.get(lKey);
