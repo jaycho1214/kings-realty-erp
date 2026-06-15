@@ -2,12 +2,9 @@ import "dotenv/config";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import {
-  Kysely,
-  Migrator,
-  FileMigrationProvider,
-  PostgresDialect,
-} from "kysely";
+import { Kysely, PostgresDialect } from "kysely";
+// Migration helpers moved to the `kysely/migration` subpath export.
+import { Migrator, FileMigrationProvider } from "kysely/migration";
 import pg from "pg";
 
 const { Pool } = pg;

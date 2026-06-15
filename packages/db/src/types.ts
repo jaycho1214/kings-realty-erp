@@ -29,6 +29,16 @@ export interface Account {
   userId: number;
 }
 
+export interface AuditLog {
+  action: string;
+  actor_id: number | null;
+  created_at: Generated<Timestamp>;
+  detail: string | null;
+  entity_id: number | null;
+  entity_type: string;
+  id: Generated<number>;
+}
+
 export interface BaseLocation {
   created_at: Generated<Timestamp>;
   id: Generated<number>;
@@ -63,6 +73,39 @@ export interface CalendarEventAttendee {
   created_at: Generated<Timestamp>;
   event_id: number;
   id: Generated<number>;
+}
+
+export interface ChargeItem {
+  amount: Numeric;
+  billing_month: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: number | null;
+  currency: Generated<string>;
+  due_date: Timestamp | null;
+  id: Generated<number>;
+  lease_id: number | null;
+  memo: string | null;
+  recurrence: Generated<string>;
+  status: Generated<string>;
+  tenant_id: number;
+  type: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface DepositSettlement {
+  confirmed_by: number | null;
+  created_at: Generated<Timestamp>;
+  created_by: number | null;
+  deduction_total: Generated<Numeric>;
+  deductions: string | null;
+  deposit_amount: Numeric;
+  id: Generated<number>;
+  lease_id: number;
+  refund_amount: Generated<Numeric>;
+  refund_method: string | null;
+  refunded_date: Timestamp | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface Document {
@@ -100,10 +143,39 @@ export interface ExchangeRate {
   usd_to_krw: Numeric;
 }
 
+export interface ExchangeVendor {
+  created_at: Generated<Timestamp>;
+  default_rate: Numeric | null;
+  denominations: string | null;
+  id: Generated<number>;
+  is_active: Generated<boolean>;
+  memo: string | null;
+  name: string;
+  phone: string | null;
+}
+
+export interface Inspection {
+  checklist: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: number | null;
+  id: Generated<number>;
+  inspected_at: Generated<Timestamp>;
+  lease_id: number;
+  participants: string | null;
+  property_id: number;
+  signature: string | null;
+  summary: string | null;
+  type: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Landlord {
+  account_holder: string | null;
+  address: string | null;
   bank_account: string | null;
   bank_name: string | null;
   birth: Timestamp | null;
+  business_type: string | null;
   created_at: Generated<Timestamp>;
   created_by: number | null;
   email: string | null;
@@ -111,6 +183,7 @@ export interface Landlord {
   name: string;
   notes: string | null;
   phone: string;
+  rrn_encrypted: string | null;
   sex: string | null;
   updated_at: Generated<Timestamp>;
 }
@@ -129,14 +202,19 @@ export interface LandlordFamilyMember {
 }
 
 export interface Lease {
+  auto_renew: Generated<boolean>;
   created_at: Generated<Timestamp>;
   created_by: number | null;
   deposit_krw: Numeric;
   end_date: Timestamp;
   id: Generated<number>;
+  landlord_deposit_krw: Numeric | null;
+  landlord_rent_krw: Numeric | null;
   monthly_rent_krw: Numeric;
   notes: string | null;
   property_id: number;
+  realty_fee: Numeric | null;
+  realty_fee_currency: string | null;
   start_date: Timestamp;
   status: Generated<string>;
   tenant_id: number;
@@ -147,15 +225,49 @@ export interface LedgerEntry {
   amount_krw: Numeric;
   category: string;
   created_at: Generated<Timestamp>;
+  currency: string | null;
+  denomination: number | null;
   description: string;
+  direction: string | null;
   entry_date: Timestamp;
   entry_type: string;
+  exchange_rate: Numeric | null;
+  exchange_vendor_id: number | null;
   id: Generated<number>;
+  lease_id: number | null;
+  memo: string | null;
   payment_id: number | null;
   recorded_by: number;
   reference_id: number | null;
   reference_type: string | null;
+  tenant_id: number | null;
   updated_at: Generated<Timestamp>;
+}
+
+export interface Notification {
+  created_at: Generated<Timestamp>;
+  dedup_key: string | null;
+  due_date: Timestamp | null;
+  id: Generated<number>;
+  is_read: Generated<boolean>;
+  message: string | null;
+  ref_entity_id: number | null;
+  ref_entity_type: string | null;
+  target_user_id: number | null;
+  title: string;
+  type: string;
+}
+
+export interface OhaRate {
+  amount: Numeric;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  dependent_status: string;
+  effective_from: Timestamp;
+  effective_to: Timestamp | null;
+  id: Generated<number>;
+  rank: string;
+  region: Generated<string>;
 }
 
 export interface Payment {
@@ -168,7 +280,9 @@ export interface Payment {
   bundle_id: string | null;
   created_at: Generated<Timestamp>;
   currency_paid: string;
+  denomination: number | null;
   exchange_rate_id: number | null;
+  exchange_vendor_id: number | null;
   id: Generated<number>;
   lease_id: number;
   notes: string | null;
@@ -194,6 +308,7 @@ export interface Property {
   landlord_id: number;
   management_phone: string | null;
   monthly_rent_krw: Numeric;
+  moveout_date: Timestamp | null;
   notes: string | null;
   permission_status: Generated<string>;
   property_type: string;
@@ -214,6 +329,13 @@ export interface PropertyEquipment {
   updated_at: Generated<Timestamp>;
 }
 
+export interface RealtyFeeDefault {
+  amount: Numeric;
+  currency: string;
+  id: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ServiceCategory {
   created_at: Generated<Timestamp>;
   id: Generated<number>;
@@ -224,16 +346,24 @@ export interface ServiceCategory {
 }
 
 export interface ServiceRequest {
+  actual_cost: Numeric | null;
+  assignee: string | null;
+  bearer: string | null;
   category: string;
+  completed_date: Timestamp | null;
   cost_krw: Numeric | null;
   created_at: Generated<Timestamp>;
   description: string;
   escalated_to_landlord: Generated<boolean>;
+  estimated_cost: Numeric | null;
   id: Generated<number>;
   lease_id: number;
+  location: string | null;
   logged_by: number;
   notes: string | null;
+  postpone_reason: string | null;
   resolved_at: Timestamp | null;
+  scheduled_date: Timestamp | null;
   status: Generated<string>;
   title: string;
   updated_at: Generated<Timestamp>;
@@ -260,14 +390,19 @@ export interface Session {
 }
 
 export interface Tenant {
+  archived_at: Timestamp | null;
   base_location_id: number;
   birth: Timestamp | null;
   branch: string | null;
   created_at: Generated<Timestamp>;
   created_by: number | null;
+  deleted_at: Timestamp | null;
+  dependent_count: number | null;
+  dependent_status: string | null;
   deros: Timestamp | null;
   email: string | null;
   id: Generated<number>;
+  military_id: string | null;
   name: string;
   notes: string | null;
   phone: string;
@@ -329,15 +464,19 @@ export interface User {
 
 export interface UtilityBill {
   amount_krw: Numeric;
+  bearer: Generated<string>;
   billing_month: Timestamp;
   created_at: Generated<Timestamp>;
   due_date: Timestamp | null;
   id: Generated<number>;
   lease_id: number;
   notes: string | null;
+  paid_date: Timestamp | null;
   paid_to_company: Generated<boolean>;
   paid_to_company_date: Timestamp | null;
+  payee: string | null;
   payment_id: number | null;
+  status: Generated<string>;
   updated_at: Generated<Timestamp>;
   utility_type_id: number;
 }
@@ -360,19 +499,27 @@ export interface Verification {
 
 export interface DB {
   account: Account;
+  audit_log: AuditLog;
   base_location: BaseLocation;
   calendar_event: CalendarEvent;
   calendar_event_attendee: CalendarEventAttendee;
+  charge_item: ChargeItem;
+  deposit_settlement: DepositSettlement;
   document: Document;
   event_category: EventCategory;
   exchange_rate: ExchangeRate;
+  exchange_vendor: ExchangeVendor;
+  inspection: Inspection;
   landlord: Landlord;
   landlord_family_member: LandlordFamilyMember;
   lease: Lease;
   ledger_entry: LedgerEntry;
+  notification: Notification;
+  oha_rate: OhaRate;
   payment: Payment;
   property: Property;
   property_equipment: PropertyEquipment;
+  realty_fee_default: RealtyFeeDefault;
   service_category: ServiceCategory;
   service_request: ServiceRequest;
   service_request_status_log: ServiceRequestStatusLog;

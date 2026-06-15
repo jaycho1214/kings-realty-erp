@@ -346,7 +346,9 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn("date", "date", (col) => col.notNull())
     .addColumn("usd_to_krw", "decimal", (col) => col.notNull())
     .addColumn("denomination", "integer", (col) => col.notNull().defaultTo(100))
-    .addColumn("set_by", "integer", (col) => col.notNull().references("user.id"))
+    .addColumn("set_by", "integer", (col) =>
+      col.notNull().references("user.id"),
+    )
     .addColumn("created_at", "timestamptz", (col) =>
       col.notNull().defaultTo(sql`now()`),
     )
