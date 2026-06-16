@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatKRW, formatUSD, cn } from "@/lib/utils";
-import { seoulYMD, daysUntil } from "@/lib/date";
+import { seoulYMD, daysUntil, seoulDateString } from "@/lib/date";
+import { getSession } from "@/lib/session";
+import { isAdmin } from "@/lib/authz";
+import { ExchangeRateQuick } from "./_components/exchange-rate-quick";
 import {
   PaymentBoard,
   type BoardItem,
@@ -201,6 +204,14 @@ export default async function DashboardPage() {
       .orderBy("denomination", "desc")
       .execute(),
   ]);
+
+  // Exchange-rate quick-entry (admin only): today's $100/$20 for the dashboard.
+  const session = await getSession();
+  const canSetRate = isAdmin(session?.user?.role);
+  const todayStr = seoulDateString();
+  const todayRateMap = new Map(
+    todayRates.map((r) => [r.denomination, String(r.usd_to_krw)]),
+  );
 
   // Monthly trend + current-month split
   const months = Array.from({ length: 6 }, (_, k) => {
@@ -513,7 +524,13 @@ export default async function DashboardPage() {
         </Panel>
 
         <Panel title="오늘의 환율" href="/exchange-rate">
-          {todayRates.length === 0 ? (
+          {canSetRate ? (
+            <ExchangeRateQuick
+              today={todayStr}
+              rate100={todayRateMap.get(100)}
+              rate20={todayRateMap.get(20)}
+            />
+          ) : todayRates.length === 0 ? (
             <Empty>미등록</Empty>
           ) : (
             <div className="flex gap-6 px-3.5 py-3">

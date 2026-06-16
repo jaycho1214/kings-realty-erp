@@ -54,4 +54,5 @@ export async function setExchangeRate(formData: FormData) {
   }
 
   revalidatePath("/exchange-rate");
+  revalidatePath("/");
 }
