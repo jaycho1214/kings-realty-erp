@@ -1,0 +1,372 @@
+% USAG Humphreys Housing Off-Post Lease Agreement (HQ IMHM Form 1057EK-R)
+% Overleaf: Menu → Compiler → XeLaTeX
+\documentclass[10pt, letterpaper]{article}
+
+\usepackage{geometry}
+\geometry{top=0.4in, bottom=0.6in, left=0.4in, right=0.4in}
+\usepackage{kotex}
+\usepackage{array, tabularx, multirow, makecell}
+\usepackage{ulem, xcolor, amssymb}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\scriptsize HQ IMHM Form 1057EK-R\\ Current as of 24 Jan 2025 (SRP)}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1pt}
+\renewcommand{\arraystretch}{1.3}
+\setstretch{1.05}
+
+% ============================================================
+% FILLABLE VARIABLES
+% ============================================================
+\newcommand{\VExchangeRate}{}
+\newcommand{\VSqftPyeong}{}
+\newcommand{\VHousingRep}{}
+\newcommand{\VLesseeName}{}
+\newcommand{\VLesseeRank}{}
+\newcommand{\VLQAGroup}{}
+\newcommand{\VDODID}{}
+\newcommand{\VLesseeOrg}{}
+\newcommand{\VLesseeEmail}{}
+\newcommand{\VLesseePhone}{}
+\newcommand{\VLessorName}{}
+\newcommand{\VLessorKID}{}
+\newcommand{\VLessorPhone}{}
+\newcommand{\VLessorEmail}{}
+\newcommand{\VAddress}{}
+\newcommand{\VSafetyDate}{}
+\newcommand{\VLeaseDate}{}
+\newcommand{\VTermMonths}{}
+\newcommand{\VBeginDate}{}
+\newcommand{\VExpireDate}{}
+\newcommand{\VStartY}{}\newcommand{\VStartM}{}\newcommand{\VStartD}{}
+\newcommand{\VEndY}{}\newcommand{\VEndM}{}\newcommand{\VEndD}{}
+\newcommand{\VMonthlyRent}{}
+\newcommand{\VNumMonths}{}
+\newcommand{\VAdvPayment}{}
+\newcommand{\VDeposit}{}
+\newcommand{\VPayDay}{}
+\newcommand{\VMaintName}{}
+\newcommand{\VMaintPhone}{}
+\newcommand{\VLQADays}{}
+\newcommand{\VUtilCap}{}
+\newcommand{\VSpecial}{}
+\newcommand{\VRealtorName}{}
+\newcommand{\VAgencyName}{}
+\newcommand{\VAgencyReg}{}
+\newcommand{\VAgencyAddr}{}
+\newcommand{\VAgencyPhone}{}
+
+% Helpers
+\newcommand{\ul}[1]{\underline{\makebox[#1]{}}}
+\newcommand{\uf}[2]{\underline{\makebox[#1]{\smash{#2}}}}
+\newcommand{\init}{\ul{1cm}\ }
+
+\begin{document}
+\small
+
+% ============================================================
+% HEADER TABLE
+% ============================================================
+\noindent
+\begin{tabularx}{\textwidth}{|p{4.5cm}|p{3cm}|X|p{3cm}|}
+\hline
+\textbf{EXCHANGE RATE} \uf{2.5cm}{\VExchangeRate}
+& \textbf{SQFT / PYEONG} \uf{1.5cm}{\VSqftPyeong}
+& \textbf{HOUSING REP NAME} \uf{2cm}{\VHousingRep}
+& \textbf{SIGNATURE} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{UTILITIES:}\quad Included: Yes(\ \ )\ \ No(\ \ )} \\
+\hline
+\end{tabularx}
+
+\begin{center}
+\large\textbf{LEASE AGREEMENT (임대 계약서)}
+\end{center}
+
+% ============================================================
+% PERSONAL INFO TABLE
+% ============================================================
+\noindent
+\begin{tabularx}{\textwidth}{|p{8.8cm}|X|}
+\hline
+\textbf{LESSEE NAME} 임차인 성명 \newline \uf{8cm}{\VLesseeName}
+& \textbf{LESSOR NAME} 임대인 성명 \newline \uf{6cm}{\VLessorName} \\
+\hline
+\textbf{RANK/GRADE} 계급: \uf{1.5cm}{\VLesseeRank}\quad
+\colorbox{yellow}{\textbf{LQA Group\#:}} \uf{1cm}{\VLQAGroup}\quad
+\textbf{DODID:} \uf{2.5cm}{\VDODID}
+& \textbf{KID\# (주민번호):} \newline \uf{5cm}{\VLessorKID} \\
+\hline
+\textbf{ORGANIZATION/ UNIT} 소속 \newline \uf{8cm}{\VLesseeOrg}
+& \textbf{LESSOR CELL PHONE (핸드폰)} \newline \uf{5.5cm}{\VLessorPhone} \\
+\hline
+\textbf{LESSEE EMAIL} 전자우편 \newline \uf{4.5cm}{\VLesseeEmail}
+\hfill
+\begin{tabular}[t]{|l}
+\textbf{LESSEE CELL PHONE / DUTY} \\
+전화 \uf{3.5cm}{\VLesseePhone}
+\end{tabular}
+& \textbf{LESSOR EMAIL} 전자우편 \newline \uf{5.5cm}{\VLessorEmail} \\
+\hline
+\textbf{OFF-POST RENTAL ADDRESS} 임대물건 주소 \newline \uf{6cm}{\VAddress}
+\hfill \colorbox{yellow}{\textbf{\scriptsize SAFETY INSP. DATE:}} \newline
+\hfill \uf{2.5cm}{\VSafetyDate}
+& \textbf{DATE OF LEASE} 계약일 \newline\vspace{6pt}\newline \uf{5.5cm}{\VLeaseDate} \\
+\hline
+\end{tabularx}
+
+\vspace{10pt}
+
+% ============================================================
+% LEASE TERM
+% ============================================================
+\noindent
+\textbf{LEASE TERM:}\uf{2cm}{\VTermMonths}months.\quad
+\textbf{BEGINNING:}\uf{3cm}{\VBeginDate}\hfill
+\textbf{EXPIRING:}\uf{3cm}{\VExpireDate}
+
+\noindent
+계약기간:\quad
+\uf{1.2cm}{\VStartY}\,년\quad
+\uf{0.8cm}{\VStartM}\,월\quad
+\uf{0.8cm}{\VStartD}\,일 부터\quad
+\uf{1.2cm}{\VEndY}\,년\quad
+\uf{0.8cm}{\VEndM}\,월\quad
+\uf{0.8cm}{\VEndD}\,일 까지\quad
+\uf{1cm}{\VTermMonths}\,개월로 한다.
+
+\vspace{6pt}
+
+% ============================================================
+% RENTAL CHARGE TABLE
+% ============================================================
+\noindent
+\begin{tabularx}{\textwidth}{|p{1.8cm}|p{4.5cm}|p{4.2cm}|X|}
+\hline
+\multirow{4}{*}{\makecell[l]{\textbf{RENTAL}\\\textbf{CHARGE}\\[4pt]임\ 대\ 료}}
+& \textbf{(1) MONTHLY} & $\bullet$\textbf{NUMBER OF MONTHS} & \multirow{4}{*}{\makecell[l]{\scriptsize RENT EXCEEDS OHA/LQA\\\scriptsize USFK Personnel initial\\\scriptsize Yes\uf{1cm}{}\ No\uf{1cm}{}}} \\
+& (월세): \uf{2.5cm}{\VMonthlyRent} & (개월수): \uf{2cm}{\VNumMonths} & \\
+\cline{2-3}
+& \textbf{(2) ADVANCE PAYMENT} & $\bullet$\textbf{SECURITY DEPOSIT} & \\
+& (선불금): \uf{2.5cm}{\VAdvPayment} & (보증금): \uf{2cm}{\VDeposit} & \\
+\hline
+\end{tabularx}
+
+\vspace{6pt}
+
+% ============================================================
+% CLAUSE 1
+% ============================================================
+\init 1. The Lessor hereby leases the above-described dwelling unit to the Lessee as follows:
+
+\init 1. 임대인은 위에서 설명한 주거 시설을 임차인에게 다음과 같이 임대한다.
+
+\vspace{3pt}
+
+\init a. The Lessee shall pay to the Lessor for the use of the dwelling unit rent in advance on the \uf{2cm}{\VPayDay} day of each month during the term. The lessor hereby agrees the specified rental charge will remain the same for the duration of the lease period.
+
+\init a. 임차인은 본 계약 기간동안 매월 \uf{1.2cm}{\VPayDay} 일에 부동산 (주택)의 임대료를 선불한다. 임대인은 지정된 임대 요금이 임대 기간 동안 동일하게 유지 되는 것에 동의한다.
+
+\vspace{3pt}
+
+\init b. Security Deposit. Upon signing this agreement, Lessee will pay the security deposit to the Lessor. The security deposit will be retained by Lessor as security for Lessee's performance of its obligations under this Agreement. Lessee will be entitled to a full refund of the security deposit if Lessee returns possession of the Premises to Landlord in the same condition as accepted, ordinary wear and tear expected.
+
+\init b. 보증금: 이 계약서에 서명함에 따라 세입자는 임대인에게 보증금을 지불한다. 보증금은 임대인이 본 계약에 따른 세입자의 의무이행을 위한 담보로 보유한다. 만약 임차인이 임대인에게 본 건물을 입주때의 상태로 돌려준다면 보증금 전액을 환불 받을 수 있다, 일반적인 생활하자는 예상되어진다.
+
+\vspace{3pt}
+
+\init c. \uline{Civilians Only}: When LQA payment is delayed more than \uf{1cm}{\VLQADays} days, the Civilian Lessee is responsible to pay the monthly rent and utilities with his/her personal funds and pay the remaining rental balance when LQA is deposited to his/her account.\\
+Monthly Utilities Cap: \$\uf{2cm}{\VUtilCap}. (If the Lessee exceeds cap throughout the duration of the lease contract, the difference will be paid to the Lessor, at the Lessees' expense.)
+
+\init c. 민간인만 해당: LQA가 \uf{1cm}{} 일 이상 늦어질 경우, 민간인 세입자는 월세와 공과금을 임차인 본인 비용으로 지불할 책임이 있다. 그리고 LQA가 지급되었을 때 남은 차액을 임대인에게 지불한다.\\
+월 공과금 한도: \$\uf{2cm}{}. (만약 임차인이 계약 기간동안 정해진 한도를 초과하는 경우 임차인의 비용으로 차액을 임대인에게 지급한다.)
+
+\vspace{3pt}
+
+\hspace{1.2cm} d. Lessor will return the security deposit to Lessee immediately after termination inspection (minus any amount applied by Lessor in accordance with this section). Any reason for retaining a portion of the security deposit will be \textbf{explained in writing}.
+
+\hspace{1.2cm} d. 임대인은 최종 검열후 즉시 세입자에게 보증금을 반환한다. (이 섹션에 따라 임대인이 적용한 금액을 차감한 금액). 보증금의 일부를 보유하는 모든 이유는 서면으로 설명한다.
+
+\vspace{3pt}
+
+\init e. Lessor or Realtor must inform Lessee who to report maintenance or repair problems. If there is no maintenance contract, Realtor or Lessor is a POC:\ \ Maintenance POC Name: \uf{3cm}{\VMaintName}\hfill Maintenance POC phone: \uf{3cm}{\VMaintPhone}
+
+\hspace{1.2cm} e. 임대인 또는 공인중개사는 임차인에게 반드시 유지관리 및 보수문제를 보고할 담당자를 알려준다: 만약 없다면 공인중개사 또는 임대인이 담당자가 된다. 담당자 성명: \uf{3cm}{}\hfill 담당자 전화번호: \uf{3cm}{}
+
+\vspace{3pt}
+
+\hspace{1.2cm} f. Monthly charges/bills for gas, water, and electric shall be IAW meter readings for the Lessee's dwelling unit and paid by Lessee (if not included in the rent). Realtor or Lessor MUST ensure Lessee receives copies of monthly utility bills/statements.
+
+\hspace{1.2cm} f. 매달 가스, 물, 전기세는 임대 부동산에 설치된 계량기 미터기에 따르며 임차인이 지불한다 (임대료에 미포함시). 공인중개사 또는 임대인은 임차인이 월별 공과금 명세서를 받았는지 반드시 확인한다.
+
+\vspace{4pt}
+
+% ============================================================
+% CLAUSE 2
+% ============================================================
+
+\hspace{1.2cm} 2. The following lease provisions are legally binding for the Lessor \& Lessee:
+
+\hspace{1.2cm} 2. 다음 임대조항은 임대인 및 임차인에게 법적 구속력이 있다.
+
+\vspace{3pt}
+
+\init a. The Lessor and the Lessee agree that if deficiencies are noted in writing and agreed upon by both parties and are not corrected prior to the occupancy date, this lease agreement may be cancelled by the Lessee within 7 days of move-in date and relocation expenses are the responsibility of the Lessor. After such time, Lessee will not be authorized to break lease. The Lessor must return any advanced rent (OHA/LQA) and/or security deposit, that was paid by Lessee. This payment will be made within three (3) working days after cancellation of this lease.
+
+\init a. 임대인과 임차인 양자간에 서면으로 합의하여 시정하기로 한 내용들이 입주일 전까지 완료되지 아니한 경우 임차인은 입주 후 7일 이내에 계약을 해지할 수 있으며 이사비용은 임대인의 책임이다. 이후에는 계약을 해지 할 수 없다. 임대인은 임차인이 선지급한 임대료와 보증금, 민간인 주택수당을 임차인에게 반환해야 한다. 임대 계약이 취소된 후 3일 이내에 반드시 반환해야 한다.
+
+\vspace{3pt}
+
+\init b. Lease term and renewal will follow the Housing Lease Protection Act of Korea, amended date July 31, 2020. If the lease term is not fixed or is fixed for less than two (2) years, the lease term shall be deemed to be two years automatically with same condition on the 1\textsuperscript{st} lease. The Lessee may terminate the lease upon the end of the contract requirement with military clause or agreement between the Lessee and Lessor. DoD Civilians are also protected under the Housing Lease Protection Act of Korea and are required to generate another lease contract for the 2\textsuperscript{nd} year to fulfill LQA instructions. The Lessor must agree to generate the 2\textsuperscript{nd} contract to receive the LQA (Rent). This rule applies to 3\textsuperscript{rd}, 4\textsuperscript{th} lease contract, or more times if needed.
+
+\init b. 임대기간과 재연장은 2020년 7월 31일 개정된 대한민국 주택임대차보호법에 따른다. 만약 임대기간을 정하지 않거나 2년 미만으로 정한 경우 처음 계약과 동일한 조건으로 임대기간을 2년으로 본다. 임차인은 계약에서 정한 계약 종료일에 군조항 또는 임차임과 임대인의 동의하에 계약을 종료할 수 있다. 군무원 또한 주택임대차 보호법의 보호를 받으며 LQA 지침을 이행하기 위해 2년차 임대계약을 다시 체결해야 한다. 임대인은 LQA (임대료)를 받기 위해 2년차 계약을 체결하는데 동의해야 한다. 이 규칙은 3번째, 4번째 임대계약 적용되며 필요한 경우 추가로 적용된다.
+
+\vspace{3pt}
+
+\init c. Even if the lease term ends and the Lessee remains in the property, the lease relationship shall be deemed to continue until the remaining portion of the deposit is returned to the Lessee.
+
+\init c. 비록 임대계약이 만료되어도 임차인이 계속 거주중이라면 보증금 반환받을 때까지는 임대차 관계가 존속되는 것으로 본다.
+
+\vspace{3pt}
+
+\init d. If the Lessor conveys title to the premises prior to the expiration of the lease, the Lease shall remain in effect with the new owner until the expiration of the lease period. Renewals may be negotiated with the new owner. The Lessor agrees to inform the new owner of the lease agreement and obtain the new owner's acknowledgement of same.
+
+\init d. 만약 임대인이 계약 만료 전에 동재산에 대한 명의를 이전하게 되더라도 임대차 계약은 계약기간까지 새 소유주와의 효력이 유효하다. 계약 연장에 관하여 새로운 소유주와 협의 할 수 있다. 임대인은 새 소유자에게 임대 계약을 알리고 새 소유자의 동의를 얻는데 동의한다.
+
+\vspace{3pt}
+
+\init e. Throughout said term, the Lessee will take good care of the dwelling unit and amenities and allow no damage or injury; comply with all laws, ordinances, and government regulations. Except for normal wear and tear, the Lessee shall repair, at the Lessee's expense, any damage to the premises incurred through the negligent acts. Report maintenance issues in a timely manner to prevent further damage to property manager. If premises are clean and void of resident damages the lessee shall be entitled to the return of security deposit.
+
+\init e. 본 계약 기간을 동안 임차인은 당해 재산과 재산의 종속물에 대하여 양호하게 관리하여 훼손이나 파손되지 않게 하고 모든 법령과 정부 규정을 성실히 준수할 것에 동의한다. 일반적인 생활하자를 제외하고, 임차인의 자신의 부주의로 생긴 손상에 대해 임차인의 비용으로 수리를 해야한다. 해당 건물의 추가적인 손상을 방지하기 위해 유지보수 문제들을 적시에 담당자에게 보고한다. 만약 임대건물이 깨끗하고 임차인에 의한 손상이 없다면 임차인은 보증금을 돌려받을 권리가 있다.
+
+\vspace{3pt}
+
+\init f. The Lessee should notify the Lessor if they will be away from the premises for more than five (5) consecutive days. Lessor will be allowed to enter the premises during the absence for emergency reasons only. Lessee may request regular home checks (inside), to Realtor in writing, during absence and Realtor may agree, in writing. If no agreement, and no proxy, the Lessee is liable for any damage to home and personal items, during absences without home monitoring.
+
+\init f. 임차인은 5일이상 집을 비울 경우 임대인에게 통지해야 한다. 임대인은 이 기간의 임차인 부재중 오직 비상시에만 출입이 허락된다. 임차인은 부재 기간동안 정기적으로 집내부를 점검하도록 공인중개사에게 서면으로 요청할 수 있고, 공인중개사는 서면으로 이에 동의할 수 있다. 만약 서면 동의나 대리인이 없다면, 임차인은 부재 기간동안 집과 개인물품에 발생한 손상에 대해 책임이 있다.
+
+\vspace{3pt}
+
+\init g. The Lessee will be responsible for the risks and damage costs involved in storing personal property in any non-livable space or non-climate-controlled areas, such as outdoors, balconies, and exterior storage sheds. It is the Lessee's responsibility to obtain Renters Insurance.
+
+\init g. 옥외, 발코니, 외부 창고와 같이 비거주 공간 또는 기후가 통제되지 않는 지역에 보관한 개인 물품의 손상과 위험은 임차인의 책임이다. 세입자 보험에 가입 하는것은 임차인의 책임이다.
+
+\vspace{3pt}
+
+\init h. The Lessee can terminate this lease if the premises become uninhabitable because of major maintenance and repair issues, life, health, safety issues, flooding, fire or other casualty, as well as failure to provide water (hot or cold); electricity; heating or air conditioning for a period in excess of five (5) days. If any of the foregoing occurs, Lessor will be responsible for the Lessee's temporary lodging costs until major repairs or issues are completed or until water and electricity is restored. Relocation expenses, if premises are deemed uninhabitable, will also be the responsibility of the Lessor. The Lessee should make all efforts to allow the Lessor to gain access to the premises, expeditiously, to make required repairs. Notwithstanding the above, it is expressly understood and agreed that any promise of the Lessor to perform all provisions of this lease or perform any service for the benefit of the Lessee, shall not be deemed breached if the Lessor is unable to perform the same by virtue of a strike or labor trouble or by other cause beyond Lessor's control not to exceed 30 days. Uninhabitable conditions caused by the carelessness or negligence of the Lessee, their family members, or their guests, will nullify this clause.
+
+\init h. 임차인은 중요한 유지관리 및 수리 문제, 생명, 건강, 안전 문제, 침수, 화재 또는 기타 사고, 수도 (온수 또는 냉수), 전기 혹은 난방 / 냉방이 5일 이상 제공되지 아니함으로 인해 집이 거주 불가능 할 경우 계약을 종료할 수 있다. 앞서 언급한 사항 중 하나라도 발생하는 경우, 임대인은 중요한 유지관리 문제들이 해결될 때까지 또는 물과 전기가 복구 될 때까지 임차인의 임시숙소 비용을 책임져야한다. 건물이 거주할 수 없는 것으로 간주되는 경우 이사비용은 임대인의 책임이다. 임차인은 임대인이 신속하게 필요한 수리를 할 수 있도록 건물에 접근할 수 있는 모든 노력을 기울여야 한다. 위의 조항에도 불구하고, 임대인이 본 임대계약의 모든 조항을 이행하거나 임차인의 이익을 위해 서비스를 수행하겠다는 약속을 파업이나 노동분쟁 또는 임대인의 재량을 초월한 원인으로 인해 동일한 작업이 수행될 수 없는 경우에는 계약위반으로 간주하지 않는다, 하지만 30일을 초과하여서는 안된다. 임차인, 임차인가족 또는 임차인의 손님의 부주의로 인해 거주할 수 없는 상황이 발생한 경우 이 조항은 효력을 잃는다.
+
+\vspace{3pt}
+
+\init i. Lessee may terminate lease, with a 30-day written notice if Lessee accepts an assignment to government quarters by the Housing Office. Notification letter can be obtained from the Housing Office.
+
+\init i. 임차인은 주택과에서 정부숙소 배정을 수락하는 경우 30일 서면 통지를 통해 계약을 종료할 수 있다. 통지서는 주택과에서 받을 수 있다.
+
+\vspace{3pt}
+
+\init j. LQA will not be used as a security deposit, except in cases of property damages or unpaid utilities due to negligence by the Lessee. These cases must be validated by the Housing Office.
+
+\init j. 민간인 주택수당은 임차인의 부주의로 인한 재산상의 손해 또는 미지급 공과금의 경우를 제외하고는 보증금으로 사용되지 않는다. 이런 경우 주택과의 확인을 받는다.
+
+\vspace{3pt}
+
+k. It is further expressly agreed that if the Lessee should receive official permanent change of station (PCS) orders to depart Camp Humphreys, Korea (\textbf{\textit{Military Clause}}), or is relieved from active duty, retires, separates from the military service, or is ordered into U.S. Government quarters, the Lessee will be allowed to terminate lease with no penalties charged by Lessor. The Security deposit will be returned upon lease termination, provided there are no damages to the premises, and may terminate this lease upon giving a thirty (30) day written notice to the Lessor. The Lessee must provide a copy of the official military orders, or a letter signed by the Lessee's commanding officer, reflecting the change, which warrants termination under this clause. If there is less than a 30-day notice, the Lessee is required to pay rent for the number of days proper notification was not given.
+
+k. 만약 임차인이 대한민국 험프리부대를 떠나는 (군사조항) 전속명령을 받거나 현역에서의 예편, 정년퇴직 또는 군대를 떠나거나 미정부 숙소로의 복귀 지시를 받았다면 임차인은 임대인에 의한 벌금 없이 임대계약을 해지 할 수 있다. 건물에 손상이 없는 한 집주인에게 30일 서면 통보함으로 이 임대 계약을 종료하고 임대인은 계약종료시 보증금을 반환한다. 임차인은 이 조항에 따라 임대종료를 보장하는 변경사항이 반영된 공식 군사명령 사본 또는 임차인의 지휘관이 서명한 서신을 제공해야 합니다. 30일 미만의 통지를 할 경우, 임차인의 적절한 통지를 하지 않은 일수에 대한 임대료를 지불해야 한다.
+
+\vspace{3pt}
+
+\init l. The Lessor and/or Realtor agree to conduct a pre-termination inspection of the premises in the presence of the Lessee 30 days prior to terminating unit. Lessor or Realtor at the pre-inspection must inform the Lessee of any deficiencies, damages and cleaning guidelines required. If there are damages to the unit, Lessor \textbf{must} provide two (2) estimates to Lessee a minimum of fourteen (14) days prior to termination date. Departures/notifications less than thirty (30) days require immediate pre-inspection when departure notification is given. Other than fair wear \& tear, Lessee is required to pay the Lessor or Realtor (with POA) for any or all damages to the property caused by Lessee.
+
+\init l. 임대인 또는 공인중개사 임차인의 참석하에 계약종료 30일 안에 임대시설 사전검열을 실시하는것에 동의한다. 사전검열에서 임대인 또는 공인중개인은 생활하자외, 결함, 손상, 청소가이드라인등을 임차인에게 알려야한다. 만약 손상이 있다면 임대인은 만료 14일전에 2곳의 예상 수리 견적서를 임차인에게 제공한다. 생활하자를 제외한 임차인에 의한 재산 손상에 대해 임차인은 임대인 또는 공인중개인(수임자)에게 지불한다.
+
+\vspace{3pt}
+
+\init 3. In the event the Lessor or Lessee fails to comply with the specified provisions of this Lease, either party must give the other written notice, stating specifically where a violation of conditions occurred. Both parties will have to obtain a legal review to determine if there are grounds to terminate the lease.
+
+\hspace{1.2cm} 3. 임대인이나 임차인이 본 임대차 계약의 특정 조항을 준수하지 않을 경우, 양 당사자는 조건위반이 발생한 부분을 구체적으로 명시한 서면 통지를 해야한다. 양 당사자는 임대계약을 해지할 근거가 있는지 판단하기 위해 법적 검토를 받아야 한다.
+
+\vspace{3pt}
+
+\init 4. In the event of disputes between Lessor and Lessee, except for the terms and conditions specifically addressed in this contract, the provisions of Republic of Korea real estate law will apply.
+
+\hspace{1.2cm} 4. 임대인과 임차인과의 분쟁시 이 계약에서 구체적으로 언급된 조건을 제외하고 대한민국 부동산법의 규정이 적용된다.
+
+\vspace{3pt}
+
+\init 5. \textbf{Accept \& Return of Premises.} The Lessee agrees to return the premises in the same condition as when delivered by the Lessor, exception being reasonable fair wear and tear from Lessee's use of the premises. The Lessor must be present for move-in inspection of the Lessee OR appoint a proxy with Power of Attorney (POA) letter to represent on his/her behalf as to have proper records of housing condition.
+
+\init 5. \textbf{주거시설 수용과 반환.} 임차인의 주거시설의 사용함으로 인한 합리적인 마모 및 손상을 제외하고 임대인이 인도했을 때와 동일한 상태로 건물을 반환하는데 동의한다. 임대인은 적절한 주택 컨디션 기록을 남기기 위해 임차인의 입주검열에 꼭 참석을 하거나 자신을 대신할 위임장(POA)을 받은 대리인을 지정하여 입주검열을 해야합니다.
+
+\vspace{3pt}
+
+6. Lessee agrees to dispose of all trash and food waste in the proper plastic bags, specified by the city, and comply with city ordinances regarding separating recyclable trash (cans, plastics, and paper, etc.) and disposal.
+
+\init 6. 임차인은 모든 일반쓰레기 및 음식물 쓰레기를 시에서 지정한 적절한 쓰레기봉지에 처리하고, 재활용 쓰레기 (캔, 플라스틱, 종이 등)는 분리 및 폐기에 관한 시의 조례를 준수하는데 동의한다.
+
+\vspace{3pt}
+
+7. Lessee acknowledges if housing is obtained outside the school zone commuting area, the Lessee is responsible for the transportation of dependent students, between their home and school or to an existing bus stop, on a ``space-available'' basis.
+
+7. 임차인은 통학 버스 구역 이외의 지역에 집을 구한 경우 부양 학생의 집과 학교 사이 또는 ``가용공간''에 기초한 기존의 버스정류장까지의 교통편에 대한 책임이 있음을 인정한다.
+
+\vspace{3pt}
+
+\init 8. Housing is not a party to this agreement, but merely acknowledging its existence and certifying that the dwelling unit has been accepted for occupancy by the personnel assigned to this installation.
+
+\init 8. 주택과는 계약 당사자가 아니다, 단지 주택의 존재를 인정하고 이 시설에 배정된 직원이 해당 주택의 입주를 승인했음을 인증하는 것뿐이다.
+
+\vspace{6pt}
+
+% ============================================================
+% SPECIAL AGREEMENT
+% ============================================================
+\textbf{SPECIAL AGREEMENT:} (Any special requests shall be performed and complied with all agreements, obligations, and conditions that are not contained in this lease contract. i.e, late fees, pet fees/deposits, grounds maintenance, utilities, etc.)
+
+\textbf{특별 조항 :} (본 계약서에 포함되지 않은 모든 특별 합의, 의무 및 조항도 수행되고 준수되어야 한다. 즉, 연체수수료, 애완동물수수료/보증금, 잔디/마당 관리, 공과금 등.)
+
+\vspace{4pt}
+\uf{17cm}{\VSpecial}
+
+\vspace{12pt}
+\rule{\textwidth}{0.5pt}
+\vspace{4pt}
+
+\footnotesize
+Signatures and stamp below confirm that the Lessor, Realtor, and Lessee have agreed to all provisions of this lease contract. Each party shall retain one (1) copy of the signed lease.
+
+아래 서명과 도장은 임대인, 공인중개사와 임차인이 본 임대계약의 모든 조항에 동의했음을 확인한다. 각 당사자는 서명된 계약서 사본을 1부씩 보관해야한다.
+
+\normalsize
+\vspace{8pt}
+
+% ============================================================
+% SIGNATURE TABLE
+% ============================================================
+\begin{tabularx}{\textwidth}{|X|X|}
+\hline
+\textbf{LESSOR} 임대인
+\vspace{30pt}
+&
+\textbf{Realtor Name (Property Manager):} 공인중개사 (주택관리자) 이름:\newline
+\uf{5cm}{\VRealtorName}\newline\newline
+\textbf{Agency Name} 상호: \uf{4cm}{\VAgencyName}\newline
+\textbf{Registration Number} 등록번호: \uf{3cm}{\VAgencyReg}\newline
+\textbf{Address} 주소: \uf{4cm}{\VAgencyAddr}\newline
+\textbf{Telephone Number} 전화번호: \uf{3cm}{\VAgencyPhone}\newline
+\textbf{Registered Stamp} 등록인장:
+\\
+\hline
+\textbf{LESSEE} 임차인
+\vspace{30pt}
+& \\
+\hline
+\end{tabularx}
+
+\end{document}
