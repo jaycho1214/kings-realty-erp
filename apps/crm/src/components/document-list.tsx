@@ -226,7 +226,7 @@ export function DocumentList({
               <div key={doc.id} className="group rounded-lg border bg-card p-3">
                 <div className="flex items-center justify-between">
                   <a
-                    href={doc.file_url}
+                    href={`/api/documents/${doc.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm hover:underline"

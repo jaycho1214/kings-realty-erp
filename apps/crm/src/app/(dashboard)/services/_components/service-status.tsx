@@ -303,16 +303,17 @@ export function ServiceStatus({
                       {log.images.map((img) => (
                         <a
                           key={img.id}
-                          href={img.file_url}
+                          href={`/api/documents/${img.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block size-14 overflow-hidden rounded-md border transition-opacity hover:opacity-80"
                         >
                           <Image
-                            src={img.file_url}
+                            src={`/api/documents/${img.id}`}
                             alt={img.file_name}
                             width={56}
                             height={56}
+                            unoptimized
                             className="size-full object-cover"
                           />
                         </a>
