@@ -14,10 +14,11 @@ export default function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
-  // Authenticated → redirect away from public routes (sign-in/sign-up)
-  if (session && isPublicRoute) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+  // NOTE: we deliberately do NOT bounce "logged-in" users off the public routes
+  // here. getSessionCookie only checks cookie *presence*, not validity — a
+  // stale/expired cookie would send /sign-in → / while the dashboard layout
+  // sends / → /sign-in (no valid session), an infinite redirect loop. The
+  // sign-in/sign-up pages validate the real session and redirect themselves.
 
   return NextResponse.next();
 }
