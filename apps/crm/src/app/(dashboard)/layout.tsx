@@ -11,7 +11,13 @@ export default async function DashboardLayout({
 }) {
   const session = await getSession();
 
-  if (session?.user && !isApprovedUser(session.user.role)) {
+  // No valid session (e.g. a stale/invalid cookie the middleware let through) →
+  // send to sign-in instead of rendering a broken dashboard whose server actions
+  // would throw "인증이 필요합니다".
+  if (!session?.user) {
+    redirect("/sign-in");
+  }
+  if (!isApprovedUser(session.user.role)) {
     redirect("/pending");
   }
 
