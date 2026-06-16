@@ -119,6 +119,12 @@ export function PaymentCollector({
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentDate, setPaymentDate] = useState(todayString());
   const [notes, setNotes] = useState("");
+  const [usdAmount, setUsdAmount] = useState(0);
+  const [usdRate, setUsdRate] = useState<number>(
+    () => exchangeRates.find((r) => r.denomination === 100)?.usd_to_krw ?? 0,
+  );
+  const [krwAmount, setKrwAmount] = useState(0);
+  const [tenderTouched, setTenderTouched] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -172,8 +178,26 @@ export function PaymentCollector({
     [lineItems],
   );
 
-  // Total paid always equals total charged (auto-calculated)
   const totalAsUsd = primaryRate ? totalCharged / primaryRate : null;
+
+  // Tender = how the tenant actually paid: USD portion (converted at usdRate)
+  // plus KRW portion. Until staff engages the tender, KRW received defaults to
+  // the full charged total (derived, not stored — so a pure-KRW payment needs no
+  // edits); once they engage it they control the split.
+  const krwReceived = tenderTouched ? krwAmount : totalCharged;
+  const usdInKrw = Math.round((usdAmount || 0) * (usdRate || 0));
+  const tendered = usdInKrw + (krwReceived || 0);
+  const tenderDiff = tendered - totalCharged;
+
+  // On first interaction, seed KRW with the current charged total so entering a
+  // USD amount doesn't blank the KRW field. setState in an event handler (not an
+  // effect) avoids cascading renders.
+  const engageTender = () => {
+    if (!tenderTouched) {
+      setKrwAmount(totalCharged);
+      setTenderTouched(true);
+    }
+  };
 
   const addLineItem = useCallback(() => {
     setLineItems((prev) => [
@@ -203,8 +227,11 @@ export function PaymentCollector({
     setPaymentMethod("cash");
     setPaymentDate(todayString());
     setNotes("");
+    setUsdAmount(0);
+    setUsdRate(primaryRate ?? 0);
+    setTenderTouched(false);
     setError(null);
-  }, [handleLeaseSelect]);
+  }, [handleLeaseSelect, primaryRate]);
 
   const handleSubmit = () => {
     if (!selectedLeaseId) {
@@ -217,6 +244,10 @@ export function PaymentCollector({
     }
     if (totalCharged <= 0) {
       setError("청구 금액이 없습니다.");
+      return;
+    }
+    if (usdAmount > 0 && (!usdRate || usdRate <= 0)) {
+      setError("USD 입력 시 환율을 입력해주세요.");
       return;
     }
 
@@ -234,10 +265,10 @@ export function PaymentCollector({
       fd.set(`items[${i}].amount_krw`, String(item.amount));
     });
 
-    fd.set("usd_amount", String(0));
-    fd.set("usd_rate", String(primaryRate || 0));
-    fd.set("usd_in_krw", String(0));
-    fd.set("krw_amount", String(totalCharged));
+    fd.set("usd_amount", String(usdAmount || 0));
+    fd.set("usd_rate", String(usdRate || 0));
+    fd.set("usd_in_krw", String(usdInKrw));
+    fd.set("krw_amount", String(krwReceived || 0));
 
     startTransition(async () => {
       const result = await createBulkPayment(fd);
@@ -542,41 +573,102 @@ export function PaymentCollector({
         {/* Right column: Payment + Metadata + Submit (sticky on desktop) */}
         <div className="md:w-[340px] md:shrink-0">
           <div className="space-y-4 md:sticky md:top-4">
-            {/* Section 3: Payment Summary (read-only) */}
+            {/* Section 3: Payment Tender (USD / KRW / hybrid) */}
             <Card>
               <CardHeader>
                 <CardTitle>납부 금액</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-3 rounded-lg bg-muted/50 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">KRW</span>
-                    <span className="tabular text-2xl font-semibold tracking-tight">
-                      {formatKRW(totalCharged)}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">총 청구금액</span>
+                  <span className="tabular font-semibold">
+                    {formatKRW(totalCharged)}
+                  </span>
+                </div>
+
+                {/* USD received */}
+                <div className="space-y-1.5">
+                  <Label>USD 받음</Label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={usdAmount || ""}
+                      onChange={(e) => {
+                        engageTender();
+                        setUsdAmount(Number(e.target.value));
+                      }}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      @₩
                     </span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={usdRate || ""}
+                      onChange={(e) => {
+                        engageTender();
+                        setUsdRate(Number(e.target.value));
+                      }}
+                      placeholder="환율"
+                      className="w-24 text-right"
+                    />
                   </div>
-                  {totalAsUsd != null && primaryRate && (
-                    <div className="flex items-center justify-between border-t pt-3">
-                      <span className="text-sm text-muted-foreground">
-                        USD (참고)
-                      </span>
-                      <div className="text-right">
-                        <span className="text-lg font-semibold">
-                          ${formatNumber(Math.round(totalAsUsd * 100) / 100)}
-                        </span>
-                        <p className="text-xs text-muted-foreground">
-                          @₩{formatNumber(primaryRate)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {!primaryRate && (
-                    <p className="text-xs text-warning">오늘 환율 미등록</p>
+                  {usdAmount > 0 && (
+                    <p className="text-right text-xs text-muted-foreground">
+                      = {formatKRW(usdInKrw)}
+                    </p>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  청구 내역의 합계가 자동으로 반영됩니다.
-                </p>
+
+                {/* KRW received */}
+                <div className="space-y-1.5">
+                  <Label>KRW 받음</Label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-muted-foreground">₩</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={krwReceived || ""}
+                      onChange={(e) => {
+                        setTenderTouched(true);
+                        setKrwAmount(Number(e.target.value));
+                      }}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                  </div>
+                </div>
+
+                {/* Reconciliation */}
+                <div className="flex items-center justify-between border-t pt-3">
+                  <span className="text-sm font-medium">받은 금액</span>
+                  <div className="text-right">
+                    <span className="tabular text-lg font-semibold">
+                      {formatKRW(tendered)}
+                    </span>
+                    {tenderDiff === 0 ? (
+                      <p className="text-xs text-success">✓ 청구금액과 일치</p>
+                    ) : tenderDiff > 0 ? (
+                      <p className="text-xs text-warning">
+                        ⚠ {formatKRW(tenderDiff)} 초과
+                      </p>
+                    ) : (
+                      <p className="text-xs text-warning">
+                        ⚠ {formatKRW(-tenderDiff)} 부족
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {!primaryRate && (
+                  <p className="text-xs text-warning">
+                    오늘 환율 미등록 — USD 입력 시 환율을 직접 입력하세요.
+                  </p>
+                )}
               </CardContent>
             </Card>
 

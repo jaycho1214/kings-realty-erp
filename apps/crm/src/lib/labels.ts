@@ -52,3 +52,12 @@ export const methodMap: Record<string, string> = {
   card: "카드",
   transfer: "계좌이체",
 };
+
+/**
+ * Tender currency label. "MIXED" (USD + KRW hybrid payment) renders as 혼합;
+ * "USD"/"KRW" (and anything else) pass through unchanged.
+ */
+export function currencyPaidLabel(currency: string | null | undefined): string {
+  if (currency === "MIXED") return "혼합";
+  return currency ?? "-";
+}

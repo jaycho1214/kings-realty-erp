@@ -25,7 +25,7 @@ import {
   formatDateCompact,
   formatBillingMonth,
 } from "@/lib/utils";
-import { methodMap } from "@/lib/labels";
+import { currencyPaidLabel, methodMap } from "@/lib/labels";
 import { BillPaidToggle } from "../../_components/bill-paid-toggle";
 
 const paymentTypeMap: Record<
@@ -113,7 +113,7 @@ export default async function BundleDetailPage({
     { label: "청구월", value: billingMonthDisplay },
     { label: "총 금액", value: formatKRW(totalKrw) },
     { label: "총 납부금액", value: totalPaidDisplay },
-    { label: "통화", value: first.currency_paid },
+    { label: "통화", value: currencyPaidLabel(first.currency_paid) },
     {
       label: "정산",
       value: allBillPaid ? "완료" : "미정산",

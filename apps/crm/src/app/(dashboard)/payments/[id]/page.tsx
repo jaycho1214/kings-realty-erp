@@ -22,7 +22,7 @@ import {
   type Fact,
 } from "@/components/detail";
 import { formatDateCompact, formatKRW, formatUSD } from "@/lib/utils";
-import { methodMap } from "@/lib/labels";
+import { currencyPaidLabel, methodMap } from "@/lib/labels";
 import { PaymentForm } from "../_components/payment-form";
 import { deletePayment } from "../_actions";
 import { BillPaidToggle } from "../_components/bill-paid-toggle";
@@ -219,7 +219,7 @@ export default async function PaymentDetailPage({
             {formatKRW(payment.amount_krw)}
           </Def>
           <Def label="납부통화" mono>
-            {payment.currency_paid}
+            {currencyPaidLabel(payment.currency_paid)}
           </Def>
           <Def label="납부금액" mono>
             {paidAmount}

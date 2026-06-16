@@ -22,7 +22,7 @@ import {
   formatDateCompact,
   formatBillingMonth,
 } from "@/lib/utils";
-import { methodMap } from "@/lib/labels";
+import { currencyPaidLabel, methodMap } from "@/lib/labels";
 import { Package, CreditCard } from "lucide-react";
 import { BillPaidToggle } from "./_components/bill-paid-toggle";
 
@@ -333,7 +333,7 @@ export default async function PaymentsPage({
                         {paidAmount}
                       </TableCell>
                       <TableCell className="tabular text-muted-foreground">
-                        {payment.currency_paid}
+                        {currencyPaidLabel(payment.currency_paid)}
                       </TableCell>
                       <TableCell>
                         {methodMap[payment.payment_method] ??
@@ -425,7 +425,7 @@ function BundleRows({ bundle }: { bundle: BundleGroup }) {
             : formatKRW(bundle.totalPaid)}
         </TableCell>
         <TableCell className="tabular text-muted-foreground">
-          {bundle.currencyPaid}
+          {currencyPaidLabel(bundle.currencyPaid)}
         </TableCell>
         <TableCell>
           {methodMap[bundle.paymentMethod] ?? bundle.paymentMethod}

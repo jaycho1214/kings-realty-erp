@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { SubmitButton } from "@/components/submit-button";
 import { formatKRW } from "@/lib/utils";
+import { currencyPaidLabel } from "@/lib/labels";
 import { addLedgerEntry, deleteLedgerEntry } from "../_actions";
 import { Wallet } from "lucide-react";
 
@@ -157,7 +158,7 @@ export function TenantLedger({
                   </TableCell>
                   <TableCell>{r.type}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {r.currency ?? "-"}
+                    {currencyPaidLabel(r.currency)}
                     {r.denomination ? ` · $${r.denomination}` : ""}
                   </TableCell>
                   <TableCell className="text-muted-foreground">

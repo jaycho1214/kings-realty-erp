@@ -71,7 +71,7 @@ export async function createBulkPayment(formData: FormData) {
   // Determine currency
   let currencyPaid = "KRW";
   if (usdAmount > 0 && krwAmount > 0) {
-    currencyPaid = "KRW"; // mixed → normalize to KRW
+    currencyPaid = "MIXED"; // hybrid USD + KRW tender (breakdown kept in notes)
   } else if (usdAmount > 0) {
     currencyPaid = "USD";
   }
