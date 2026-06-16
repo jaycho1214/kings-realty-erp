@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
   const blob = await put(
     `documents/${entityType}/${entityId}/${safeFilename}`,
     file,
-    { access: "public" },
+    { access: "private" },
   );
 
   const title = (formData.get("title") as string) || null;
