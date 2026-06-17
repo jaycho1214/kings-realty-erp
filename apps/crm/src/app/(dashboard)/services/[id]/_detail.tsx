@@ -61,9 +61,12 @@ export default async function ServiceDetailPage({
       "service_vendor.id",
       "service_request.vendor_id",
     )
+    .leftJoin("appliance", "appliance.id", "service_request.appliance_id")
     .select([
       "service_request.id",
       "service_request.lease_id",
+      "service_request.appliance_id",
+      "appliance.name as appliance_name",
       "service_request.title",
       "service_request.description",
       "service_request.category",
@@ -214,6 +217,16 @@ export default async function ServiceDetailPage({
             </Link>
           </Def>
           <Def label="카테고리">{categoryMap[sr.category] ?? sr.category}</Def>
+          {sr.appliance_id && (
+            <Def label="관련 비품">
+              <Link
+                href={`/appliances/${sr.appliance_id}`}
+                className="text-brand hover:underline"
+              >
+                {sr.appliance_name}
+              </Link>
+            </Def>
+          )}
           <Def label="위치">{sr.location || "-"}</Def>
           <Def label="비용 부담">
             {sr.bearer ? (bearerMap[sr.bearer] ?? sr.bearer) : "-"}

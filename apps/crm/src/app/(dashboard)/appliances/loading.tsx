@@ -1,0 +1,20 @@
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function AppliancesLoading() {
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+        <Skeleton className="h-9 w-28" />
+      </div>
+      <Skeleton className="h-[500px] rounded-xl" />
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+    </div>
+  );
+}

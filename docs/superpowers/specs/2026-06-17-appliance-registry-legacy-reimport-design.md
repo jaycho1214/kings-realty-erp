@@ -13,7 +13,7 @@ Two analyses drove this design:
 1. **Source columns are now authoritative.** `Customers` carries `월세`(97%),
    `보증금`(96%), `계약시작`(99%), `계약만료`(100%), `주인/생년월일`(94%), `계급`,
    `부대`, `가족` directly — no more deriving rent/deposit from sales bundles.
-   `Sales.판매내역` now *names* each line item per sale (e.g.
+   `Sales.판매내역` now _names_ each line item per sale (e.g.
    `전기요금(ELEC), 수도요금(WATER), 2026년6월`), so payments can be split by
    named item rather than guessed. `현금`/`카드`/`통장`/`미수금` are empty (cash
    only) and are ignored.
@@ -22,8 +22,8 @@ Two analyses drove this design:
    정수기/인터넷/가전 ownership `정수기킹스소유`·`인터넷 집주인소유` (~50),
    `DEROS 2027년1월` (8), `공동 임대인 …` (8).
 
-Most of these map onto **existing** columns. One pattern — *appliance +
-ownership* — has no home, and overlaps with the already-built but empty
+Most of these map onto **existing** columns. One pattern — _appliance +
+ownership_ — has no home, and overlaps with the already-built but empty
 `property_equipment` feature (per-house 장비 list with `paid_by` + `monthly_cost_krw`).
 
 ## Goals
@@ -85,6 +85,7 @@ NULL, so A/S requires the property to have an active lease — see Edge cases.)
 #### A4. Pages & navigation
 
 New top-level section mirroring `properties/` (same tab-route pattern):
+
 - `appliances/page.tsx` — list with `PageHeader`/`DataPanel`/`FilterTabs`/
   `SearchInput`/`Pagination`: columns 사진(thumb)·비품명·매물(주소)·소유·브랜드·모델·상태·A/S;
   filter by `owner`/`status`; `CreateDialog` + `ApplianceForm`.
@@ -128,7 +129,7 @@ and reloads in one transaction). Mapping:
   with amount; ambiguous → `active=false` + flag.
 - **B4. Memos → existing columns + appliances.** `tenant.deros ← DEROS/DIROS`;
   `lease.realty_fee + currency ← 'realty fee 150불'`; `landlord_family_member ←
-  공동 임대인` (name + birth); **`appliance` rows ←** 정수기/인터넷/세탁기/건조기/
+공동 임대인` (name + birth); **`appliance` rows ←** 정수기/인터넷/세탁기/건조기/
   냉장고/에어컨/보일러/TV/침대 + `owner` (집주인소유→landlord, 킹스/우리것/제공→
   office, 본인설치/세입자소유→tenant) + `brand` (LG/린나이/대성셀틱…) + `notes`.
 - **B5. Re-run.** Confirm no staff-entered rows exist (import was 2026-06-17),

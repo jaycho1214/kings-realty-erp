@@ -12,8 +12,7 @@
     "migrate:down": "tsx src/migrate.ts down",
     "generate": "kysely-codegen --dialect postgres --env-file .env --out-file src/types.ts",
     "db:up": "tsx src/migrate.ts && kysely-codegen --dialect postgres --env-file .env --out-file src/types.ts",
-    "seed": "tsx src/seed.ts",
-    "migrate:crm": "tsx src/migrate-crm.ts"
+    "seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@vercel/functions": "^3.7.1",

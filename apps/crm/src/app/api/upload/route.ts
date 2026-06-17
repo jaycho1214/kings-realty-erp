@@ -33,6 +33,7 @@ const ALLOWED_ENTITY_TYPES = new Set([
   "service_request",
   "service_request_status_log",
   "payment",
+  "appliance",
 ]);
 
 const INTEGER_REGEX = /^\d+$/;

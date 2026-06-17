@@ -22,7 +22,6 @@ import {
 } from "@/components/detail";
 import { formatKRW, formatDate } from "@/lib/utils";
 import { PropertyForm } from "../_components/property-form";
-import { PropertyEquipment } from "../_components/property-equipment";
 import { PropertyPayments } from "../_components/property-payments";
 import { deleteProperty } from "../_actions";
 
@@ -55,6 +54,18 @@ const permissionMap: Record<string, string> = {
   rejected: "거절",
 };
 
+const APPLIANCE_OWNER_LABEL: Record<string, string> = {
+  landlord: "집주인",
+  office: "킹스",
+  tenant: "세입자",
+};
+
+const APPLIANCE_STATUS_LABEL: Record<string, string> = {
+  normal: "정상",
+  repair: "수리필요",
+  broken: "사용불가",
+};
+
 export default async function PropertyDetailPage({
   params,
 }: {
@@ -65,7 +76,7 @@ export default async function PropertyDetailPage({
   const numId = Number(id);
   const db = getDb();
 
-  const [property, landlords, leases, payments, equipment, billPresets] =
+  const [property, landlords, leases, payments, appliances, billPresets] =
     await Promise.all([
       db
         .selectFrom("property")
@@ -140,8 +151,8 @@ export default async function PropertyDetailPage({
         .orderBy("payment.created_at", "desc")
         .execute(),
       db
-        .selectFrom("property_equipment")
-        .selectAll()
+        .selectFrom("appliance")
+        .select(["id", "name", "owner", "brand", "model_number", "status"])
         .where("property_id", "=", numId)
         .orderBy("created_at", "asc")
         .execute(),
@@ -283,11 +294,68 @@ export default async function PropertyDetailPage({
       info={{ read: readView, edit: editView }}
       tabs={[
         {
-          key: "equipment",
-          label: "장비/설비",
-          count: equipment.length,
+          key: "appliances",
+          label: "비품",
+          count: appliances.length,
           content: (
-            <PropertyEquipment propertyId={numId} equipment={equipment} />
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <Link
+                  href="/appliances"
+                  className="text-sm text-brand hover:underline"
+                >
+                  비품 관리 →
+                </Link>
+              </div>
+              <DataPanel>
+                {appliances.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    등록된 비품이 없습니다.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>비품명</TableHead>
+                        <TableHead>소유</TableHead>
+                        <TableHead>브랜드·모델</TableHead>
+                        <TableHead>상태</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {appliances.map((a) => (
+                        <TableRow key={a.id} className="group">
+                          <TableCell className="font-medium">
+                            <Link
+                              href={`/appliances/${a.id}`}
+                              className="group-hover:underline"
+                            >
+                              {a.name}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {APPLIANCE_OWNER_LABEL[a.owner] ?? a.owner}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {[a.brand, a.model_number]
+                              .filter(Boolean)
+                              .join(" · ") || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={a.status}
+                              label={
+                                APPLIANCE_STATUS_LABEL[a.status] ?? a.status
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </DataPanel>
+            </div>
           ),
         },
         {

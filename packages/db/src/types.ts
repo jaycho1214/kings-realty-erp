@@ -5,10 +5,9 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
 export type Numeric = ColumnType<string, number | string, number | string>;
 
@@ -28,6 +27,20 @@ export interface Account {
   scope: string | null;
   updatedAt: Generated<Timestamp>;
   userId: number;
+}
+
+export interface Appliance {
+  as_contact: string | null;
+  brand: string | null;
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  model_number: string | null;
+  name: string;
+  notes: string | null;
+  owner: Generated<string>;
+  property_id: number;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface AuditLog {
@@ -335,17 +348,6 @@ export interface Property {
   updated_at: Generated<Timestamp>;
 }
 
-export interface PropertyEquipment {
-  created_at: Generated<Timestamp>;
-  id: Generated<number>;
-  monthly_cost_krw: Generated<Numeric>;
-  name: string;
-  notes: string | null;
-  paid_by: string;
-  property_id: number;
-  updated_at: Generated<Timestamp>;
-}
-
 export interface RealtyFeeDefault {
   amount: Numeric;
   currency: string;
@@ -381,6 +383,7 @@ export interface ServiceCategory {
 
 export interface ServiceRequest {
   actual_cost: Numeric | null;
+  appliance_id: number | null;
   assignee: string | null;
   bearer: string | null;
   category: string;
@@ -549,6 +552,7 @@ export interface Verification {
 
 export interface DB {
   account: Account;
+  appliance: Appliance;
   audit_log: AuditLog;
   base_location: BaseLocation;
   bill_preset: BillPreset;
@@ -569,7 +573,6 @@ export interface DB {
   oha_rate: OhaRate;
   payment: Payment;
   property: Property;
-  property_equipment: PropertyEquipment;
   realty_fee_default: RealtyFeeDefault;
   recurring_charge: RecurringCharge;
   service_category: ServiceCategory;

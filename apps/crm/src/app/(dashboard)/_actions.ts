@@ -38,6 +38,7 @@ export async function deleteDocument(
     lease: `/leases/${entityId}`,
     service_request: `/services/${entityId}`,
     payment: `/payments/${entityId}`,
+    appliance: `/appliances/${entityId}`,
   };
 
   const path = pathMap[entityType];

@@ -285,65 +285,36 @@ async function main() {
 
   console.log(`✓ ${properties.length} properties`);
 
-  // Property equipment
+  // Appliances
   await db
-    .insertInto("property_equipment")
+    .insertInto("appliance")
     .values([
       {
         property_id: properties[0].id,
         name: "에어컨 (거실)",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
+        owner: "landlord",
       },
       {
         property_id: properties[0].id,
         name: "에어컨 (안방)",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
+        owner: "landlord",
       },
-      {
-        property_id: properties[0].id,
-        name: "냉장고",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
-      },
-      {
-        property_id: properties[0].id,
-        name: "세탁기",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
-      },
+      { property_id: properties[0].id, name: "냉장고", owner: "landlord" },
+      { property_id: properties[0].id, name: "세탁기", owner: "landlord" },
       {
         property_id: properties[0].id,
         name: "정수기",
-        paid_by: "tenant",
-        monthly_cost_krw: 25000,
+        owner: "tenant",
         notes: "코웨이 렌탈",
       },
-      {
-        property_id: properties[3].id,
-        name: "에어컨 (LG)",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
-      },
+      { property_id: properties[3].id, name: "에어컨 (LG)", owner: "landlord" },
       {
         property_id: properties[3].id,
         name: "빌트인 식기세척기",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
+        owner: "landlord",
       },
-      {
-        property_id: properties[7].id,
-        name: "에어컨 3대",
-        paid_by: "landlord",
-        monthly_cost_krw: 0,
-      },
-      {
-        property_id: properties[7].id,
-        name: "건조기",
-        paid_by: "office",
-        monthly_cost_krw: 30000,
-      },
+      { property_id: properties[7].id, name: "에어컨 3대", owner: "landlord" },
+      { property_id: properties[7].id, name: "건조기", owner: "office" },
     ])
     .execute();
 

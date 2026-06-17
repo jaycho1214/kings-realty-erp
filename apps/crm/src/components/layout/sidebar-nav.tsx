@@ -12,6 +12,7 @@ import {
   CreditCard,
   ArrowLeftRight,
   Wrench,
+  Refrigerator,
   Settings,
   Bell,
   type LucideIcon,
@@ -123,6 +124,7 @@ export function SidebarNav({
       icon: Building2,
       count: counts.properties,
     },
+    { title: "비품", href: "/appliances", icon: Refrigerator },
     { title: "임대인", href: "/landlords", icon: Contact },
   ];
 
