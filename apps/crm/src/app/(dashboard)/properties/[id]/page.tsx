@@ -83,6 +83,7 @@ export default async function PropertyDetailPage({
       .select([
         "property.id",
         "property.address",
+        "property.address_jibeon",
         "property.address_detail",
         "property.property_type",
         "property.rooms",
@@ -192,6 +193,7 @@ export default async function PropertyDetailPage({
           </Def>
         </DefGroup>
         <DefGroup label="주소">
+          <Def label="지번 주소">{property.address_jibeon || "-"}</Def>
           <Def label="상세 주소">{property.address_detail || "-"}</Def>
           <Def label="영문 주소">{property.address_en || "-"}</Def>
           <Def label="관리실 연락처" mono>
@@ -235,6 +237,7 @@ export default async function PropertyDetailPage({
       landlords={landlords}
       defaultValues={{
         address: property.address,
+        address_jibeon: property.address_jibeon ?? null,
         address_detail: property.address_detail,
         address_en: property.address_en ?? null,
         property_type: property.property_type,

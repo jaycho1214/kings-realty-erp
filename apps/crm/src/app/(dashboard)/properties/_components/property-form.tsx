@@ -14,6 +14,7 @@ interface PropertyFormProps {
   variant?: "card" | "plain";
   defaultValues?: {
     address: string;
+    address_jibeon: string | null;
     address_detail: string | null;
     address_en: string | null;
     property_type: string;
@@ -49,6 +50,7 @@ export function PropertyForm({
             defaultValues
               ? {
                   address: defaultValues.address,
+                  address_jibeon: defaultValues.address_jibeon ?? null,
                   address_detail: defaultValues.address_detail,
                   address_en: defaultValues.address_en ?? null,
                 }

@@ -300,6 +300,7 @@ export interface Property {
   address: string;
   address_detail: string | null;
   address_en: string | null;
+  address_jibeon: string | null;
   bathrooms: number | null;
   created_at: Generated<Timestamp>;
   created_by: number | null;

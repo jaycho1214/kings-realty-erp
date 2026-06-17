@@ -19,6 +19,7 @@ export interface AddressData {
 interface AddressSearchProps {
   defaultValues?: {
     address: string;
+    address_jibeon: string | null;
     address_detail: string | null;
     address_en: string | null;
   };
@@ -35,7 +36,7 @@ export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
       ? {
           postcode5: "",
           address: defaultValues.address,
-          address_jibeon: "",
+          address_jibeon: defaultValues.address_jibeon ?? "",
           address_en: defaultValues.address_en ?? "",
           building_name: "",
         }
@@ -88,6 +89,11 @@ export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
     <div className="space-y-3">
       {/* Hidden inputs for form submission */}
       <input type="hidden" name="address" value={selected?.address ?? ""} />
+      <input
+        type="hidden"
+        name="address_jibeon"
+        value={selected?.address_jibeon ?? ""}
+      />
       <input
         type="hidden"
         name="address_en"

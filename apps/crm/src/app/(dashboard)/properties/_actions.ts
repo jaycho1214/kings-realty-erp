@@ -11,6 +11,7 @@ export async function createProperty(formData: FormData) {
   const db = getDb();
 
   const address = formData.get("address") as string;
+  const address_jibeon = (formData.get("address_jibeon") as string) || null;
   const address_detail = (formData.get("address_detail") as string) || null;
   const address_en = (formData.get("address_en") as string) || null;
   const property_type = formData.get("property_type") as string;
@@ -43,6 +44,7 @@ export async function createProperty(formData: FormData) {
     .insertInto("property")
     .values({
       address,
+      address_jibeon,
       address_detail,
       address_en,
       property_type,
@@ -71,6 +73,7 @@ export async function updateProperty(id: number, formData: FormData) {
   const db = getDb();
 
   const address = formData.get("address") as string;
+  const address_jibeon = (formData.get("address_jibeon") as string) || null;
   const address_detail = (formData.get("address_detail") as string) || null;
   const address_en = (formData.get("address_en") as string) || null;
   const property_type = formData.get("property_type") as string;
@@ -103,6 +106,7 @@ export async function updateProperty(id: number, formData: FormData) {
     .updateTable("property")
     .set({
       address,
+      address_jibeon,
       address_detail,
       address_en,
       property_type,
