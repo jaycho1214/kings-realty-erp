@@ -167,7 +167,7 @@ export default async function ServicesPage({
       .execute(),
     db
       .selectFrom("user")
-      .select(["id", "name"])
+      .select(["id", "name", "image"])
       .orderBy("name", "asc")
       .execute(),
     db

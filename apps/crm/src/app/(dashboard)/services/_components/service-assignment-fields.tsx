@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import {
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 export interface UserOption {
   id: number;
   name: string;
+  image?: string | null;
 }
 
 export interface VendorOption {
@@ -95,7 +97,17 @@ export function ServiceAssignmentFields({
             {selectedUsers.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {selectedUsers.map((u) => (
-                  <Badge key={u.id} variant="outline" className="gap-0.5 pr-1">
+                  <Badge
+                    key={u.id}
+                    variant="outline"
+                    className="gap-1 py-0.5 pr-1 pl-1"
+                  >
+                    <Avatar className="size-4">
+                      {u.image && <AvatarImage src={u.image} alt="" />}
+                      <AvatarFallback className="text-[8px]">
+                        {u.name.slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
                     {u.name}
                     <button
                       type="button"
@@ -135,6 +147,12 @@ export function ServiceAssignmentFields({
                             : "opacity-0",
                         )}
                       />
+                      <Avatar className="mr-2 size-5">
+                        {u.image && <AvatarImage src={u.image} alt="" />}
+                        <AvatarFallback className="text-[9px]">
+                          {u.name.slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
                       {u.name}
                     </CommandItem>
                   ))}
