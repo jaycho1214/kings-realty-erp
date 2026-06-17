@@ -47,7 +47,7 @@ export function TaskFab() {
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="w-full overflow-y-auto sm:max-w-md"
+          className="overflow-y-auto data-[side=right]:w-[92vw] data-[side=right]:sm:max-w-5xl"
         >
           <SheetHeader>
             <SheetTitle>할 일</SheetTitle>
@@ -58,7 +58,12 @@ export function TaskFab() {
                 불러오는 중…
               </p>
             ) : (
-              <TaskBoard data={data} today={today} layout="stack" />
+              <TaskBoard
+                data={data}
+                today={today}
+                layout="columns"
+                defaultMine
+              />
             )}
           </div>
         </SheetContent>

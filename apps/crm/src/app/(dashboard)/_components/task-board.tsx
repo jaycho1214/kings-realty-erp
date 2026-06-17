@@ -147,14 +147,16 @@ export function TaskBoard({
   data,
   today,
   layout,
+  defaultMine = false,
 }: {
   data: BoardData;
   today: string;
   layout: "columns" | "stack";
+  defaultMine?: boolean;
 }) {
   const weekEnd = React.useMemo(() => seoulWeekEnd(today), [today]);
   const [view, setView] = React.useState<View>("plan");
-  const [mine, setMine] = React.useState(layout === "stack");
+  const [mine, setMine] = React.useState(defaultMine);
   const [assigneeFilter, setAssigneeFilter] = React.useState<number | null>(
     null,
   );
