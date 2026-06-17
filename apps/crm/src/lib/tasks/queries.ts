@@ -1,6 +1,6 @@
 import { getDb, sql } from "@kingsrealty/db";
 import { getSession } from "@/lib/session";
-import { seoulDateString, seoulWeekEnd, daysUntil } from "@/lib/date";
+import { seoulDateString, daysUntil } from "@/lib/date";
 import { filterSuggestions } from "./suggestions";
 import type {
   BoardData,
@@ -18,7 +18,6 @@ export async function loadBoardData(): Promise<BoardData> {
   const session = await getSession();
   const currentUserId = Number(session?.user?.id ?? 0);
   const today = seoulDateString();
-  const weekEnd = seoulWeekEnd(today);
   const in60 = new Date(Date.now() + 60 * 864e5);
   const todayDate = new Date(today);
 

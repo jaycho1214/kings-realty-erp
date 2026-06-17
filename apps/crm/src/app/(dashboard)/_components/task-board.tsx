@@ -167,9 +167,21 @@ export function TaskBoard({
   const [editing, setEditing] = React.useState<TaskView | undefined>();
   const [error, setError] = React.useState<string | null>(null);
 
-  // Keep optimistic state in sync when the server sends fresh props.
-  React.useEffect(() => setTasks(data.tasks), [data.tasks]);
-  React.useEffect(() => setSuggestions(data.suggestions), [data.suggestions]);
+  // Re-sync optimistic state when the server sends fresh props (after a
+  // revalidatePath). Adjusted during render per React's "store prior props"
+  // guidance — preserves view/filter UI state and avoids setState-in-effect.
+  const [serverTasks, setServerTasks] = React.useState(data.tasks);
+  if (serverTasks !== data.tasks) {
+    setServerTasks(data.tasks);
+    setTasks(data.tasks);
+  }
+  const [serverSuggestions, setServerSuggestions] = React.useState(
+    data.suggestions,
+  );
+  if (serverSuggestions !== data.suggestions) {
+    setServerSuggestions(data.suggestions);
+    setSuggestions(data.suggestions);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

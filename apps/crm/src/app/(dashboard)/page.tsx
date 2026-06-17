@@ -8,71 +8,14 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { formatKRW, formatUSD, cn } from "@/lib/utils";
+import { formatKRW, cn } from "@/lib/utils";
 import { seoulYMD, daysUntil, seoulDateString } from "@/lib/date";
 import { getUsdToKrwRate, toKrw } from "@/lib/exchange";
 import { getSession } from "@/lib/session";
 import { isAdmin } from "@/lib/authz";
 import { ExchangeRateQuick } from "./_components/exchange-rate-quick";
-import {
-  PaymentBoard,
-  type BoardItem,
-  type ListItem,
-} from "./_components/payment-board";
-
-const typeMap: Record<string, string> = {
-  rent: "월세",
-  deposit: "보증금",
-  utility: "공과금",
-  service: "AS비",
-};
-const statusLabelMap: Record<string, string> = {
-  paid: "완료",
-  pending: "미납",
-  overdue: "연체",
-};
-
-type PaymentRow = {
-  id: number;
-  payment_type: string;
-  amount_krw: string | number;
-  amount_paid: string | number | null;
-  currency_paid: string | null;
-  status: string;
-  billing_month: Date | string;
-  payment_date: Date | string | null;
-  tenant_name: string;
-  tenant_id: number;
-  address: string;
-};
-
-function amountLabel(p: PaymentRow) {
-  if (p.currency_paid === "USD" && p.amount_paid != null) {
-    return formatUSD(Number(p.amount_paid));
-  }
-  return formatKRW(Number(p.amount_krw));
-}
-
-function shortDate(d: Date | string | null) {
-  if (!d) return "";
-  const dt = new Date(d);
-  return `${dt.getMonth() + 1}월 ${dt.getDate()}일`;
-}
-
-function toBoardItem(p: PaymentRow): BoardItem {
-  return {
-    id: p.id,
-    typeKey: p.payment_type,
-    typeLabel: typeMap[p.payment_type] ?? p.payment_type,
-    amount: amountLabel(p),
-    who: p.tenant_name,
-    address: p.address,
-    dateLabel:
-      p.status === "paid"
-        ? shortDate(p.payment_date)
-        : `${shortDate(p.billing_month)} 청구`,
-  };
-}
+import { TaskBoard } from "./_components/task-board";
+import { loadBoardData } from "@/lib/tasks/queries";
 
 type ChargeRow = {
   id: number;
@@ -87,48 +30,6 @@ type ChargeRow = {
   tenant_id: number;
   address: string;
 };
-
-const chargeTypeLabel: Record<string, string> = {
-  rent: "월세",
-  utility: "공과금",
-  management: "관리비",
-  parking: "주차",
-  deposit: "보증금",
-  realty_fee: "중개수수료",
-};
-
-function chargeAmountLabel(c: ChargeRow): string {
-  const amt = Number(c.amount ?? 0);
-  return c.currency === "USD" ? formatUSD(amt) : formatKRW(amt);
-}
-
-function chargeToBoardItem(c: ChargeRow): BoardItem {
-  return {
-    id: c.id,
-    typeKey: c.type,
-    typeLabel: c.memo ?? chargeTypeLabel[c.type] ?? c.type,
-    amount: chargeAmountLabel(c),
-    who: c.tenant_name,
-    address: c.address,
-    dateLabel: `${shortDate(c.billing_month)} 청구`,
-  };
-}
-
-const paymentSelect = [
-  "payment.id",
-  "payment.payment_type",
-  "payment.amount_krw",
-  "payment.amount_paid",
-  "payment.currency_paid",
-  "payment.status",
-  "payment.billing_month",
-  "payment.payment_date",
-  "tenant.name as tenant_name",
-  "tenant.id as tenant_id",
-  sql<string>`coalesce(property.address_jibeon, property.address)`.as(
-    "address",
-  ),
-] as const;
 
 export default async function DashboardPage() {
   const db = getDb();
@@ -145,8 +46,6 @@ export default async function DashboardPage() {
     payWindow,
     openCharges,
     serviceRows,
-    paidPayments,
-    recentPayments,
     expiringLeases,
     derosApproaching,
     todayRates,
@@ -197,27 +96,6 @@ export default async function DashboardPage() {
         "postponed",
       ])
       .groupBy("status")
-      .execute(),
-    db
-      .selectFrom("payment")
-      .innerJoin("lease", "lease.id", "payment.lease_id")
-      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .innerJoin("property", "property.id", "lease.property_id")
-      .select(paymentSelect)
-      .where("payment.status", "=", "paid")
-      .where("tenant.deleted_at", "is", null)
-      .orderBy("payment.payment_date", "desc")
-      .limit(6)
-      .execute(),
-    db
-      .selectFrom("payment")
-      .innerJoin("lease", "lease.id", "payment.lease_id")
-      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .innerJoin("property", "property.id", "lease.property_id")
-      .select(paymentSelect)
-      .where("tenant.deleted_at", "is", null)
-      .orderBy("payment.created_at", "desc")
-      .limit(8)
       .execute(),
     db
       .selectFrom("lease")
@@ -373,25 +251,7 @@ export default async function DashboardPage() {
     .map((m, i) => `${px(i).toFixed(0)},${py(m.collected).toFixed(0)}`)
     .join(" ");
 
-  const pending = charges
-    .filter((c) => c.status === "billed")
-    .slice(0, 5)
-    .map(chargeToBoardItem);
-  const overdue = charges
-    .filter((c) => c.status === "overdue")
-    .slice(0, 5)
-    .map(chargeToBoardItem);
-  const paid = (paidPayments as PaymentRow[]).slice(0, 5).map(toBoardItem);
-  const list: ListItem[] = (recentPayments as PaymentRow[]).map((p) => ({
-    id: p.id,
-    typeLabel: typeMap[p.payment_type] ?? p.payment_type,
-    who: p.tenant_name,
-    whoId: p.tenant_id,
-    address: p.address,
-    amount: amountLabel(p),
-    status: p.status,
-    statusLabel: statusLabelMap[p.status] ?? p.status,
-  }));
+  const board = await loadBoardData();
 
   return (
     <div className="flex flex-col gap-4">
@@ -402,13 +262,8 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Board + list */}
-      <PaymentBoard
-        pending={pending}
-        overdue={overdue}
-        paid={paid}
-        list={list}
-      />
+      {/* 할 일 보드 */}
+      <TaskBoard data={board} today={todayStr} layout="columns" />
 
       {/* Stat cards */}
       <div className="grid gap-3 lg:grid-cols-[1.15fr_0.95fr_1.5fr]">
