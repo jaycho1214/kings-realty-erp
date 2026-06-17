@@ -81,9 +81,13 @@ export async function createBulkPayment(formData: FormData) {
     return { success: false, error: "청구 항목이 없습니다." };
   }
 
-  // Parse payment amounts
-  const usdAmount = Number(formData.get("usd_amount") ?? "0");
-  const usdRate = Number(formData.get("usd_rate") ?? "0");
+  // Parse payment amounts. USD is split by denomination: $100 bills at the $100
+  // rate, $20-and-under at the $20 rate (the "rest follows $20" rule).
+  const usd100 = Number(formData.get("usd100_amount") ?? "0");
+  const usd100Rate = Number(formData.get("usd100_rate") ?? "0");
+  const usd20 = Number(formData.get("usd20_amount") ?? "0");
+  const usd20Rate = Number(formData.get("usd20_rate") ?? "0");
+  const usdAmount = usd100 + usd20;
   const usdInKrw = Number(formData.get("usd_in_krw") ?? "0");
   const krwAmount = Number(formData.get("krw_amount") ?? "0");
   // Determine currency
@@ -96,10 +100,18 @@ export async function createBulkPayment(formData: FormData) {
 
   // Build notes with payment breakdown
   const parts: string[] = [];
-  if (usdAmount > 0) {
+  if (usd100 > 0) {
     parts.push(
-      `[USD] $${usdAmount.toLocaleString()} @₩${usdRate.toLocaleString()} = ₩${usdInKrw.toLocaleString()}`,
+      `[USD $100] $${usd100.toLocaleString()} @₩${usd100Rate.toLocaleString()}`,
     );
+  }
+  if (usd20 > 0) {
+    parts.push(
+      `[USD 기타] $${usd20.toLocaleString()} @₩${usd20Rate.toLocaleString()}`,
+    );
+  }
+  if (usdAmount > 0) {
+    parts.push(`[USD→₩] ${usdInKrw.toLocaleString()}`);
   }
   if (krwAmount > 0) {
     parts.push(`[KRW] ₩${krwAmount.toLocaleString()}`);
@@ -107,7 +119,7 @@ export async function createBulkPayment(formData: FormData) {
   if (notes) parts.push(notes);
   const paymentNotes = parts.join(" | ") || null;
 
-  // Find exchange rate id for today's $100 rate
+  // Reference the $100-bill rate row for the day (the primary denomination).
   let exchangeRateId: number | null = null;
   if (usdAmount > 0) {
     const rateRow = await db

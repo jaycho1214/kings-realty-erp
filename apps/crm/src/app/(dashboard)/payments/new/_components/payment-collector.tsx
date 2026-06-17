@@ -119,10 +119,17 @@ export function PaymentCollector({
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentDate, setPaymentDate] = useState(todayString());
   const [notes, setNotes] = useState("");
-  const [usdAmount, setUsdAmount] = useState(0);
-  const [usdRate, setUsdRate] = useState<number>(
-    () => exchangeRates.find((r) => r.denomination === 100)?.usd_to_krw ?? 0,
-  );
+  // Tender is split by bill denomination: $100 bills convert at the $100 rate;
+  // everything else ($20 and under) follows the $20 rate.
+  const rate100Default =
+    exchangeRates.find((r) => r.denomination === 100)?.usd_to_krw ?? 0;
+  const rate20Default =
+    exchangeRates.find((r) => r.denomination === 20)?.usd_to_krw ??
+    rate100Default;
+  const [usd100, setUsd100] = useState(0);
+  const [usd20, setUsd20] = useState(0);
+  const [rate100, setRate100] = useState<number>(rate100Default);
+  const [rate20, setRate20] = useState<number>(rate20Default);
   const [krwAmount, setKrwAmount] = useState(0);
   const [tenderTouched, setTenderTouched] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -166,12 +173,15 @@ export function PaymentCollector({
 
   const totalAsUsd = primaryRate ? totalCharged / primaryRate : null;
 
-  // Tender = how the tenant actually paid: USD portion (converted at usdRate)
-  // plus KRW portion. Until staff engages the tender, KRW received defaults to
-  // the full charged total (derived, not stored — so a pure-KRW payment needs no
-  // edits); once they engage it they control the split.
+  // Tender = how the tenant actually paid: $100-bill USD (at rate100) + $20-and-
+  // under USD (at rate20) + KRW. Until staff engages the tender, KRW received
+  // defaults to the full charged total (derived, not stored — so a pure-KRW
+  // payment needs no edits); once they engage it they control the split.
   const krwReceived = tenderTouched ? krwAmount : totalCharged;
-  const usdInKrw = Math.round((usdAmount || 0) * (usdRate || 0));
+  const usd100InKrw = Math.round((usd100 || 0) * (rate100 || 0));
+  const usd20InKrw = Math.round((usd20 || 0) * (rate20 || 0));
+  const usdInKrw = usd100InKrw + usd20InKrw;
+  const usdTotal = (usd100 || 0) + (usd20 || 0);
   const tendered = usdInKrw + (krwReceived || 0);
   const tenderDiff = tendered - totalCharged;
 
@@ -256,11 +266,13 @@ export function PaymentCollector({
     setPaymentMethod("cash");
     setPaymentDate(todayString());
     setNotes("");
-    setUsdAmount(0);
-    setUsdRate(primaryRate ?? 0);
+    setUsd100(0);
+    setUsd20(0);
+    setRate100(rate100Default);
+    setRate20(rate20Default);
     setTenderTouched(false);
     setError(null);
-  }, [handleLeaseSelect, primaryRate]);
+  }, [handleLeaseSelect, rate100Default, rate20Default]);
 
   const handleSubmit = () => {
     if (!selectedLeaseId) {
@@ -275,8 +287,12 @@ export function PaymentCollector({
       setError("청구 금액이 없습니다.");
       return;
     }
-    if (usdAmount > 0 && (!usdRate || usdRate <= 0)) {
-      setError("USD 입력 시 환율을 입력해주세요.");
+    if (usd100 > 0 && (!rate100 || rate100 <= 0)) {
+      setError("$100권 환율을 입력해주세요.");
+      return;
+    }
+    if (usd20 > 0 && (!rate20 || rate20 <= 0)) {
+      setError("그 외 USD 환율을 입력해주세요.");
       return;
     }
 
@@ -295,8 +311,10 @@ export function PaymentCollector({
       if (item.chargeId) fd.set(`items[${i}].charge_id`, String(item.chargeId));
     });
 
-    fd.set("usd_amount", String(usdAmount || 0));
-    fd.set("usd_rate", String(usdRate || 0));
+    fd.set("usd100_amount", String(usd100 || 0));
+    fd.set("usd100_rate", String(rate100 || 0));
+    fd.set("usd20_amount", String(usd20 || 0));
+    fd.set("usd20_rate", String(rate20 || 0));
     fd.set("usd_in_krw", String(usdInKrw));
     fd.set("krw_amount", String(krwReceived || 0));
 
@@ -657,18 +675,19 @@ export function PaymentCollector({
                   </span>
                 </div>
 
-                {/* USD received */}
+                {/* USD received — $100 bills (at $100 rate) and $20-and-under
+                    (at $20 rate). */}
                 <div className="space-y-1.5">
-                  <Label>USD 받음</Label>
+                  <Label>$100권 받음</Label>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm text-muted-foreground">$</span>
                     <Input
                       type="number"
                       min={0}
-                      value={usdAmount || ""}
+                      value={usd100 || ""}
                       onChange={(e) => {
                         engageTender();
-                        setUsdAmount(Number(e.target.value));
+                        setUsd100(Number(e.target.value));
                       }}
                       placeholder="0"
                       className="text-right"
@@ -679,18 +698,56 @@ export function PaymentCollector({
                     <Input
                       type="number"
                       min={0}
-                      value={usdRate || ""}
+                      value={rate100 || ""}
                       onChange={(e) => {
                         engageTender();
-                        setUsdRate(Number(e.target.value));
+                        setRate100(Number(e.target.value));
                       }}
                       placeholder="환율"
                       className="w-24 text-right"
                     />
                   </div>
-                  {usdAmount > 0 && (
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>
+                    그 외 USD 받음{" "}
+                    <span className="font-normal text-muted-foreground">
+                      $50·$20 등 ($100 외 · $20 환율)
+                    </span>
+                  </Label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={usd20 || ""}
+                      onChange={(e) => {
+                        engageTender();
+                        setUsd20(Number(e.target.value));
+                      }}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      @₩
+                    </span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={rate20 || ""}
+                      onChange={(e) => {
+                        engageTender();
+                        setRate20(Number(e.target.value));
+                      }}
+                      placeholder="환율"
+                      className="w-24 text-right"
+                    />
+                  </div>
+                  {usdTotal > 0 && (
                     <p className="text-right text-xs text-muted-foreground">
-                      = {formatKRW(usdInKrw)}
+                      USD 합계 ${usdTotal.toLocaleString()} ={" "}
+                      {formatKRW(usdInKrw)}
                     </p>
                   )}
                 </div>
