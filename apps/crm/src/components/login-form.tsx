@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
@@ -8,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Building2 } from "lucide-react";
 
 export function LoginForm({
   className,
@@ -62,14 +62,16 @@ export function LoginForm({
       <form onSubmit={handleSubmit}>
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex flex-col items-center gap-2 font-medium">
-              <div className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-sm">
-                <Building2 className="size-5" strokeWidth={2} />
-              </div>
-              <span className="sr-only">Kings Realty</span>
-            </div>
+            <Image
+              src="/logo.png"
+              alt=""
+              width={56}
+              height={56}
+              className="size-14"
+              priority
+            />
             <h1 className="text-xl font-semibold tracking-tight">
-              Kings Realty
+              King&apos;s Realty
             </h1>
             <p className="text-sm text-muted-foreground">
               관리 시스템에 로그인하세요

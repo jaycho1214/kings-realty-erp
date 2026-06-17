@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
+import { AuthShell } from "@/components/auth-shell";
 import { LoginForm } from "@/components/login-form";
 
 export default async function SignInPage() {
@@ -12,10 +13,8 @@ export default async function SignInPage() {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <LoginForm isDev={isDev} />
-      </div>
-    </div>
+    <AuthShell>
+      <LoginForm isDev={isDev} />
+    </AuthShell>
   );
 }

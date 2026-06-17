@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { AuthShell } from "@/components/auth-shell";
 import { PendingNotice } from "./_components/pending-notice";
 
 export default async function PendingPage() {
@@ -17,10 +18,8 @@ export default async function PendingPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <PendingNotice userName={session.user.name} />
-      </div>
-    </div>
+    <AuthShell>
+      <PendingNotice userName={session.user.name} />
+    </AuthShell>
   );
 }

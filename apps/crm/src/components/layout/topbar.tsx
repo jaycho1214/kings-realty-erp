@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -58,7 +59,15 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <Menu className="size-5" />
       </button>
 
-      <Link href="/" className="flex items-center">
+      <Link href="/" className="flex items-center gap-2">
+        <Image
+          src="/logo.png"
+          alt=""
+          width={28}
+          height={28}
+          className="size-7"
+          priority
+        />
         <span className="text-xl font-semibold tracking-tight">
           King&apos;s
         </span>

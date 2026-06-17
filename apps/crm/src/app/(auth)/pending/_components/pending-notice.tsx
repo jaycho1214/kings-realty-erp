@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Building2, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 export function PendingNotice({ userName }: { userName: string }) {
   const router = useRouter();
@@ -21,11 +22,14 @@ export function PendingNotice({ userName }: { userName: string }) {
 
   return (
     <div className="flex flex-col items-center gap-6 text-center">
-      <div className="flex flex-col items-center gap-2 font-medium">
-        <div className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-sm">
-          <Building2 className="size-5" strokeWidth={2} />
-        </div>
-      </div>
+      <Image
+        src="/logo.png"
+        alt="King's Realty"
+        width={56}
+        height={56}
+        className="size-14"
+        priority
+      />
 
       <div className="flex size-14 items-center justify-center rounded-full bg-warning-weak">
         <Clock className="size-7 text-warning" />

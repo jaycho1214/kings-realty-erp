@@ -25,6 +25,9 @@ export default function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+    // Skip API routes, Next internals, and any static asset (paths ending in a
+    // file extension: favicon.ico, robots.txt, logo.png, icon.png, bank logos,
+    // fonts, …). App routes have no extension, so they stay protected.
+    "/((?!api|_next/static|_next/image|.*\\.[^/]+$).*)",
   ],
 };

@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
   }
 
   const calendar = ical({
-    name: "Kings Realty CRM",
+    name: "King's Realty CRM",
     timezone: "Asia/Seoul",
     method: ICalCalendarMethod.PUBLISH,
   });

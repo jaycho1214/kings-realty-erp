@@ -75,7 +75,7 @@ export function CalendarSubscribeDialog({
         <DialogHeader>
           <DialogTitle>캘린더 구독</DialogTitle>
           <DialogDescription>
-            외부 캘린더 앱에서 Kings Realty 일정을 구독할 수 있습니다.
+            외부 캘린더 앱에서 King&apos;s Realty 일정을 구독할 수 있습니다.
           </DialogDescription>
         </DialogHeader>
 

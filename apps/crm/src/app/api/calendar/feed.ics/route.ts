@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
 
   // Build iCal document
   const calendar = ical({
-    name: "Kings Realty CRM",
+    name: "King's Realty CRM",
     timezone: "Asia/Seoul",
-    prodId: { company: "Kings Realty", product: "CRM Calendar" },
+    prodId: { company: "King's Realty", product: "CRM Calendar" },
     method: ICalCalendarMethod.PUBLISH,
   });
 
