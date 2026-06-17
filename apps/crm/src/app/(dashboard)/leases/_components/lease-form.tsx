@@ -181,7 +181,9 @@ export function LeaseForm({
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="property_id">매물</Label>
+            <Label htmlFor="property_id">
+              매물 <span className="text-danger">*</span>
+            </Label>
             <Combobox
               name="property_id"
               required
@@ -198,7 +200,9 @@ export function LeaseForm({
             />
           </Field>
           <Field>
-            <Label htmlFor="tenant_id">세입자</Label>
+            <Label htmlFor="tenant_id">
+              세입자 <span className="text-danger">*</span>
+            </Label>
             <Combobox
               name="tenant_id"
               required
@@ -217,7 +221,9 @@ export function LeaseForm({
 
         <div className="grid gap-5 sm:grid-cols-3">
           <Field>
-            <Label htmlFor="start_date">시작일</Label>
+            <Label htmlFor="start_date">
+              시작일 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="start_date"
               name="start_date"
@@ -244,7 +250,9 @@ export function LeaseForm({
             />
           </Field>
           <Field>
-            <Label htmlFor="end_date">종료일</Label>
+            <Label htmlFor="end_date">
+              종료일 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="end_date"
               name="end_date"
@@ -258,7 +266,9 @@ export function LeaseForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="monthly_rent_krw">월세 · 임차인 (₩)</Label>
+            <Label htmlFor="monthly_rent_krw">
+              월세 · 임차인 (₩) <span className="text-danger">*</span>
+            </Label>
             <Input
               id="monthly_rent_krw"
               name="monthly_rent_krw"
@@ -271,7 +281,9 @@ export function LeaseForm({
             />
           </Field>
           <Field>
-            <Label htmlFor="deposit_krw">보증금 · 임차인 (₩)</Label>
+            <Label htmlFor="deposit_krw">
+              보증금 · 임차인 (₩) <span className="text-danger">*</span>
+            </Label>
             <Input
               id="deposit_krw"
               name="deposit_krw"

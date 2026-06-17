@@ -40,7 +40,9 @@ export function ApplianceForm({
       <FieldGroup>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="property_id">매물</Label>
+            <Label htmlFor="property_id">
+              매물 <span className="text-danger">*</span>
+            </Label>
             <select
               id="property_id"
               name="property_id"
@@ -60,7 +62,9 @@ export function ApplianceForm({
           </Field>
 
           <Field>
-            <Label htmlFor="name">비품명</Label>
+            <Label htmlFor="name">
+              비품명 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="name"
               name="name"

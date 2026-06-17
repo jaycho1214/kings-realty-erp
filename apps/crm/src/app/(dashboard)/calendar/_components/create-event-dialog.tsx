@@ -175,7 +175,9 @@ export function CreateEventDialog({
         <form ref={formRef} action={handleAction} className="space-y-5">
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="title">제목</Label>
+            <Label htmlFor="title">
+              제목 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="title"
               name="title"
@@ -254,7 +256,9 @@ export function CreateEventDialog({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="date">시작일</Label>
+                <Label htmlFor="date">
+                  시작일 <span className="text-danger">*</span>
+                </Label>
                 <Input
                   id="date"
                   name="date"

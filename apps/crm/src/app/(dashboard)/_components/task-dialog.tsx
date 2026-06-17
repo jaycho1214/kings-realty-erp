@@ -38,11 +38,7 @@ import {
   searchLinkTargets,
 } from "../_task-actions";
 import { linkIcon } from "./task-card";
-import type {
-  StaffOption,
-  TaskView,
-  TaskLinkView,
-} from "@/lib/tasks/types";
+import type { StaffOption, TaskView, TaskLinkView } from "@/lib/tasks/types";
 
 export interface TaskDraft {
   title: string;
@@ -157,7 +153,9 @@ export function TaskDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <Field>
-            <Label htmlFor="task-title">제목</Label>
+            <Label htmlFor="task-title">
+              제목 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="task-title"
               value={title}

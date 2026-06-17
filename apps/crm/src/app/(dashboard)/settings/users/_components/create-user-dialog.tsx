@@ -55,11 +55,15 @@ export function CreateUserDialog() {
           </DialogHeader>
           <form ref={formRef} action={handleAction} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">이름</Label>
+              <Label htmlFor="name">
+                이름 <span className="text-danger">*</span>
+              </Label>
               <Input id="name" name="name" required placeholder="홍길동" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">이메일</Label>
+              <Label htmlFor="email">
+                이메일 <span className="text-danger">*</span>
+              </Label>
               <Input
                 id="email"
                 name="email"
@@ -69,7 +73,9 @@ export function CreateUserDialog() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">비밀번호</Label>
+              <Label htmlFor="password">
+                비밀번호 <span className="text-danger">*</span>
+              </Label>
               <Input
                 id="password"
                 name="password"
@@ -80,7 +86,9 @@ export function CreateUserDialog() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">비밀번호 확인</Label>
+              <Label htmlFor="confirmPassword">
+                비밀번호 확인 <span className="text-danger">*</span>
+              </Label>
               <Input
                 id="confirmPassword"
                 name="confirmPassword"

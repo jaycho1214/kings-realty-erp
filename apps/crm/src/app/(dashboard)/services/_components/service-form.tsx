@@ -195,7 +195,9 @@ export function ServiceForm({
 
   const categorySelector = (
     <Field>
-      <Label>카테고리</Label>
+      <Label>
+        카테고리 <span className="text-danger">*</span>
+      </Label>
       <Select
         value={selectedCategory}
         onValueChange={(v) => v && setSelectedCategory(v)}
@@ -269,7 +271,9 @@ export function ServiceForm({
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="title">제목</Label>
+            <Label htmlFor="title">
+              제목 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="title"
               name="title"
@@ -282,7 +286,9 @@ export function ServiceForm({
         </div>
 
         <Field>
-          <Label htmlFor="description">내용</Label>
+          <Label htmlFor="description">
+            내용 <span className="text-danger">*</span>
+          </Label>
           <Textarea
             id="description"
             name="description"
@@ -448,7 +454,9 @@ export function ServiceForm({
       <FieldGroup>
         {/* Searchable lease selector */}
         <Field>
-          <Label>임대 계약</Label>
+          <Label>
+            임대 계약 <span className="text-danger">*</span>
+          </Label>
           <Combobox
             options={leaseOptions}
             value={selectedLeaseId === "" ? "" : String(selectedLeaseId)}
@@ -462,7 +470,9 @@ export function ServiceForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="title">제목</Label>
+            <Label htmlFor="title">
+              제목 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="title"
               name="title"
@@ -475,7 +485,9 @@ export function ServiceForm({
         </div>
 
         <Field>
-          <Label htmlFor="description">내용</Label>
+          <Label htmlFor="description">
+            내용 <span className="text-danger">*</span>
+          </Label>
           <Textarea
             id="description"
             name="description"

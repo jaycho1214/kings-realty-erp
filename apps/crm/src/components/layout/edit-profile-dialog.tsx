@@ -199,7 +199,9 @@ function EditProfileForm({
     setPwError(null);
     setPwSuccess(false);
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setPwError(`새 비밀번호는 최소 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`);
+      setPwError(
+        `새 비밀번호는 최소 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`,
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -301,7 +303,9 @@ function EditProfileForm({
 
       {/* Name + email */}
       <Field>
-        <Label htmlFor="profile-name">이름</Label>
+        <Label htmlFor="profile-name">
+          이름 <span className="text-danger">*</span>
+        </Label>
         <Input
           id="profile-name"
           value={name}

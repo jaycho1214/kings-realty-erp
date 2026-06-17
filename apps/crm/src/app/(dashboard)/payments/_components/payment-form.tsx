@@ -112,7 +112,9 @@ export function PaymentForm({
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="lease_id">계약</Label>
+            <Label htmlFor="lease_id">
+              계약 <span className="text-danger">*</span>
+            </Label>
             <select
               id="lease_id"
               name="lease_id"
@@ -131,7 +133,9 @@ export function PaymentForm({
             </select>
           </Field>
           <Field>
-            <Label htmlFor="payment_type">유형</Label>
+            <Label htmlFor="payment_type">
+              유형 <span className="text-danger">*</span>
+            </Label>
             <select
               id="payment_type"
               name="payment_type"
@@ -150,7 +154,9 @@ export function PaymentForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="billing_month">청구월</Label>
+            <Label htmlFor="billing_month">
+              청구월 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="billing_month"
               name="billing_month"
@@ -160,7 +166,9 @@ export function PaymentForm({
             />
           </Field>
           <Field>
-            <Label htmlFor="amount_krw">금액 (₩)</Label>
+            <Label htmlFor="amount_krw">
+              금액 (₩) <span className="text-danger">*</span>
+            </Label>
             <Input
               id="amount_krw"
               name="amount_krw"
@@ -175,7 +183,9 @@ export function PaymentForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="currency_paid">납부 통화</Label>
+            <Label htmlFor="currency_paid">
+              납부 통화 <span className="text-danger">*</span>
+            </Label>
             <select
               id="currency_paid"
               name="currency_paid"
@@ -191,7 +201,9 @@ export function PaymentForm({
             </select>
           </Field>
           <Field>
-            <Label htmlFor="amount_paid">납부 금액</Label>
+            <Label htmlFor="amount_paid">
+              납부 금액 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="amount_paid"
               name="amount_paid"
@@ -206,7 +218,9 @@ export function PaymentForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="payment_method">결제 방법</Label>
+            <Label htmlFor="payment_method">
+              결제 방법 <span className="text-danger">*</span>
+            </Label>
             <select
               id="payment_method"
               name="payment_method"
@@ -222,7 +236,9 @@ export function PaymentForm({
             </select>
           </Field>
           <Field>
-            <Label htmlFor="payment_date">납부일</Label>
+            <Label htmlFor="payment_date">
+              납부일 <span className="text-danger">*</span>
+            </Label>
             <Input
               id="payment_date"
               name="payment_date"
