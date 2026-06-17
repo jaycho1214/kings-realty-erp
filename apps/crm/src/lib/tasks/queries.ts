@@ -1,0 +1,232 @@
+import { getDb, sql } from "@kingsrealty/db";
+import { getSession } from "@/lib/session";
+import { seoulDateString, seoulWeekEnd, daysUntil } from "@/lib/date";
+import { filterSuggestions } from "./suggestions";
+import type {
+  BoardData,
+  SuggestedTask,
+  TaskView,
+  TaskAssigneeView,
+} from "./types";
+
+const d = (v: Date | string | null): string | null =>
+  v == null ? null : seoulDateString(v instanceof Date ? v : new Date(v));
+
+/** Load the full shared board: tasks (+assignees), live suggestions, staff. */
+export async function loadBoardData(): Promise<BoardData> {
+  const db = getDb();
+  const session = await getSession();
+  const currentUserId = Number(session?.user?.id ?? 0);
+  const today = seoulDateString();
+  const weekEnd = seoulWeekEnd(today);
+  const in60 = new Date(Date.now() + 60 * 864e5);
+  const todayDate = new Date(today);
+
+  const [taskRows, assigneeRows, staff, dismissalRows] = await Promise.all([
+    db.selectFrom("task").selectAll().orderBy("sort_order", "asc").execute(),
+    db
+      .selectFrom("task_assignee")
+      .innerJoin("user", "user.id", "task_assignee.user_id")
+      .select([
+        "task_assignee.task_id",
+        "user.id as id",
+        "user.name as name",
+        "user.image as image",
+      ])
+      .execute(),
+    db
+      .selectFrom("user")
+      .select(["id", "name", "image"])
+      .where("role", "is not", null)
+      .where("role", "not like", "%pending%")
+      .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("task_suggestion_dismissal")
+      .select(["dedup_key", "dismissed_until"])
+      .execute(),
+  ]);
+
+  const byTask = new Map<number, TaskAssigneeView[]>();
+  for (const a of assigneeRows) {
+    const list = byTask.get(a.task_id) ?? [];
+    list.push({ id: a.id, name: a.name, image: a.image });
+    byTask.set(a.task_id, list);
+  }
+
+  const tasks: TaskView[] = taskRows.map((t) => ({
+    id: t.id,
+    title: t.title,
+    notes: t.notes,
+    status: t.status as TaskView["status"],
+    planned_date: d(t.planned_date),
+    due_date: d(t.due_date),
+    sort_order: Number(t.sort_order),
+    source: t.source as TaskView["source"],
+    suggestion_key: t.suggestion_key,
+    ref_entity_type: t.ref_entity_type,
+    ref_entity_id: t.ref_entity_id,
+    created_by: t.created_by,
+    completed_at: d(t.completed_at),
+    assignees: byTask.get(t.id) ?? [],
+  }));
+
+  // ---- Suggestion candidates from operational signals ----
+  const [leases, charges, services, derosTenants] = await Promise.all([
+    db
+      .selectFrom("lease")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "lease.id as id",
+        "lease.end_date as end_date",
+        "tenant.name as tenant_name",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+      ])
+      .where("lease.status", "in", ["active", "renewed"])
+      .where("tenant.deleted_at", "is", null)
+      .where("lease.end_date", ">=", todayDate)
+      .where("lease.end_date", "<=", in60)
+      .execute(),
+    db
+      .selectFrom("charge_item")
+      .innerJoin("lease", "lease.id", "charge_item.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select([
+        "charge_item.id as id",
+        "charge_item.type as type",
+        "charge_item.status as status",
+        "charge_item.due_date as due_date",
+        "tenant.id as tenant_id",
+        "tenant.name as tenant_name",
+      ])
+      .where("charge_item.status", "in", ["billed", "overdue"])
+      .where("charge_item.amount", "is not", null)
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
+    db
+      .selectFrom("service_request")
+      .innerJoin("lease", "lease.id", "service_request.lease_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "service_request.id as id",
+        "service_request.category as category",
+        "service_request.scheduled_date as scheduled_date",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+      ])
+      .where("service_request.status", "in", [
+        "received",
+        "pending_repair",
+        "in_progress",
+        "postponed",
+      ])
+      .execute(),
+    db
+      .selectFrom("tenant")
+      .select(["id", "name", "deros"])
+      .where("status", "=", "active")
+      .where("deleted_at", "is", null)
+      .where("deros", ">=", todayDate)
+      .where("deros", "<=", in60)
+      .execute(),
+  ]);
+
+  // service assignee prefill
+  const svcAssignees = await db
+    .selectFrom("service_request_assignee")
+    .select(["service_request_id", "user_id"])
+    .where(
+      "service_request_id",
+      "in",
+      services.length ? services.map((s) => s.id) : [0],
+    )
+    .execute();
+  const svcAssigneeMap = new Map<number, number[]>();
+  for (const a of svcAssignees) {
+    const list = svcAssigneeMap.get(a.service_request_id) ?? [];
+    list.push(a.user_id);
+    svcAssigneeMap.set(a.service_request_id, list);
+  }
+
+  const chargeTypeLabel: Record<string, string> = {
+    rent: "월세",
+    utility: "공과금",
+    management: "관리비",
+    parking: "주차",
+    deposit: "보증금",
+    realty_fee: "중개수수료",
+  };
+
+  const candidates: SuggestedTask[] = [];
+
+  for (const l of leases) {
+    const dleft = daysUntil(l.end_date, today);
+    const milestone =
+      dleft <= 7 ? 7 : dleft <= 30 ? 30 : dleft <= 60 ? 60 : null;
+    if (milestone == null) continue;
+    candidates.push({
+      dedupKey: `lease_expiry:${l.id}:${milestone}`,
+      kind: "lease_expiry",
+      title: `계약 만료 D-${dleft} · ${l.tenant_name} ${l.address}`,
+      dueDate: d(l.end_date),
+      refEntityType: "lease",
+      refEntityId: l.id,
+      suggestedAssigneeIds: [],
+    });
+  }
+
+  for (const c of charges) {
+    const label = chargeTypeLabel[c.type] ?? c.type;
+    candidates.push({
+      dedupKey: `charge_due:${c.id}`,
+      kind: "charge_due",
+      title: `${c.status === "overdue" ? "연체" : "미납"} ${label} · ${c.tenant_name}`,
+      dueDate: d(c.due_date),
+      refEntityType: "tenant",
+      refEntityId: c.tenant_id,
+      suggestedAssigneeIds: [],
+    });
+  }
+
+  for (const s of services) {
+    candidates.push({
+      dedupKey: `service_open:${s.id}`,
+      kind: "service_open",
+      title: `AS ${s.category} · ${s.address}`,
+      dueDate: d(s.scheduled_date),
+      refEntityType: "service_request",
+      refEntityId: s.id,
+      suggestedAssigneeIds: svcAssigneeMap.get(s.id) ?? [],
+    });
+  }
+
+  for (const t of derosTenants) {
+    const dleft = daysUntil(t.deros as Date, today);
+    candidates.push({
+      dedupKey: `deros:${t.id}:60`,
+      kind: "deros",
+      title: `DEROS 임박 D-${dleft} · ${t.name}`,
+      dueDate: d(t.deros),
+      refEntityType: "tenant",
+      refEntityId: t.id,
+      suggestedAssigneeIds: [],
+    });
+  }
+
+  const activeKeys = new Set(
+    taskRows
+      .filter((t) => t.suggestion_key && t.status !== "done")
+      .map((t) => t.suggestion_key as string),
+  );
+  const dismissals = new Map<string, string | null>(
+    dismissalRows.map((r) => [r.dedup_key, d(r.dismissed_until)]),
+  );
+
+  const suggestions = filterSuggestions(candidates, activeKeys, dismissals, today);
+
+  return { tasks, suggestions, staff, currentUserId };
+}
