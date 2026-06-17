@@ -47,6 +47,18 @@ export interface BaseLocation {
   sort_order: Generated<number>;
 }
 
+export interface BillPreset {
+  created_at: Generated<Timestamp>;
+  default_amount: Numeric | null;
+  default_currency: Generated<string>;
+  default_due_day: Generated<number>;
+  id: Generated<number>;
+  is_variable: Generated<boolean>;
+  label: string;
+  sort_order: Generated<number>;
+  type: Generated<string>;
+}
+
 export interface CalendarEvent {
   category: Generated<string>;
   color: Generated<string>;
@@ -76,7 +88,7 @@ export interface CalendarEventAttendee {
 }
 
 export interface ChargeItem {
-  amount: Numeric;
+  amount: Numeric | null;
   billing_month: Timestamp | null;
   created_at: Generated<Timestamp>;
   created_by: number | null;
@@ -85,7 +97,9 @@ export interface ChargeItem {
   id: Generated<number>;
   lease_id: number | null;
   memo: string | null;
+  paid_by_payment_id: number | null;
   recurrence: Generated<string>;
+  recurring_charge_id: number | null;
   status: Generated<string>;
   tenant_id: number;
   type: string;
@@ -260,13 +274,13 @@ export interface Notification {
 
 export interface OhaRate {
   amount: Numeric;
+  code: string;
   created_at: Generated<Timestamp>;
   currency: Generated<string>;
   dependent_status: string;
   effective_from: Timestamp;
   effective_to: Timestamp | null;
   id: Generated<number>;
-  rank: string;
   region: Generated<string>;
 }
 
@@ -334,6 +348,23 @@ export interface RealtyFeeDefault {
   amount: Numeric;
   currency: string;
   id: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RecurringCharge {
+  active: Generated<boolean>;
+  amount: Numeric | null;
+  created_at: Generated<Timestamp>;
+  created_by: number | null;
+  currency: Generated<string>;
+  due_day: Generated<number>;
+  end_month: Timestamp | null;
+  id: Generated<number>;
+  label: string;
+  memo: string | null;
+  start_month: Timestamp | null;
+  tenant_id: number;
+  type: Generated<string>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -518,6 +549,7 @@ export interface DB {
   account: Account;
   audit_log: AuditLog;
   base_location: BaseLocation;
+  bill_preset: BillPreset;
   calendar_event: CalendarEvent;
   calendar_event_attendee: CalendarEventAttendee;
   charge_item: ChargeItem;
@@ -537,6 +569,7 @@ export interface DB {
   property: Property;
   property_equipment: PropertyEquipment;
   realty_fee_default: RealtyFeeDefault;
+  recurring_charge: RecurringCharge;
   service_category: ServiceCategory;
   service_request: ServiceRequest;
   service_request_assignee: ServiceRequestAssignee;
