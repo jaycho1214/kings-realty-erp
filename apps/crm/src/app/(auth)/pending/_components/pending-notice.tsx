@@ -31,12 +31,11 @@ export function PendingNotice({ userName }: { userName: string }) {
         priority
       />
 
-      <div className="flex size-14 items-center justify-center rounded-full bg-warning-weak">
-        <Clock className="size-7 text-warning" />
-      </div>
-
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold tracking-tight">승인 대기 중</h1>
+      <div className="flex flex-col items-center gap-2">
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <Clock className="size-5 text-warning" />
+          승인 대기 중
+        </h1>
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">{userName}</span>님,
           가입 신청이 접수되었습니다.
