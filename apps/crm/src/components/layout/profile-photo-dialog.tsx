@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -57,6 +58,7 @@ export function ProfilePhotoDialog({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const initials = name.slice(0, 2);
   const shownImage = preview ?? currentImage;
@@ -72,6 +74,10 @@ export function ProfilePhotoDialog({
 
   const handlePick = async (file: File | undefined) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
     setError(null);
     try {
       const resized = await resizeToSquareWebp(file);
@@ -147,7 +153,25 @@ export function ProfilePhotoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-4 py-2">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!busy) setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (!busy) handlePick(e.dataTransfer.files?.[0]);
+          }}
+          className={cn(
+            "flex flex-col items-center gap-4 rounded-lg border border-dashed border-transparent py-4 transition-colors",
+            isDragging && "border-primary bg-accent/50",
+          )}
+        >
           <Avatar className="size-24">
             {shownImage && <AvatarImage src={shownImage} alt="" />}
             <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-indigo-700 text-xl font-semibold text-white">
@@ -162,15 +186,20 @@ export function ProfilePhotoDialog({
             className="hidden"
             onChange={(e) => handlePick(e.target.files?.[0])}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-          >
-            사진 선택
-          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => inputRef.current?.click()}
+              disabled={busy}
+            >
+              사진 선택
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              또는 이미지를 여기로 끌어다 놓으세요
+            </p>
+          </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
