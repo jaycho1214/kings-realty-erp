@@ -3,60 +3,51 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
-import { seoulDateString } from "@/lib/date";
 
 // --- OHA rate table (OHA 기준표) ---
 
-export async function addOhaRate(formData: FormData) {
+/**
+ * Bulk in-place amount update for the grouped OHA table. Reads
+ * `amount__{code}__{with|without}` fields and updates each current row
+ * (effective_to is null). Shared by the Settings master and the tenant
+ * 지원금 popover. Admin-only.
+ */
+export async function updateOhaRates(formData: FormData) {
   await requireAdmin();
   const db = getDb();
 
-  const rank = (formData.get("rank") as string)?.trim();
-  const dependent_status =
-    formData.get("dependent_status") === "without" ? "without" : "with";
-  const region = (formData.get("region") as string)?.trim() || "Default";
-  const amount = Number(formData.get("amount"));
-  const currency = (formData.get("currency") as string) || "USD";
-  const effective_from =
-    (formData.get("effective_from") as string) || seoulDateString();
-
-  if (!rank) throw new Error("계급을 입력해주세요.");
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("금액을 올바르게 입력해주세요.");
+  const updates: {
+    code: string;
+    dependent_status: "with" | "without";
+    amount: number;
+  }[] = [];
+  for (const [key, value] of formData.entries()) {
+    const m = /^amount__(.+)__(with|without)$/.exec(key);
+    if (!m) continue;
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new Error("금액을 올바르게 입력해주세요.");
+    }
+    updates.push({
+      code: m[1],
+      dependent_status: m[2] as "with" | "without",
+      amount,
+    });
   }
 
-  await db
-    .insertInto("oha_rate")
-    .values({
-      rank,
-      dependent_status,
-      region,
-      amount: String(amount),
-      currency,
-      effective_from,
-    })
-    .execute();
+  for (const u of updates) {
+    await db
+      .updateTable("oha_rate")
+      .set({ amount: String(u.amount) })
+      .where("code", "=", u.code)
+      .where("dependent_status", "=", u.dependent_status)
+      .where("region", "=", "Default")
+      .where("effective_to", "is", null)
+      .execute();
+  }
 
   revalidatePath("/settings");
-}
-
-/** Close a rate (set effective_to = today) for rate-revision history. */
-export async function endOhaRate(id: number) {
-  await requireAdmin();
-  const db = getDb();
-  await db
-    .updateTable("oha_rate")
-    .set({ effective_to: seoulDateString() })
-    .where("id", "=", id)
-    .execute();
-  revalidatePath("/settings");
-}
-
-export async function deleteOhaRate(id: number) {
-  await requireAdmin();
-  const db = getDb();
-  await db.deleteFrom("oha_rate").where("id", "=", id).execute();
-  revalidatePath("/settings");
+  revalidatePath("/tenants", "layout");
 }
 
 // --- Realty fee defaults (중개 수수료 기본값) ---
