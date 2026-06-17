@@ -319,17 +319,117 @@ function categorize(item: string): { type: string; utility: string | null } {
   if (/선불금/.test(t)) return { type: "rent", utility: null }; // prepaid rent
   return { type: "service", utility: null }; // REALTY FEE / 훅업 / 기타 / etc.
 }
-/** Allocate a row total across items: REALTY FEE→150, rent→monthlyRent, remainder split equally. Total preserved exactly. */
-function allocate(items: string[], total: number, monthlyRent: number): number[] {
+/** Canonical utility key a line item belongs to (broader than categorize: matches 정수기 too). */
+function itemUtilityKey(item: string): string | null {
+  const t = clean(item);
+  if (/가스|gas/i.test(t)) return "가스";
+  if (/전기|elec/i.test(t)) return "전기";
+  if (/수도|water/i.test(t)) return "수도";
+  if (/인터넷|정수기/.test(t)) return /인터넷/.test(t) ? "인터넷" : "정수기"; // "인터넷/정수기" → 인터넷
+  if (/아파트공과금|집주인관리공과금|관리비/.test(t)) return "아파트공과금";
+  return null;
+}
+/** Parse a Korean amount token: comma-thousands plus 만/천 units. "180000"→180000, "5만"→50000, "10만5천"→105000. */
+function parseKrwAmount(raw: string): number | null {
+  const s = clean(raw).replace(/,/g, "");
+  if (!s) return null;
+  const unit = s.match(/^(\d+(?:\.\d+)?)\s*만(?:\s*(\d+(?:\.\d+)?)\s*천)?/);
+  if (unit) return Math.round(parseFloat(unit[1]) * 10000 + (unit[2] ? parseFloat(unit[2]) * 1000 : 0));
+  const cheon = s.match(/^(\d+(?:\.\d+)?)\s*천/);
+  if (cheon) return Math.round(parseFloat(cheon[1]) * 1000);
+  const plain = s.match(/^\d+/);
+  return plain ? parseInt(plain[0]) : null;
+}
+/**
+ * Pull EXPLICIT per-utility amounts out of the 추가금액 cell / tenant memo.
+ * Handles "label number", "number(label)", "number label", slash-lists, comma-thousands and 만/천 units.
+ * "인,정 10만원" (internet+purifier) is split half/half. Returns a key→amount map (인터넷/전기/수도/가스/아파트공과금/정수기).
+ */
+function parseUtilityAmounts(...sources: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  const add = (key: string, amt: number) => { if (amt > 0) out[key] = (out[key] || 0) + amt; };
+  const LABELS: { key: string; pat: string }[] = [
+    { key: "인터넷", pat: "인터넷|인" },
+    { key: "정수기", pat: "정수기|정" },
+    { key: "전기", pat: "전기|전" },
+    { key: "수도", pat: "수도세|수도" },
+    { key: "가스", pat: "가스" },
+    { key: "아파트공과금", pat: "아파트공과금|관리비|관" },
+  ];
+  const AMT = String.raw`(\d[\d,]*(?:\.\d+)?\s*만(?:\s*\d+(?:\.\d+)?\s*천)?원?|\d[\d,]*(?:\.\d+)?\s*천원?|\d[\d,]*)`;
+  // combined "인,정" / "인터넷,정수기" / "인/정" → split a single amount half/half between internet + purifier
+  const combo = new RegExp(String.raw`(?:인터넷|인)\s*[,/]\s*(?:정수기|정)\s*${AMT}`);
+  for (const src of sources) {
+    let text = clean(src);
+    if (!text) continue;
+    const cm = text.match(combo);
+    if (cm) {
+      const amt = parseKrwAmount(cm[1]);
+      if (amt && amt > 0) { add("인터넷", Math.round(amt / 2)); add("정수기", amt - Math.round(amt / 2)); }
+      text = text.replace(cm[0], " "); // consume so standalone label scan can't re-count this amount
+    }
+    for (const { key, pat } of LABELS) {
+      // "label number" and "label(...)number" (e.g. "수도 15,000", "관 180000", "인터넷56650")
+      const fwd = new RegExp(String.raw`(?:${pat})\s*${AMT}`, "g");
+      let m: RegExpExecArray | null;
+      while ((m = fwd.exec(text)) !== null) { const a = parseKrwAmount(m[1]); if (a) add(key, a); }
+      // "number(label)" e.g. "56650(인터넷)" / "23000(인터넷)"
+      const back = new RegExp(String.raw`${AMT}\s*\(\s*(?:${pat})\s*\)`, "g");
+      while ((m = back.exec(text)) !== null) { const a = parseKrwAmount(m[1]); if (a) add(key, a); }
+    }
+  }
+  return out;
+}
+/**
+ * Allocate a row total across line items, preserving the total exactly.
+ * Order: (a) REALTY FEE→150, (b) each rent month→monthlyRent, (c) explicit per-utility amounts
+ * from extras/memo onto matching line items, (d) remainder split EVENLY across still-unassigned
+ * non-rent items (last absorbs rounding). Guard: if rent/realty would drive the remainder negative
+ * (partial/move-in rows), fall back to the old plain even-split for the whole row.
+ */
+function allocate(items: string[], total: number, monthlyRent: number, extras?: Record<string, number>): number[] {
+  const n = items.length;
+  const out = new Array(n).fill(0);
+  const done = new Array(n).fill(false);
+  const isRent = (s: string) => /\d{4}년\s*\d{1,2}월/.test(s);
+  let rem = total;
+  // (a) REALTY FEE → 150
+  for (let i = 0; i < n; i++)
+    if (/realty\s*fee/i.test(items[i]) && rem >= 150) { out[i] = 150; done[i] = true; rem -= 150; }
+  // (b) each rent month → monthlyRent — guard against a negative remainder (partial/move-in row)
+  if (monthlyRent > 0) {
+    const rentIdx = items.map((it, i) => (!done[i] && isRent(it) ? i : -1)).filter((i) => i >= 0);
+    if (rentIdx.length && rem - rentIdx.length * monthlyRent < 0) return allocateEven(items, total);
+    for (const i of rentIdx) { out[i] = monthlyRent; done[i] = true; rem -= monthlyRent; }
+  }
+  // (c) explicit per-utility amounts onto matching, still-unassigned line items (skip if it would go negative)
+  if (extras) {
+    const claimed: Record<string, boolean> = {};
+    for (let i = 0; i < n; i++) {
+      if (done[i] || isRent(items[i])) continue;
+      const key = itemUtilityKey(items[i]);
+      if (!key || claimed[key]) continue;
+      const amt = extras[key];
+      if (amt != null && amt > 0 && rem - amt >= 0) { out[i] = amt; done[i] = true; rem -= amt; claimed[key] = true; }
+    }
+  }
+  // (d) remainder split EVENLY across remaining (still-unassigned) items, last absorbs rounding
+  const left = [];
+  for (let i = 0; i < n; i++) if (!done[i]) left.push(i);
+  if (left.length) {
+    const per = Math.round(rem / left.length);
+    left.forEach((i, k) => (out[i] = k === left.length - 1 ? rem - per * (left.length - 1) : per));
+  } else if (rem !== 0 && n) out[n - 1] += rem;
+  return out;
+}
+/** Old behaviour: REALTY FEE→150, rent→monthlyRent dropped, everything else split evenly. Used as the guard fallback. */
+function allocateEven(items: string[], total: number): number[] {
   const n = items.length;
   const out = new Array(n).fill(0);
   const done = new Array(n).fill(false);
   let rem = total;
   for (let i = 0; i < n; i++)
     if (/realty\s*fee/i.test(items[i]) && rem >= 150) { out[i] = 150; done[i] = true; rem -= 150; }
-  if (monthlyRent > 0)
-    for (let i = 0; i < n; i++)
-      if (!done[i] && /\d{4}년\s*\d{1,2}월/.test(items[i]) && rem >= monthlyRent) { out[i] = monthlyRent; done[i] = true; rem -= monthlyRent; }
   const left = [];
   for (let i = 0; i < n; i++) if (!done[i]) left.push(i);
   if (left.length) {
@@ -530,6 +630,12 @@ async function main() {
     payment_date: string; status: string; notes: string | null; bundle_id: string | null;
     utility: string | null;
   }
+  // tenant memo lookup (for explicit per-utility amount parsing during allocation)
+  const memoByTenant = new Map<string, string>();
+  for (const c of customers) {
+    const k = normalizeName(c.name);
+    if (clean(c.name) && !memoByTenant.has(k)) memoByTenant.set(k, c.memo);
+  }
   const payments: PaymentModel[] = [];
   let multiItemRows = 0;
   for (const s of dedupSales) {
@@ -539,7 +645,8 @@ async function main() {
     const items = s.items.split(",").map((x) => x.trim()).filter(Boolean);
     if (!items.length) continue;
     if (items.length > 1) multiItemRows++;
-    const amounts = allocate(items, s.total, t.monthly_rent);
+    const extras = parseUtilityAmounts(s.extra, memoByTenant.get(t.key) || "");
+    const amounts = allocate(items, s.total, t.monthly_rent, extras);
     const bundle = items.length > 1 ? randomUUID() : null;
     const noteParts: string[] = [];
     if (clean(s.extra)) noteParts.push(`추가: ${clean(s.extra)}`);
