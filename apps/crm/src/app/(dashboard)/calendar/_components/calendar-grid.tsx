@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { User, X } from "lucide-react";
+import { CalendarDays, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { seoulYMD } from "@/lib/date";
 import { categoryConfig, type EventCategory } from "@/lib/calendar-config";
@@ -116,6 +116,7 @@ export function CalendarGrid({
   );
 
   const selectedEvents = selectedDay ? (eventsByDay[selectedDay] ?? []) : [];
+  const hasSelection = selectedDay !== null && selectedEvents.length > 0;
 
   // Count events per category for badges
   const categoryCounts = useMemo(() => {
@@ -219,148 +220,171 @@ export function CalendarGrid({
         )}
       </div>
 
-      {/* Calendar card */}
-      <div className="overflow-hidden rounded-xl border bg-card">
-        {/* Day headers */}
-        <div className="grid grid-cols-7 border-b bg-muted/30">
-          {DAY_HEADERS.map((day, i) => (
-            <div
-              key={day}
-              className={cn(
-                "py-2.5 text-center text-[11px] font-semibold tracking-wider text-muted-foreground",
-                i === 0 && "text-danger",
-                i === 6 && "text-brand",
-              )}
-            >
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7">
-          {/* Previous month trailing days */}
-          {Array.from({ length: firstDay }, (_, i) => {
-            const day = prevMonthDays - firstDay + 1 + i;
-            return (
+      {/* Calendar + day detail. On wide screens the detail becomes a sticky
+          right sidebar; below xl it stacks underneath the calendar. */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+        {/* Calendar card */}
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border bg-card">
+          {/* Day headers */}
+          <div className="grid grid-cols-7 border-b bg-muted/30">
+            {DAY_HEADERS.map((day, i) => (
               <div
-                key={`prev-${i}`}
-                className="min-h-[60px] border-b border-r bg-muted/10 p-1 sm:min-h-[104px] sm:p-2 [&:nth-child(7n)]:border-r-0"
-              >
-                <span className="text-xs text-muted-foreground/30">{day}</span>
-              </div>
-            );
-          })}
-
-          {/* Current month days */}
-          {Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
-            const dayOfWeek = (firstDay + i) % 7;
-            const dayEvents = eventsByDay[day] ?? [];
-            const isToday = isCurrentMonth && day === todayDate;
-            const isSelected = selectedDay === day;
-            const hasEvents = dayEvents.length > 0;
-
-            return (
-              <button
                 key={day}
-                type="button"
-                onClick={() => {
-                  if (hasEvents) {
-                    setSelectedDay(isSelected ? null : day);
-                  } else {
-                    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                    setCreateDate(dateStr);
-                    setCreateOpen(true);
-                  }
-                }}
                 className={cn(
-                  "flex min-h-[60px] min-w-0 flex-col items-start overflow-hidden border-b border-r p-1 text-left transition-colors sm:min-h-[104px] sm:p-1.5 [&:nth-child(7n)]:border-r-0",
-                  "cursor-pointer hover:bg-accent/50",
-                  isSelected && "bg-accent/60",
-                  dayOfWeek === 0 && "bg-danger-weak/40",
-                  dayOfWeek === 6 && "bg-brand-weak/40",
+                  "py-2.5 text-center text-[11px] font-semibold tracking-wider text-muted-foreground",
+                  i === 0 && "text-danger",
+                  i === 6 && "text-brand",
                 )}
               >
-                <span
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7">
+            {/* Previous month trailing days */}
+            {Array.from({ length: firstDay }, (_, i) => {
+              const day = prevMonthDays - firstDay + 1 + i;
+              return (
+                <div
+                  key={`prev-${i}`}
+                  className="min-h-[60px] border-b border-r bg-muted/10 p-1 sm:min-h-[104px] sm:p-2 [&:nth-child(7n)]:border-r-0"
+                >
+                  <span className="text-xs text-muted-foreground/30">
+                    {day}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Current month days */}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const dayOfWeek = (firstDay + i) % 7;
+              const dayEvents = eventsByDay[day] ?? [];
+              const isToday = isCurrentMonth && day === todayDate;
+              const isSelected = selectedDay === day;
+              const hasEvents = dayEvents.length > 0;
+
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => {
+                    if (hasEvents) {
+                      setSelectedDay(isSelected ? null : day);
+                    } else {
+                      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      setCreateDate(dateStr);
+                      setCreateOpen(true);
+                    }
+                  }}
                   className={cn(
-                    "mb-0.5 inline-flex size-6 items-center justify-center rounded-full text-xs",
-                    dayOfWeek === 0 && "text-danger",
-                    dayOfWeek === 6 && "text-brand",
-                    isToday
-                      ? "bg-primary font-bold text-primary-foreground"
-                      : "font-medium",
+                    "flex min-h-[60px] min-w-0 flex-col items-start overflow-hidden border-b border-r p-1 text-left transition-colors sm:min-h-[104px] sm:p-1.5 [&:nth-child(7n)]:border-r-0",
+                    "cursor-pointer hover:bg-accent/50",
+                    isSelected && "bg-accent/60",
+                    dayOfWeek === 0 && "bg-danger-weak/40",
+                    dayOfWeek === 6 && "bg-brand-weak/40",
                   )}
                 >
-                  {day}
-                </span>
+                  <span
+                    className={cn(
+                      "mb-0.5 inline-flex size-6 items-center justify-center rounded-full text-xs",
+                      dayOfWeek === 0 && "text-danger",
+                      dayOfWeek === 6 && "text-brand",
+                      isToday
+                        ? "bg-primary font-bold text-primary-foreground"
+                        : "font-medium",
+                    )}
+                  >
+                    {day}
+                  </span>
 
-                {/* Event pills */}
-                {dayEvents.length > 0 && (
-                  <div className="flex w-full flex-col gap-px">
-                    {dayEvents.slice(0, 2).map((event) => (
-                      <div
-                        key={event.id}
-                        className={cn(
-                          "flex min-w-0 items-center gap-1 rounded-[4px] px-1 py-[2px]",
-                          categoryConfig[event.category].bgColor,
-                        )}
-                      >
+                  {/* Event pills */}
+                  {dayEvents.length > 0 && (
+                    <div className="flex w-full flex-col gap-px">
+                      {dayEvents.slice(0, 2).map((event) => (
                         <div
+                          key={event.id}
                           className={cn(
-                            "size-1 shrink-0 rounded-full",
-                            categoryConfig[event.category].dotColor,
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "truncate text-[10px] leading-tight font-medium",
-                            categoryConfig[event.category].textColor,
+                            "flex min-w-0 items-center gap-1 rounded-[4px] px-1 py-[2px]",
+                            categoryConfig[event.category].bgColor,
                           )}
                         >
-                          {event.title}
+                          <div
+                            className={cn(
+                              "size-1 shrink-0 rounded-full",
+                              categoryConfig[event.category].dotColor,
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "truncate text-[10px] leading-tight font-medium",
+                              categoryConfig[event.category].textColor,
+                            )}
+                          >
+                            {event.title}
+                          </span>
+                        </div>
+                      ))}
+                      {dayEvents.length > 2 && (
+                        <span className="px-1 text-[10px] leading-tight text-muted-foreground">
+                          +{dayEvents.length - 2}건
                         </span>
-                      </div>
-                    ))}
-                    {dayEvents.length > 2 && (
-                      <span className="px-1 text-[10px] leading-tight text-muted-foreground">
-                        +{dayEvents.length - 2}건
-                      </span>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
 
-          {/* Next month leading days */}
-          {(() => {
-            const totalCells = firstDay + daysInMonth;
-            const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-            return Array.from({ length: remaining }, (_, i) => (
-              <div
-                key={`next-${i}`}
-                className="min-h-[60px] border-b border-r bg-muted/10 p-1 sm:min-h-[104px] sm:p-2 [&:nth-child(7n)]:border-r-0"
-              >
-                <span className="text-xs text-muted-foreground/30">
-                  {i + 1}
-                </span>
-              </div>
-            ));
-          })()}
+            {/* Next month leading days */}
+            {(() => {
+              const totalCells = firstDay + daysInMonth;
+              const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+              return Array.from({ length: remaining }, (_, i) => (
+                <div
+                  key={`next-${i}`}
+                  className="min-h-[60px] border-b border-r bg-muted/10 p-1 sm:min-h-[104px] sm:p-2 [&:nth-child(7n)]:border-r-0"
+                >
+                  <span className="text-xs text-muted-foreground/30">
+                    {i + 1}
+                  </span>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
+        {/* Day detail — persistent right sidebar at xl; below xl it only
+            appears (stacked) when a day with events is selected. */}
+        <div
+          className={cn(
+            "xl:sticky xl:top-[4.5rem] xl:w-80 xl:shrink-0",
+            !hasSelection && "hidden xl:block",
+          )}
+        >
+          {selectedDay !== null && selectedEvents.length > 0 ? (
+            <CalendarEventDetail
+              day={selectedDay}
+              month={month}
+              year={year}
+              events={selectedEvents}
+              onClose={() => setSelectedDay(null)}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-card/40 px-6 py-14 text-center">
+              <CalendarDays className="size-7 text-muted-foreground/40" />
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                날짜를 선택하면
+                <br />
+                일정이 표시됩니다
+              </p>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Event detail panel */}
-      {selectedDay !== null && selectedEvents.length > 0 && (
-        <CalendarEventDetail
-          day={selectedDay}
-          month={month}
-          year={year}
-          events={selectedEvents}
-          onClose={() => setSelectedDay(null)}
-        />
-      )}
 
       {/* Create event dialog from day click */}
       <CreateEventDialog

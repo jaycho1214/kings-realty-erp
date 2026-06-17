@@ -93,8 +93,8 @@ export function CalendarEventDetail({
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_4px_16px_rgba(0,0,0,0.03)] dark:border-border dark:shadow-none">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold">
           {year}년 {month}월 {day}일
           <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -110,15 +110,12 @@ export function CalendarEventDetail({
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="divide-y">
         {events.map((event) => {
           const config = categoryConfig[event.category];
           const Icon = categoryIcon[event.category];
           return (
-            <div
-              key={event.id}
-              className="flex items-start gap-3 rounded-xl border p-3"
-            >
+            <div key={event.id} className="flex items-start gap-3 px-4 py-3">
               <div
                 className={cn(
                   "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg",
