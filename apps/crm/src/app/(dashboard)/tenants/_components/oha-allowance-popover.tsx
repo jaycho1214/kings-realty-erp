@@ -19,7 +19,6 @@ interface OhaAllowancePopoverProps {
   currentGroupCode: string | null;
   rows: Record<string, { with: string; without: string }>;
   effectiveFrom: string | null;
-  editable: boolean;
 }
 
 export function OhaAllowancePopover({
@@ -27,7 +26,6 @@ export function OhaAllowancePopover({
   currentGroupCode,
   rows,
   effectiveFrom,
-  editable,
 }: OhaAllowancePopoverProps) {
   return (
     <Popover>
@@ -62,7 +60,7 @@ export function OhaAllowancePopover({
           rows={rows}
           highlightCode={currentGroupCode}
           currentRank={rank}
-          editable={editable}
+          editable={false}
         />
       </PopoverContent>
     </Popover>
