@@ -26,7 +26,7 @@ import { currencyPaidLabel, methodMap } from "@/lib/labels";
 import { Package, CreditCard } from "lucide-react";
 import { BillPaidToggle } from "./_components/bill-paid-toggle";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 200;
 
 const statusLabelMap: Record<string, string> = {
   paid: "납부완료",
@@ -180,6 +180,7 @@ export default async function PaymentsPage({
       eb.or([
         eb("tenant.name", "ilike", `%${q}%`),
         eb("property.address", "ilike", `%${q}%`),
+        eb("property.address_jibeon", "ilike", `%${q}%`),
       ]),
     );
   }
@@ -226,7 +227,9 @@ export default async function PaymentsPage({
             "tenant.id as tenant_id",
             "tenant.name as tenant_name",
             "property.id as property_id",
-            "property.address as property_address",
+            sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+              "property_address",
+            ),
           ])
           .where(groupKey, "in", keys)
           .orderBy("payment.created_at", "desc")

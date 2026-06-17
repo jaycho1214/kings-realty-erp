@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -58,7 +58,9 @@ export default async function LeaseDetailPage({
       "lease.status",
       "lease.notes",
       "tenant.name as tenant_name",
-      "property.address as property_address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "property_address",
+      ),
       "landlord.id as landlord_id",
       "landlord.name as landlord_name",
       "landlord.phone as landlord_phone",
@@ -83,11 +85,18 @@ export default async function LeaseDetailPage({
   ] = await Promise.all([
     db
       .selectFrom("property")
-      .select(["id", "address", "monthly_rent_krw", "deposit_krw"])
+      .select([
+        "id",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+        "monthly_rent_krw",
+        "deposit_krw",
+      ])
       .where((eb) =>
         eb.or([eb("status", "=", "vacant"), eb("id", "=", lease.property_id)]),
       )
-      .orderBy("address", "asc")
+      .orderBy(sql`coalesce(property.address_jibeon, property.address)`, "asc")
       .execute(),
     db
       .selectFrom("tenant")

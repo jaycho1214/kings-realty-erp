@@ -23,6 +23,7 @@ import {
 import { formatKRW, formatDate } from "@/lib/utils";
 import { PropertyForm } from "../_components/property-form";
 import { PropertyEquipment } from "../_components/property-equipment";
+import { PropertyPayments } from "../_components/property-payments";
 import { deleteProperty } from "../_actions";
 
 const LEASE_STATUS_LABEL: Record<string, string> = {
@@ -30,19 +31,6 @@ const LEASE_STATUS_LABEL: Record<string, string> = {
   expired: "만료",
   terminated: "해지",
   pending: "대기",
-};
-
-const PAYMENT_STATUS_LABEL: Record<string, string> = {
-  paid: "납부완료",
-  pending: "미납",
-  overdue: "연체",
-};
-
-const PAYMENT_TYPE_LABEL: Record<string, string> = {
-  rent: "월세",
-  utility: "공과금",
-  deposit: "보증금",
-  service: "AS비",
 };
 
 const propertyTypeMap: Record<string, string> = {
@@ -76,78 +64,92 @@ export default async function PropertyDetailPage({
   const numId = Number(id);
   const db = getDb();
 
-  const [property, landlords, leases, payments, equipment] = await Promise.all([
-    db
-      .selectFrom("property")
-      .innerJoin("landlord", "landlord.id", "property.landlord_id")
-      .select([
-        "property.id",
-        "property.address",
-        "property.address_jibeon",
-        "property.address_detail",
-        "property.property_type",
-        "property.rooms",
-        "property.bathrooms",
-        "property.size_pyeong",
-        "property.monthly_rent_krw",
-        "property.deposit_krw",
-        "property.status",
-        "property.permission_status",
-        "property.landlord_id",
-        "property.management_phone",
-        "property.address_en",
-        "property.notes",
-        "property.moveout_date",
-        "landlord.name as landlord_name",
-      ])
-      .where("property.id", "=", numId)
-      .executeTakeFirst(),
-    db
-      .selectFrom("landlord")
-      .select(["id", "name"])
-      .orderBy("name", "asc")
-      .execute(),
-    db
-      .selectFrom("lease")
-      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .select([
-        "lease.id",
-        "lease.tenant_id",
-        "lease.start_date",
-        "lease.end_date",
-        "lease.monthly_rent_krw",
-        "lease.deposit_krw",
-        "lease.status",
-        "tenant.name as tenant_name",
-      ])
-      .where("lease.property_id", "=", numId)
-      .where("tenant.deleted_at", "is", null)
-      .orderBy("lease.start_date", "desc")
-      .execute(),
-    db
-      .selectFrom("payment")
-      .innerJoin("lease", "lease.id", "payment.lease_id")
-      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .select([
-        "payment.id",
-        "payment.billing_month",
-        "payment.payment_type",
-        "payment.amount_krw",
-        "payment.status",
-        "payment.payment_date",
-        "tenant.name as tenant_name",
-      ])
-      .where("lease.property_id", "=", numId)
-      .where("tenant.deleted_at", "is", null)
-      .orderBy("payment.billing_month", "desc")
-      .execute(),
-    db
-      .selectFrom("property_equipment")
-      .selectAll()
-      .where("property_id", "=", numId)
-      .orderBy("created_at", "asc")
-      .execute(),
-  ]);
+  const [property, landlords, leases, payments, equipment, billPresets] =
+    await Promise.all([
+      db
+        .selectFrom("property")
+        .innerJoin("landlord", "landlord.id", "property.landlord_id")
+        .select([
+          "property.id",
+          "property.address",
+          "property.address_jibeon",
+          "property.address_detail",
+          "property.property_type",
+          "property.rooms",
+          "property.bathrooms",
+          "property.size_pyeong",
+          "property.monthly_rent_krw",
+          "property.deposit_krw",
+          "property.status",
+          "property.permission_status",
+          "property.landlord_id",
+          "property.management_phone",
+          "property.address_en",
+          "property.notes",
+          "property.moveout_date",
+          "landlord.name as landlord_name",
+        ])
+        .where("property.id", "=", numId)
+        .executeTakeFirst(),
+      db
+        .selectFrom("landlord")
+        .select(["id", "name"])
+        .orderBy("name", "asc")
+        .execute(),
+      db
+        .selectFrom("lease")
+        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+        .select([
+          "lease.id",
+          "lease.tenant_id",
+          "lease.start_date",
+          "lease.end_date",
+          "lease.monthly_rent_krw",
+          "lease.deposit_krw",
+          "lease.status",
+          "tenant.name as tenant_name",
+        ])
+        .where("lease.property_id", "=", numId)
+        .where("tenant.deleted_at", "is", null)
+        .orderBy("lease.start_date", "desc")
+        .execute(),
+      db
+        .selectFrom("payment")
+        .innerJoin("lease", "lease.id", "payment.lease_id")
+        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+        .select([
+          "payment.id",
+          "payment.lease_id",
+          "payment.billing_month",
+          "payment.payment_type",
+          "payment.amount_krw",
+          "payment.amount_paid",
+          "payment.currency_paid",
+          "payment.payment_method",
+          "payment.bundle_id",
+          "payment.status",
+          "payment.payment_date",
+          "payment.notes",
+          "tenant.id as tenant_id",
+          "tenant.name as tenant_name",
+        ])
+        .where("lease.property_id", "=", numId)
+        .where("tenant.deleted_at", "is", null)
+        .orderBy("payment.billing_month", "desc")
+        .orderBy("payment.created_at", "desc")
+        .execute(),
+      db
+        .selectFrom("property_equipment")
+        .selectAll()
+        .where("property_id", "=", numId)
+        .orderBy("created_at", "asc")
+        .execute(),
+      db
+        .selectFrom("bill_preset")
+        .select(["id", "label", "type"])
+        .orderBy("sort_order", "asc")
+        .execute(),
+    ]);
 
   if (!property) notFound();
 
@@ -193,6 +195,7 @@ export default async function PropertyDetailPage({
           </Def>
         </DefGroup>
         <DefGroup label="주소">
+          <Def label="도로명 주소">{property.address || "-"}</Def>
           <Def label="지번 주소">{property.address_jibeon || "-"}</Def>
           <Def label="상세 주소">{property.address_detail || "-"}</Def>
           <Def label="영문 주소">{property.address_en || "-"}</Def>
@@ -351,56 +354,16 @@ export default async function PropertyDetailPage({
           label: "수납 내역",
           count: payments.length,
           content: (
-            <DataPanel>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>청구월</TableHead>
-                    <TableHead>세입자</TableHead>
-                    <TableHead>유형</TableHead>
-                    <TableHead className="text-right">금액(&#8361;)</TableHead>
-                    <TableHead>상태</TableHead>
-                    <TableHead>납부일</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id} className="group">
-                      <TableCell className="tabular font-medium">
-                        <Link
-                          href={`/payments/${payment.id}`}
-                          className="group-hover:underline"
-                        >
-                          {formatDate(payment.billing_month)}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {payment.tenant_name}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {PAYMENT_TYPE_LABEL[payment.payment_type] ??
-                          payment.payment_type}
-                      </TableCell>
-                      <TableCell className="tabular text-right">
-                        {formatKRW(payment.amount_krw)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={payment.status}
-                          label={
-                            PAYMENT_STATUS_LABEL[payment.status] ??
-                            payment.status
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="tabular text-muted-foreground">
-                        {formatDate(payment.payment_date)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DataPanel>
+            <PropertyPayments
+              propertyId={numId}
+              payments={payments}
+              leases={leases.map((l) => ({
+                id: l.id,
+                tenant_name: l.tenant_name,
+                property_address: property.address_jibeon || property.address,
+              }))}
+              billPresets={billPresets}
+            />
           ),
         },
       ]}

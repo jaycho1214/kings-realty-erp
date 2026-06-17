@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 
 export type FilterOption = {
   value: string;
@@ -41,11 +40,7 @@ export function FilterTabs({
   }
 
   return (
-    <Tabs
-      value={current}
-      onValueChange={handleSelect}
-      className={cn("flex-col", className)}
-    >
+    <Tabs value={current} onValueChange={handleSelect} className={className}>
       <TabsList aria-label={paramKey}>
         {options.map((opt) => (
           <TabsTrigger

@@ -19,6 +19,12 @@ interface TenantNotesProps {
   notes: TenantNote[];
 }
 
+/**
+ * Self-contained notes panel. Sized to live in the detail side rail: the header
+ * and add form stay pinned while the list scrolls within the viewport on xl+,
+ * and the whole thing flows naturally when stacked below the tabs on narrow
+ * screens.
+ */
 export function TenantNotes({ tenantId, notes }: TenantNotesProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -28,9 +34,20 @@ export function TenantNotes({ tenantId, notes }: TenantNotesProps) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Add note form */}
-      <form ref={formRef} action={addAction} className="space-y-2">
+    <section className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 xl:max-h-[calc(100svh-5.75rem)]">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3.5 py-2.5">
+        <span className="text-[13px] font-semibold">메모</span>
+        <span className="tabular inline-flex min-w-5 items-center justify-center rounded-md bg-secondary px-1 text-[11px] font-medium text-muted-foreground">
+          {notes.length}
+        </span>
+      </header>
+
+      {/* Add note */}
+      <form
+        ref={formRef}
+        action={addAction}
+        className="shrink-0 space-y-2 border-b border-border/60 p-3.5"
+      >
         <Textarea
           name="content"
           placeholder="메모를 입력하세요..."
@@ -42,51 +59,58 @@ export function TenantNotes({ tenantId, notes }: TenantNotesProps) {
         </div>
       </form>
 
-      {/* Notes list */}
-      {notes.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">
-          등록된 메모가 없습니다.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {notes.map((note) => {
-            const deleteAction = deleteTenantNote.bind(null, note.id, tenantId);
-            const date = new Date(note.created_at);
-            return (
-              <div
-                key={note.id}
-                className="group rounded-lg border bg-card p-3"
-              >
-                <div className="mb-1.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="font-medium text-foreground/70">
-                      {note.author_name}
-                    </span>
-                    <span>
-                      {date.toLocaleDateString("ko-KR")}{" "}
-                      {date.toLocaleTimeString("ko-KR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+      {/* List */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
+        {notes.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            등록된 메모가 없습니다.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {notes.map((note) => {
+              const deleteAction = deleteTenantNote.bind(
+                null,
+                note.id,
+                tenantId,
+              );
+              const date = new Date(note.created_at);
+              return (
+                <li
+                  key={note.id}
+                  className="group rounded-lg border bg-card p-3"
+                >
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate font-medium text-foreground/70">
+                        {note.author_name}
+                      </span>
+                      <span className="tabular shrink-0">
+                        {date.toLocaleDateString("ko-KR")}{" "}
+                        {date.toLocaleTimeString("ko-KR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <form action={deleteAction}>
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-6 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
+                        aria-label="메모 삭제"
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </form>
                   </div>
-                  <form action={deleteAction}>
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-6 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-danger"
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </form>
-                </div>
-                <p className="whitespace-pre-wrap text-sm">{note.content}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                  <p className="whitespace-pre-wrap text-sm">{note.content}</p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

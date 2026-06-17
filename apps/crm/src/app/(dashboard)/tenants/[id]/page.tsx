@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,29 +22,30 @@ import {
   DetailRow,
 } from "@/components/detail";
 import { formatKRW, formatDate } from "@/lib/utils";
-import { daysUntil } from "@/lib/date";
-import {
-  sexMap,
-  branchMap,
-  leaseStatusMap,
-  paymentStatusMap,
-  paymentTypeMap,
-} from "@/lib/labels";
+import { daysUntil, seoulDateString } from "@/lib/date";
+import { sexMap, branchMap, leaseStatusMap } from "@/lib/labels";
 import { buildTenantLedger } from "@/lib/ledger";
+import { getUsdToKrwRate, toKrw } from "@/lib/exchange";
 import { getOhaLimit } from "@/lib/oha";
+import { rankToGroupCode } from "@/lib/oha-groups";
 import { getSession } from "@/lib/session";
 import { canViewSensitive } from "@/lib/authz";
 import { TenantLedger } from "../_components/tenant-ledger";
 import { TenantCharges } from "../_components/tenant-charges";
+import { TenantRecurringCharges } from "../_components/tenant-recurring-charges";
 import { TenantForm } from "../_components/tenant-form";
 import { FamilyMembers } from "../_components/family-members";
 import { TenantPets } from "../_components/tenant-pets";
 import { TenantNotes } from "../_components/tenant-notes";
+import { TenantPayments } from "../_components/tenant-payments";
+import { LandlordRrn } from "../../landlords/[id]/_components/landlord-rrn";
 import { DocumentList } from "@/components/document-list";
 import { CreateDialog } from "@/components/create-dialog";
 import { deleteTenant } from "../_actions";
 import { TenantStatusButton } from "../_components/tenant-status-button";
 import { LeaseForm } from "../../leases/_components/lease-form";
+import { OhaAllowancePopover } from "../_components/oha-allowance-popover";
+import { Inspections } from "../../leases/[id]/_components/inspections";
 
 export default async function TenantDetailPage({
   params,
@@ -97,10 +98,14 @@ export default async function TenantDetailPage({
         "lease.deposit_krw",
         "lease.status",
         "property.id as property_id",
-        "property.address",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
         "landlord.id as landlord_id",
         "landlord.name as landlord_name",
         "landlord.phone as landlord_phone",
+        "landlord.birth as landlord_birth",
+        "landlord.rrn_encrypted as landlord_rrn_encrypted",
       ])
       .where("lease.tenant_id", "=", numId)
       .orderBy("lease.start_date", "desc")
@@ -111,15 +116,24 @@ export default async function TenantDetailPage({
       .innerJoin("property", "property.id", "lease.property_id")
       .select([
         "payment.id",
+        "payment.lease_id",
         "payment.billing_month",
         "payment.payment_type",
         "payment.amount_krw",
+        "payment.amount_paid",
+        "payment.currency_paid",
+        "payment.payment_method",
+        "payment.bundle_id",
         "payment.status",
         "payment.payment_date",
-        "property.address",
+        "payment.notes",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
       ])
       .where("lease.tenant_id", "=", numId)
       .orderBy("payment.billing_month", "desc")
+      .orderBy("payment.created_at", "desc")
       .execute(),
     db
       .selectFrom("tenant_note")
@@ -165,19 +179,24 @@ export default async function TenantDetailPage({
     session,
     ohaLimit,
     charges,
+    recurring,
+    billPresets,
+    ohaRateRows,
   ] = await Promise.all([
     db
       .selectFrom("property")
       .innerJoin("landlord", "landlord.id", "property.landlord_id")
       .select([
         "property.id",
-        "property.address",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
         "property.monthly_rent_krw",
         "property.deposit_krw",
         "landlord.name as landlord_name",
       ])
       .where("property.status", "=", "vacant")
-      .orderBy("property.address", "asc")
+      .orderBy(sql`coalesce(property.address_jibeon, property.address)`, "asc")
       .execute(),
     db
       .selectFrom("realty_fee_default")
@@ -209,20 +228,115 @@ export default async function TenantDetailPage({
       .orderBy("billing_month", "desc")
       .orderBy("created_at", "desc")
       .execute(),
+    db
+      .selectFrom("recurring_charge")
+      .select([
+        "id",
+        "label",
+        "type",
+        "amount",
+        "currency",
+        "due_day",
+        "active",
+        "start_month",
+        "end_month",
+      ])
+      .where("tenant_id", "=", numId)
+      .orderBy("active", "desc")
+      .orderBy("created_at", "asc")
+      .execute(),
+    db
+      .selectFrom("bill_preset")
+      .select([
+        "id",
+        "label",
+        "type",
+        "default_amount",
+        "default_currency",
+        "default_due_day",
+        "is_variable",
+      ])
+      .orderBy("sort_order", "asc")
+      .execute(),
+    db
+      .selectFrom("oha_rate")
+      .select(["code", "dependent_status", "amount", "effective_from"])
+      .where("effective_to", "is", null)
+      .where("region", "=", "Default")
+      .execute(),
   ]);
 
   const canEditLedger = canViewSensitive(session?.user?.role);
+  const canViewRrn = canViewSensitive(session?.user?.role);
+
+  const tenantGroupCode = rankToGroupCode(tenant.rank);
+
+  const ohaRows: Record<string, { with: string; without: string }> = {};
+  let ohaEffectiveFrom: string | null = null;
+  for (const r of ohaRateRows) {
+    const entry = (ohaRows[r.code] ??= { with: "0", without: "0" });
+    if (r.dependent_status === "with") entry.with = String(r.amount);
+    else entry.without = String(r.amount);
+    if (!ohaEffectiveFrom && r.effective_from) {
+      ohaEffectiveFrom =
+        r.effective_from instanceof Date
+          ? r.effective_from.toISOString().split("T")[0]
+          : String(r.effective_from).slice(0, 10);
+    }
+  }
 
   const chargeRows = charges.map((c) => ({
     ...c,
     billing_month: c.billing_month
       ? new Date(c.billing_month).toISOString().split("T")[0]
       : null,
-    amount: String(c.amount),
+    amount: c.amount == null ? null : String(c.amount),
     due_date: c.due_date
       ? new Date(c.due_date).toISOString().split("T")[0]
       : null,
   }));
+
+  const recurringRows = recurring.map((r) => ({
+    id: r.id,
+    label: r.label,
+    type: r.type,
+    amount: r.amount == null ? null : String(r.amount),
+    currency: r.currency,
+    due_day: r.due_day,
+    active: r.active,
+    start_month: r.start_month
+      ? new Date(r.start_month).toISOString().split("T")[0]
+      : null,
+    end_month: r.end_month
+      ? new Date(r.end_month).toISOString().split("T")[0]
+      : null,
+  }));
+
+  const presetOptions = billPresets.map((p) => ({
+    id: p.id,
+    label: p.label,
+    type: p.type,
+    default_amount: p.default_amount == null ? null : String(p.default_amount),
+    default_currency: p.default_currency,
+    default_due_day: p.default_due_day,
+    is_variable: p.is_variable,
+  }));
+
+  // 미납 = 금액이 있고 마감일이 지난 미수납 청구(월세·정기 포함). KRW 기준 합계.
+  const today = seoulDateString();
+  const arrearsCharges = chargeRows.filter(
+    (c) =>
+      c.amount != null &&
+      (c.status === "billed" || c.status === "overdue") &&
+      c.due_date != null &&
+      c.due_date < today,
+  );
+  const usdRate = await getUsdToKrwRate();
+  const arrearsCount = arrearsCharges.length;
+  const arrearsTotalKrw = arrearsCharges.reduce(
+    (sum, c) => sum + toKrw(Number(c.amount), c.currency, usdRate),
+    0,
+  );
 
   const realtyFeeDefaults: { USD?: string; KRW?: string } = {};
   for (const row of realtyFeeRows) {
@@ -233,12 +347,43 @@ export default async function TenantDetailPage({
     .filter((p) => p.status === "paid")
     .reduce((sum, p) => sum + Number(p.amount_krw), 0);
 
-  const unpaidCount = payments.filter(
-    (p) => p.status === "pending" || p.status === "overdue",
-  ).length;
-
   const activeLease =
     leases.find((l) => l.status === "active" || l.status === "pending") ?? null;
+
+  // Inspections (입주/퇴거 점검) belong to a lease; bind the tab to the tenant's
+  // most-recent lease (covers both move-in on a current lease and move-out on a
+  // just-ended one). Staff names feed the "우리 직원" participant autocomplete.
+  const inspectionLease = leases[0] ?? null;
+  const [inspections, staffUsers] = await Promise.all([
+    inspectionLease
+      ? db
+          .selectFrom("inspection")
+          .select([
+            "id",
+            "type",
+            "inspected_at",
+            "participants",
+            "checklist",
+            "summary",
+          ])
+          .where("lease_id", "=", inspectionLease.id)
+          .orderBy("inspected_at", "desc")
+          .execute()
+      : Promise.resolve([]),
+    db.selectFrom("user").select(["name"]).orderBy("name", "asc").execute(),
+  ]);
+  const staffOptions = staffUsers
+    .map((u) => u.name)
+    .filter((n): n is string => Boolean(n));
+
+  // 임차인 자동완성 후보: 세입자 본인 + 동행 가능한 가족 구성원 이름 (중복 제거).
+  const tenantOptions = Array.from(
+    new Set(
+      [tenant.name, ...familyMembers.map((m) => m.name)].filter(
+        (n): n is string => Boolean(n),
+      ),
+    ),
+  );
 
   const baseLocation = tenant.base_location_id
     ? baseLocations.find((b) => b.id === tenant.base_location_id)
@@ -250,7 +395,6 @@ export default async function TenantDetailPage({
   const branchLabel = tenant.branch
     ? (branchMap[tenant.branch] ?? tenant.branch)
     : null;
-  const identityChip = [branchLabel, tenant.rank].filter(Boolean).join(" · ");
 
   const deleteAction = deleteTenant.bind(null, numId);
 
@@ -284,8 +428,9 @@ export default async function TenantDetailPage({
     },
     {
       label: "미납",
-      value: `${unpaidCount}건`,
-      tone: unpaidCount > 0 ? "danger" : "success",
+      value: arrearsCount > 0 ? formatKRW(arrearsTotalKrw) : "없음",
+      sub: arrearsCount > 0 ? `${arrearsCount}건` : undefined,
+      tone: arrearsCount > 0 ? "danger" : "success",
     },
     { label: "총 납부", value: formatKRW(totalPaid) },
   ];
@@ -331,37 +476,25 @@ export default async function TenantDetailPage({
                     : "-"}
             </Def>
             <Def label="OHA 한도" mono>
-              {ohaLimit
-                ? `$${ohaLimit.amount.toLocaleString()} / 월`
-                : "기준표 없음"}
+              {ohaLimit ? `${formatKRW(ohaLimit.amount)} / 월` : "기준표 없음"}
             </Def>
           </DefGroup>
         </DefinitionGrid>
 
-        <DetailPanel
-          title="현재 계약"
-          action={
-            activeLease ? (
-              <Link
-                href={`/leases/${activeLease.id}`}
-                className="text-xs text-brand hover:underline"
-              >
-                계약 상세 →
-              </Link>
-            ) : null
-          }
-        >
-          {activeLease ? (
-            <>
-              <DetailRow label="매물">
+        {activeLease ? (
+          <div className="space-y-4">
+            <DetailPanel
+              title="임대인"
+              action={
                 <Link
-                  href={`/properties/${activeLease.property_id}`}
-                  className="text-brand hover:underline"
+                  href={`/landlords/${activeLease.landlord_id}`}
+                  className="text-xs text-brand hover:underline"
                 >
-                  {activeLease.address}
+                  임대인 상세 →
                 </Link>
-              </DetailRow>
-              <DetailRow label="임대인">
+              }
+            >
+              <DetailRow label="이름">
                 <Link
                   href={`/landlords/${activeLease.landlord_id}`}
                   className="text-brand hover:underline"
@@ -369,8 +502,40 @@ export default async function TenantDetailPage({
                   {activeLease.landlord_name}
                 </Link>
               </DetailRow>
-              <DetailRow label="임대인 연락처" mono>
-                {activeLease.landlord_phone}
+              <DetailRow label="전화" mono>
+                {activeLease.landlord_phone || "-"}
+              </DetailRow>
+              <DetailRow label="생년월일" mono>
+                {formatDate(activeLease.landlord_birth)}
+              </DetailRow>
+              {canViewRrn && (
+                <DetailRow label="주민등록번호" mono>
+                  <LandlordRrn
+                    landlordId={activeLease.landlord_id}
+                    hasRrn={!!activeLease.landlord_rrn_encrypted}
+                  />
+                </DetailRow>
+              )}
+            </DetailPanel>
+
+            <DetailPanel
+              title="현재 계약"
+              action={
+                <Link
+                  href={`/leases/${activeLease.id}`}
+                  className="text-xs text-brand hover:underline"
+                >
+                  계약 상세 →
+                </Link>
+              }
+            >
+              <DetailRow label="매물">
+                <Link
+                  href={`/properties/${activeLease.property_id}`}
+                  className="text-brand hover:underline"
+                >
+                  {activeLease.address}
+                </Link>
               </DetailRow>
               <DetailRow label="월세" mono>
                 {formatKRW(activeLease.monthly_rent_krw)}
@@ -382,16 +547,18 @@ export default async function TenantDetailPage({
                 {formatDate(activeLease.start_date)} ~{" "}
                 {formatDate(activeLease.end_date)}
               </DetailRow>
-            </>
-          ) : (
+            </DetailPanel>
+          </div>
+        ) : (
+          <DetailPanel title="현재 계약">
             <p className="px-3.5 py-8 text-center text-sm text-muted-foreground">
               활성 계약이 없습니다.
             </p>
-          )}
-        </DetailPanel>
+          </DetailPanel>
+        )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+      <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-4">
         <TenantStatusButton tenantId={numId} currentStatus={tenant.status} />
         <DeleteButton
           action={deleteAction}
@@ -436,11 +603,32 @@ export default async function TenantDetailPage({
       badges={
         <>
           <StatusBadge status={tenant.status} label={statusLabel} />
-          {identityChip && <Badge variant="secondary">{identityChip}</Badge>}
+          {branchLabel && <Badge variant="secondary">{branchLabel}</Badge>}
+          {tenant.rank && (
+            <OhaAllowancePopover
+              rank={tenant.rank}
+              currentGroupCode={tenantGroupCode}
+              rows={ohaRows}
+              effectiveFrom={ohaEffectiveFrom}
+            />
+          )}
         </>
       }
       facts={facts}
       info={{ read: readView, edit: editView }}
+      aside={
+        <TenantNotes
+          tenantId={numId}
+          notes={notes.map((n) => ({
+            ...n,
+            created_at:
+              n.created_at instanceof Date
+                ? n.created_at.toISOString()
+                : n.created_at,
+            author_name: n.author_name,
+          }))}
+        />
+      }
       tabs={[
         {
           label: "가족 구성원",
@@ -451,23 +639,6 @@ export default async function TenantDetailPage({
           label: "반려동물",
           count: pets.length,
           content: <TenantPets tenantId={numId} pets={pets} />,
-        },
-        {
-          label: "메모",
-          count: notes.length,
-          content: (
-            <TenantNotes
-              tenantId={numId}
-              notes={notes.map((n) => ({
-                ...n,
-                created_at:
-                  n.created_at instanceof Date
-                    ? n.created_at.toISOString()
-                    : n.created_at,
-                author_name: n.author_name,
-              }))}
-            />
-          ),
         },
         {
           label: "문서",
@@ -553,6 +724,43 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          label: "입주/퇴거 점검",
+          count: inspections.length,
+          content: inspectionLease ? (
+            <Inspections
+              leaseId={inspectionLease.id}
+              propertyId={inspectionLease.property_id}
+              staffOptions={staffOptions}
+              tenantOptions={tenantOptions}
+              inspections={inspections.map((i) => ({
+                ...i,
+                inspected_at:
+                  i.inspected_at instanceof Date
+                    ? i.inspected_at.toISOString()
+                    : String(i.inspected_at),
+              }))}
+            />
+          ) : (
+            <DataPanel>
+              <p className="px-3.5 py-8 text-center text-sm text-muted-foreground">
+                계약을 먼저 등록한 뒤 입주/퇴거 점검을 기록할 수 있습니다.
+              </p>
+            </DataPanel>
+          ),
+        },
+        {
+          label: "정기 청구",
+          count: recurringRows.length,
+          content: (
+            <TenantRecurringCharges
+              tenantId={numId}
+              recurring={recurringRows}
+              presets={presetOptions}
+              hasActiveLease={!!activeLease}
+            />
+          ),
+        },
+        {
           label: "청구",
           count: chargeRows.length,
           content: (
@@ -582,59 +790,16 @@ export default async function TenantDetailPage({
           label: "납부 내역",
           count: payments.length,
           content: (
-            <DataPanel>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>청구월</TableHead>
-                    <TableHead>매물 주소</TableHead>
-                    <TableHead>유형</TableHead>
-                    <TableHead className="text-right">금액(&#8361;)</TableHead>
-                    <TableHead>상태</TableHead>
-                    <TableHead>납부일</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id} className="group">
-                      <TableCell className="tabular">
-                        <Link
-                          href={`/payments/${payment.id}`}
-                          className="font-medium group-hover:underline"
-                        >
-                          {new Date(payment.billing_month).toLocaleDateString(
-                            "ko-KR",
-                          )}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {payment.address}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {paymentTypeMap[payment.payment_type] ??
-                          payment.payment_type}
-                      </TableCell>
-                      <TableCell className="tabular text-right">
-                        {formatKRW(payment.amount_krw)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={payment.status}
-                          label={
-                            paymentStatusMap[payment.status] ?? payment.status
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="tabular text-muted-foreground">
-                        {new Date(payment.payment_date).toLocaleDateString(
-                          "ko-KR",
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </DataPanel>
+            <TenantPayments
+              tenantId={numId}
+              payments={payments}
+              leases={leases.map((l) => ({
+                id: l.id,
+                tenant_name: tenant.name,
+                property_address: l.address,
+              }))}
+              billPresets={presetOptions}
+            />
           ),
         },
       ]}

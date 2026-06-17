@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8">
+<style>
+  body{font-family:system-ui;background:#fff;margin:0;padding:36px}
+  :root{--border:oklch(0.917 0.004 258);--brand:oklch(0.55 0.17 277);
+    --muted:oklch(0.52 0.011 262);--ink:oklch(0.24 0.012 262)}
+  .label{font-size:12px;color:#999;margin:24px 0 6px}
+  /* shared trigger */
+  .tab{position:relative;display:inline-flex;align-items:center;height:calc(100% - 1px);
+    padding:0 12px;font-size:13px;font-weight:500;color:var(--muted);background:transparent;border:0;box-sizing:border-box}
+  .tab::after{content:"";position:absolute;left:0;right:0;height:2px;background:var(--brand);opacity:0}
+  .tab.active{color:var(--ink);font-weight:600}
+  .tab.active::after{opacity:1}
+  /* BUGGY: p-[3px] + items-center + after bottom:-5px (shadcn defaults) */
+  .buggy{display:inline-flex;height:36px;padding:3px;align-items:center;gap:4px;border-bottom:1px solid var(--border)}
+  .buggy .tab::after{bottom:-5px}
+  /* FIXED: p-0 + items-stretch + after bottom:-1px */
+  .fixed{display:inline-flex;height:36px;padding:0;align-items:stretch;gap:4px;border-bottom:1px solid var(--border)}
+  .fixed .tab::after{bottom:-1px}
+</style>
+<div class="label">BEFORE — shadcn defaults (underline floats below the rail = two lines)</div>
+<div class="buggy">
+  <button class="tab active">기본 정보</button>
+  <button class="tab">가족 구성원</button>
+  <button class="tab">납부 내역</button>
+</div>
+<div class="label">AFTER — p-0 + items-stretch + bottom:-1px (underline on the rail)</div>
+<div class="fixed">
+  <button class="tab active">기본 정보</button>
+  <button class="tab">가족 구성원</button>
+  <button class="tab">납부 내역</button>
+</div>

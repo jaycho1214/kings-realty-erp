@@ -37,130 +37,160 @@ export async function getCalendarEventsRange(
   const createdStart = new Date(`${startDate}T00:00:00+09:00`);
   const createdEnd = new Date(`${endDate}T00:00:00+09:00`);
 
-  const [leases, payments, utilityBills, serviceRequests, customEvents] =
-    await Promise.all([
-      // Leases: start_date or end_date falls within range
-      db
-        .selectFrom("lease")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .innerJoin("property", "property.id", "lease.property_id")
-        .select([
-          "lease.id",
-          "lease.start_date",
-          "lease.end_date",
-          "lease.status",
-          "lease.tenant_id",
-          "tenant.name as tenant_name",
-          "property.address as property_address",
-        ])
-        .where((eb) =>
-          eb.or([
-            eb.and([
-              eb("lease.start_date", ">=", start),
-              eb("lease.start_date", "<", end),
-            ]),
-            eb.and([
-              eb("lease.end_date", ">=", start),
-              eb("lease.end_date", "<", end),
-            ]),
+  const [
+    leases,
+    payments,
+    utilityBills,
+    serviceRequests,
+    inspections,
+    customEvents,
+  ] = await Promise.all([
+    // Leases: start_date or end_date falls within range
+    db
+      .selectFrom("lease")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "lease.id",
+        "lease.start_date",
+        "lease.end_date",
+        "lease.status",
+        "lease.tenant_id",
+        "tenant.name as tenant_name",
+        "property.address as property_address",
+      ])
+      .where((eb) =>
+        eb.or([
+          eb.and([
+            eb("lease.start_date", ">=", start),
+            eb("lease.start_date", "<", end),
           ]),
-        )
-        .where("tenant.deleted_at", "is", null)
-        .execute(),
+          eb.and([
+            eb("lease.end_date", ">=", start),
+            eb("lease.end_date", "<", end),
+          ]),
+        ]),
+      )
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
 
-      // Payments: pending/overdue billing_month in range
-      db
-        .selectFrom("payment")
-        .innerJoin("lease", "lease.id", "payment.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .innerJoin("property", "property.id", "lease.property_id")
-        .innerJoin("user", "user.id", "payment.received_by")
-        .select([
-          "payment.id",
-          "payment.billing_month",
-          "payment.status",
-          "payment.amount_krw",
-          "payment.received_by",
-          "lease.tenant_id",
-          "tenant.name as tenant_name",
-          "property.address as property_address",
-          "user.name as staff_name",
-        ])
-        .where("payment.billing_month", ">=", start)
-        .where("payment.billing_month", "<", end)
-        .where("payment.status", "in", ["pending", "overdue"])
-        .where("tenant.deleted_at", "is", null)
-        .execute(),
+    // Payments: pending/overdue billing_month in range
+    db
+      .selectFrom("payment")
+      .innerJoin("lease", "lease.id", "payment.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .innerJoin("user", "user.id", "payment.received_by")
+      .select([
+        "payment.id",
+        "payment.billing_month",
+        "payment.status",
+        "payment.amount_krw",
+        "payment.received_by",
+        "lease.tenant_id",
+        "tenant.name as tenant_name",
+        "property.address as property_address",
+        "user.name as staff_name",
+      ])
+      .where("payment.billing_month", ">=", start)
+      .where("payment.billing_month", "<", end)
+      .where("payment.status", "in", ["pending", "overdue"])
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
 
-      // Utility bills: unpaid due_date in range
-      db
-        .selectFrom("utility_bill")
-        .innerJoin("lease", "lease.id", "utility_bill.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .innerJoin(
-          "utility_type",
-          "utility_type.id",
-          "utility_bill.utility_type_id",
-        )
-        .select([
-          "utility_bill.id",
-          "utility_bill.due_date",
-          "utility_bill.amount_krw",
-          "lease.tenant_id",
-          "tenant.name as tenant_name",
-          "utility_type.name as utility_name",
-        ])
-        .where("utility_bill.due_date", "is not", null)
-        .where("utility_bill.due_date", ">=", start)
-        .where("utility_bill.due_date", "<", end)
-        .where("utility_bill.paid_to_company", "=", false)
-        .where("tenant.deleted_at", "is", null)
-        .execute(),
+    // Utility bills: unpaid due_date in range
+    db
+      .selectFrom("utility_bill")
+      .innerJoin("lease", "lease.id", "utility_bill.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin(
+        "utility_type",
+        "utility_type.id",
+        "utility_bill.utility_type_id",
+      )
+      .select([
+        "utility_bill.id",
+        "utility_bill.due_date",
+        "utility_bill.amount_krw",
+        "lease.tenant_id",
+        "tenant.name as tenant_name",
+        "utility_type.name as utility_name",
+      ])
+      .where("utility_bill.due_date", "is not", null)
+      .where("utility_bill.due_date", ">=", start)
+      .where("utility_bill.due_date", "<", end)
+      .where("utility_bill.paid_to_company", "=", false)
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
 
-      // Service requests: created_at in range, open status
-      db
-        .selectFrom("service_request")
-        .innerJoin("lease", "lease.id", "service_request.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .innerJoin("user", "user.id", "service_request.logged_by")
-        .select([
-          "service_request.id",
-          "service_request.title",
-          "service_request.created_at",
-          "service_request.status",
-          "service_request.category",
-          "service_request.logged_by",
-          "lease.tenant_id",
-          "tenant.name as tenant_name",
-          "user.name as staff_name",
-        ])
-        .where("service_request.created_at", ">=", createdStart)
-        .where("service_request.created_at", "<", createdEnd)
-        .where("service_request.status", "in", [
-          "received",
-          "in_progress",
-          "escalated",
-        ])
-        .where("tenant.deleted_at", "is", null)
-        .execute(),
+    // Service requests: created_at in range, open status
+    db
+      .selectFrom("service_request")
+      .innerJoin("lease", "lease.id", "service_request.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("user", "user.id", "service_request.logged_by")
+      .select([
+        "service_request.id",
+        "service_request.title",
+        "service_request.created_at",
+        "service_request.status",
+        "service_request.category",
+        "service_request.logged_by",
+        "lease.tenant_id",
+        "tenant.name as tenant_name",
+        "user.name as staff_name",
+      ])
+      .where("service_request.created_at", ">=", createdStart)
+      .where("service_request.created_at", "<", createdEnd)
+      .where("service_request.status", "in", [
+        "received",
+        "in_progress",
+        "escalated",
+      ])
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
 
-      // Custom calendar events
-      db
-        .selectFrom("calendar_event")
-        .innerJoin("user", "user.id", "calendar_event.created_by")
-        .select([
-          "calendar_event.id",
-          "calendar_event.title",
-          "calendar_event.description",
-          "calendar_event.date",
-          "calendar_event.end_date",
-          "calendar_event.created_by",
-          "user.name as staff_name",
-        ])
-        .where("calendar_event.date", ">=", start)
-        .where("calendar_event.date", "<", end)
-        .execute(),
-    ]);
+    // Inspections: move-in/move-out walkthroughs by inspected_at in range.
+    // inspected_at is a timestamptz instant; bound by the Asia/Seoul day like
+    // service_request.created_at. created_by may be null → leftJoin user.
+    db
+      .selectFrom("inspection")
+      .innerJoin("lease", "lease.id", "inspection.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "inspection.property_id")
+      .leftJoin("user", "user.id", "inspection.created_by")
+      .select([
+        "inspection.id",
+        "inspection.type",
+        "inspection.inspected_at",
+        "inspection.created_by",
+        "lease.tenant_id",
+        "tenant.name as tenant_name",
+        "property.address as property_address",
+        "user.name as staff_name",
+      ])
+      .where("inspection.inspected_at", ">=", createdStart)
+      .where("inspection.inspected_at", "<", createdEnd)
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
+
+    // Custom calendar events
+    db
+      .selectFrom("calendar_event")
+      .innerJoin("user", "user.id", "calendar_event.created_by")
+      .select([
+        "calendar_event.id",
+        "calendar_event.title",
+        "calendar_event.description",
+        "calendar_event.date",
+        "calendar_event.end_date",
+        "calendar_event.created_by",
+        "user.name as staff_name",
+      ])
+      .where("calendar_event.date", ">=", start)
+      .where("calendar_event.date", "<", end)
+      .execute(),
+  ]);
 
   const events: CalendarEvent[] = [];
 
@@ -248,6 +278,26 @@ export async function getCalendarEventsRange(
       tenantName: sr.tenant_name,
       staffId: sr.logged_by,
       staffName: sr.staff_name,
+    });
+  }
+
+  // Inspection events (입주/퇴거 점검)
+  for (const insp of inspections) {
+    // inspected_at is a timestamptz instant; the calendar date is its Seoul day.
+    const seoulDay = seoulDateString(new Date(insp.inspected_at));
+    const label = insp.type === "move_out" ? "퇴거 점검" : "입주 점검";
+    events.push({
+      id: `inspection_${insp.id}`,
+      title: `${label}: ${insp.tenant_name}`,
+      date: new Date(`${seoulDay}T00:00:00Z`),
+      category: "inspection",
+      entityId: insp.id,
+      entityPath: `/tenants/${insp.tenant_id}`,
+      description: `${insp.property_address} - ${insp.tenant_name}`,
+      tenantId: insp.tenant_id,
+      tenantName: insp.tenant_name,
+      staffId: insp.created_by ?? undefined,
+      staffName: insp.staff_name ?? undefined,
     });
   }
 

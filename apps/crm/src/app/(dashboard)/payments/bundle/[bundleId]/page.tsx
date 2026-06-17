@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { Badge } from "@/components/ui/badge";
 import { DataPanel } from "@/components/data-panel";
 import {
@@ -78,7 +78,9 @@ export default async function BundleDetailPage({
       "tenant.id as tenant_id",
       "tenant.name as tenant_name",
       "property.id as property_id",
-      "property.address as property_address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "property_address",
+      ),
     ])
     .where("payment.bundle_id", "=", bundleId)
     .orderBy("payment.created_at", "asc")

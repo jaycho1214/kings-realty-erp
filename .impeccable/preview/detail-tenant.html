@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Detail page — direction B (header + stat strip + full tabs)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+<style>
+  :root{
+    --bg: oklch(1 0 0);
+    --canvas: oklch(0.985 0.002 255);
+    --sunken: oklch(0.964 0.003 255);
+    --ink: oklch(0.24 0.012 262);
+    --ink-muted: oklch(0.52 0.011 262);
+    --ink-subtle: oklch(0.63 0.009 262);
+    --line: oklch(0.917 0.004 258);
+    --line-soft: oklch(0.945 0.003 258);
+    --accent: oklch(0.55 0.17 277);
+    --accent-weak: oklch(0.966 0.022 277);
+    --accent-line: oklch(0.90 0.045 277);
+    --success: oklch(0.58 0.14 156);
+    --success-weak: oklch(0.965 0.03 158);
+    --warning: oklch(0.66 0.14 66);
+    --warning-weak: oklch(0.97 0.05 80);
+    --danger: oklch(0.58 0.20 25);
+    --danger-weak: oklch(0.966 0.035 25);
+    --mono: ui-monospace, "SF Mono", "Geist Mono", Menlo, monospace;
+    --sans: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--canvas);color:var(--ink);
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .tabular{font-family:var(--mono);font-feature-settings:"tnum";letter-spacing:-0.01em}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px 24px 56px}
+  a{color:inherit;text-decoration:none}
+
+  /* ── DetailHeader ───────────────────────────── */
+  .crumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-muted)}
+  .crumb a:hover{color:var(--ink);text-decoration:underline}
+  .crumb .sep{color:var(--ink-subtle)}
+  .crumb .cur{color:var(--ink)}
+  .header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-top:6px}
+  .title-row{display:flex;align-items:center;gap:10px}
+  h1{font-size:20px;font-weight:600;letter-spacing:-0.02em;line-height:1.2}
+  .actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;
+    border-radius:6px;font-size:12px;font-weight:500;border:1px solid transparent}
+  .badge .dot{width:6px;height:6px;border-radius:9999px}
+  .badge.success{background:var(--success-weak);color:var(--success);border-color:color-mix(in oklch,var(--success) 25%,transparent)}
+  .badge .dot.success{background:var(--success)}
+  .badge.warning{background:var(--warning-weak);color:var(--warning);border-color:color-mix(in oklch,var(--warning) 25%,transparent)}
+  .badge.danger{background:var(--danger-weak);color:var(--danger);border-color:color-mix(in oklch,var(--danger) 25%,transparent)}
+  .badge.neutral{background:var(--sunken);color:var(--ink-muted);border-color:var(--line)}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;
+    font-size:13px;font-weight:500;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+  .btn:hover{background:var(--sunken)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.icon{width:32px;padding:0;justify-content:center;color:var(--ink-muted)}
+  .svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  /* ── Key-facts / stat strip ─────────────────── */
+  .strip{display:flex;margin-top:16px;border:1px solid var(--line);border-radius:12px;
+    background:var(--bg);overflow:hidden}
+  .strip .cell{flex:1;padding:11px 16px;border-right:1px solid var(--line-soft)}
+  .strip .cell:last-child{border-right:0}
+  .strip .k{font-size:11px;font-weight:500;letter-spacing:.02em;color:var(--ink-muted);text-transform:none}
+  .strip .v{margin-top:3px;font-size:16px;font-weight:600}
+  .strip .v.fig{font-family:var(--mono);font-feature-settings:"tnum";letter-spacing:-.01em;font-weight:600}
+  .strip .v small{font-size:12px;color:var(--ink-subtle);font-weight:500}
+  .strip .v.warn{color:var(--warning)}
+  .strip .v.ok{color:var(--success)}
+
+  /* ── Tabs ───────────────────────────────────── */
+  .tabs{display:flex;gap:2px;margin-top:22px;border-bottom:1px solid var(--line)}
+  .tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;
+    font-size:13px;font-weight:500;color:var(--ink-muted);cursor:pointer}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--ink)}
+  .tab.active::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px}
+  .tab .count{font-family:var(--mono);font-feature-settings:"tnum";font-size:11px;color:var(--ink-subtle);
+    background:var(--sunken);border-radius:5px;padding:1px 5px}
+  .tab .count.alert{background:var(--danger-weak);color:var(--danger)}
+
+  /* ── Tab content ────────────────────────────── */
+  .pane{padding-top:20px}
+  .pane-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .pane-head .h{font-size:13px;font-weight:600;color:var(--ink)}
+  .read-hint{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-subtle)}
+
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}
+  .panel{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
+  .panel-h{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+  .panel-h .t{font-size:13px;font-weight:600}
+  .panel-h a{font-size:12px;color:var(--accent)}
+  .panel-h a:hover{text-decoration:underline}
+
+  /* read-mode definition grid */
+  .defs{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .def{display:flex;flex-direction:column;gap:2px;padding:11px 14px;border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
+  .def:nth-child(2n){border-right:0}
+  .def .k{font-size:11px;font-weight:500;letter-spacing:.02em;color:var(--ink-muted)}
+  .def .v{font-size:14px;color:var(--ink)}
+  .def .v.fig{font-family:var(--mono);font-feature-settings:"tnum";letter-spacing:-.01em}
+  .def .v.empty{color:var(--ink-subtle)}
+  .group-label{padding:9px 14px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--ink-muted);
+    background:var(--sunken);border-bottom:1px solid var(--line-soft)}
+
+  /* current lease summary list */
+  .kv{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:13px}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--ink-muted)}
+  .kv .v{font-weight:500}
+  .kv .v.fig{font-family:var(--mono);font-feature-settings:"tnum";letter-spacing:-.01em}
+  .kv .v.link{color:var(--accent)}
+  .kv .v.link:hover{text-decoration:underline}
+
+  .danger-zone{margin-top:14px;display:flex;justify-content:flex-end}
+  .btn.danger{border-color:color-mix(in oklch,var(--danger) 30%,transparent);color:var(--danger);background:var(--danger-weak)}
+
+  .note{margin-top:26px;font-size:12px;color:var(--ink-subtle);text-align:center}
+  .ghosted{opacity:.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- breadcrumb + header -->
+  <div class="crumb">
+    <a href="#">세입자</a><span class="sep">›</span><span class="cur">홍길동</span>
+  </div>
+  <div class="header">
+    <div class="title-row">
+      <h1>홍길동</h1>
+      <span class="badge success"><span class="dot success"></span>활성</span>
+      <span class="badge neutral">SSG · E-6</span>
+    </div>
+    <div class="actions">
+      <button class="btn"><svg class="svg" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>편집</button>
+      <button class="btn icon" title="더보기"><svg class="svg" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+    </div>
+  </div>
+
+  <!-- key-facts / stat strip -->
+  <div class="strip">
+    <div class="cell"><div class="k">현재 월세</div><div class="v fig">₩1,200,000</div></div>
+    <div class="cell"><div class="k">보증금</div><div class="v fig">₩12,000,000</div></div>
+    <div class="cell"><div class="k">DEROS</div><div class="v fig warn">D-90 <small>2026.09.13</small></div></div>
+    <div class="cell"><div class="k">미납</div><div class="v fig ok">0건</div></div>
+    <div class="cell"><div class="k">총 납부</div><div class="v fig">₩7,200,000</div></div>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <div class="tab active">기본 정보</div>
+    <div class="tab">가족 구성원 <span class="count">3</span></div>
+    <div class="tab">반려동물 <span class="count">1</span></div>
+    <div class="tab">메모 <span class="count">2</span></div>
+    <div class="tab">문서 <span class="count">4</span></div>
+    <div class="tab">임대 계약 <span class="count">2</span></div>
+    <div class="tab">납부 내역 <span class="count">12</span></div>
+  </div>
+
+  <!-- tab content: 기본 정보 (read-first) -->
+  <div class="pane">
+    <div class="pane-head">
+      <span class="h">기본 정보</span>
+      <span class="read-hint">
+        <svg class="svg" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        읽기 모드 · 편집하려면 우측 상단 편집
+      </span>
+    </div>
+
+    <div class="grid2">
+      <!-- left: field definition grid (read) -->
+      <div class="panel">
+        <div class="group-label">연락처</div>
+        <div class="defs">
+          <div class="def"><span class="k">전화</span><span class="v fig">010-1234-5678</span></div>
+          <div class="def"><span class="k">이메일</span><span class="v">hong@example.com</span></div>
+        </div>
+        <div class="group-label">인적사항</div>
+        <div class="defs">
+          <div class="def"><span class="k">성별</span><span class="v">남성</span></div>
+          <div class="def"><span class="k">생년월일</span><span class="v fig">1991.04.22</span></div>
+        </div>
+        <div class="group-label">군 정보</div>
+        <div class="defs">
+          <div class="def"><span class="k">소속</span><span class="v">Army</span></div>
+          <div class="def"><span class="k">계급</span><span class="v">E-6 (SSG)</span></div>
+          <div class="def"><span class="k">부대</span><span class="v">2ID, USAG-H</span></div>
+          <div class="def"><span class="k">기지</span><span class="v">Camp Humphreys</span></div>
+          <div class="def" style="border-right:0"><span class="k">DEROS</span><span class="v fig">2026.09.13</span></div>
+          <div class="def"><span class="k">동반가족</span><span class="v">3명</span></div>
+        </div>
+      </div>
+
+      <!-- right: current lease summary (read, links out) -->
+      <div class="panel">
+        <div class="panel-h"><span class="t">현재 계약</span><a href="#">계약 상세 →</a></div>
+        <div class="kv"><span class="k">매물</span><a class="v link" href="#">평택 험프리스 A동 1203호</a></div>
+        <div class="kv"><span class="k">임대인</span><a class="v link" href="#">김영수</a></div>
+        <div class="kv"><span class="k">임대인 연락처</span><span class="v fig">010-9876-5432</span></div>
+        <div class="kv"><span class="k">월세</span><span class="v fig">₩1,200,000</span></div>
+        <div class="kv"><span class="k">보증금</span><span class="v fig">₩12,000,000</span></div>
+        <div class="kv"><span class="k">계약기간</span><span class="v fig">2025.09.14 ~ 2026.09.13</span></div>
+      </div>
+    </div>
+
+    <div class="danger-zone">
+      <button class="btn danger"><svg class="svg" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>세입자 삭제</button>
+    </div>
+  </div>
+
+  <div class="note">
+    Mock · Direction B — DetailHeader(브레드크럼+이름+상태+액션) · 키팩트 스트립 · 풀폭 탭 · 기본 정보는 읽기 우선(편집은 헤더 액션)
+  </div>
+
+</div>
+</body>
+</html>

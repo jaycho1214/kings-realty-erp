@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, ClipboardCheck } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ClipboardCheck,
+  ChevronsUpDown,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +22,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 import { SubmitButton } from "@/components/submit-button";
+import { cn } from "@/lib/utils";
 import { addInspection, deleteInspection } from "../../_actions";
 
 const AREAS = ["방", "욕실", "주방", "거실", "가전", "기타"];
@@ -66,10 +86,16 @@ export function Inspections({
   leaseId,
   propertyId,
   inspections,
+  staffOptions = [],
+  tenantOptions = [],
 }: {
   leaseId: number;
   propertyId: number;
   inspections: InspectionRow[];
+  /** 우리 직원 자동완성 후보 (user.name). 자유 입력도 허용. */
+  staffOptions?: string[];
+  /** 임차인 자동완성 후보 (세입자·가족 구성원 이름). 자유 입력도 허용. */
+  tenantOptions?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ChecklistItem[]>(
@@ -189,16 +215,24 @@ export function Inspections({
 
             <div className="grid grid-cols-3 gap-3">
               <Field>
-                <Label htmlFor="p_staff">우리 직원</Label>
-                <Input id="p_staff" name="p_staff" placeholder="직원명" />
+                <Label>우리 직원</Label>
+                <ParticipantCombobox
+                  name="p_staff"
+                  options={staffOptions}
+                  placeholder="직원명"
+                />
               </Field>
               <Field>
                 <Label htmlFor="p_housing">Housing 담당</Label>
                 <Input id="p_housing" name="p_housing" placeholder="담당자명" />
               </Field>
               <Field>
-                <Label htmlFor="p_tenant">임차인</Label>
-                <Input id="p_tenant" name="p_tenant" placeholder="임차인명" />
+                <Label>임차인</Label>
+                <ParticipantCombobox
+                  name="p_tenant"
+                  options={tenantOptions}
+                  placeholder="임차인명"
+                />
               </Field>
             </div>
 
@@ -324,5 +358,92 @@ function InspectionCard({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * 점검 참여자 선택용 shadcn 콤보박스. 후보(직원명·임차인명 등)를 제안하되, 목록에
+ * 없는 이름은 직접 입력해 "추가"할 수 있다(자유 입력). 폼에는 hidden input으로
+ * 주어진 `name` 값을 전달한다.
+ */
+function ParticipantCombobox({
+  name,
+  options,
+  placeholder,
+}: {
+  name: string;
+  options: string[];
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [search, setSearch] = useState("");
+
+  const trimmed = search.trim();
+  const hasExact = options.some(
+    (o) => o.toLowerCase() === trimmed.toLowerCase(),
+  );
+
+  function choose(next: string) {
+    setValue(next);
+    setOpen(false);
+    setSearch("");
+  }
+
+  return (
+    <>
+      <input type="hidden" name={name} value={value} />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 w-full justify-between px-2.5 font-normal"
+            />
+          }
+        >
+          <span className={cn("truncate", !value && "text-muted-foreground")}>
+            {value || placeholder}
+          </span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+        </PopoverTrigger>
+        <PopoverContent className="w-[--anchor-width] p-0" align="start">
+          <Command>
+            <CommandInput
+              placeholder={`${placeholder} 검색 또는 입력...`}
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              <CommandEmpty>결과 없음</CommandEmpty>
+              <CommandGroup>
+                {options.map((opt) => (
+                  <CommandItem
+                    key={opt}
+                    value={opt}
+                    onSelect={() => choose(opt)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-1.5 size-3.5",
+                        value === opt ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {opt}
+                  </CommandItem>
+                ))}
+                {trimmed && !hasExact && (
+                  <CommandItem value={trimmed} onSelect={() => choose(trimmed)}>
+                    <Check className="mr-1.5 size-3.5 opacity-0" />
+                    &quot;{trimmed}&quot; 추가
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }

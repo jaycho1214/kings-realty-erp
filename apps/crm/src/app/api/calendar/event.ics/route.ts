@@ -15,6 +15,7 @@ const UID_PREFIX: Record<string, string> = {
   rent_due: "rent",
   utility_due: "utility",
   service_request: "service",
+  inspection: "inspection",
   custom: "custom",
 };
 
@@ -157,6 +158,35 @@ export async function GET(request: NextRequest) {
       );
       summary = sr.title;
       description = `${sr.tenant_name} - ${sr.category}`;
+      break;
+    }
+
+    case "inspection": {
+      const insp = await db
+        .selectFrom("inspection")
+        .innerJoin("lease", "lease.id", "inspection.lease_id")
+        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+        .innerJoin("property", "property.id", "inspection.property_id")
+        .select([
+          "inspection.type",
+          "inspection.inspected_at",
+          "tenant.name as tenant_name",
+          "property.address",
+        ])
+        .where("inspection.id", "=", Number(id))
+        .executeTakeFirst();
+
+      if (!insp) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+
+      // inspected_at is a timestamptz instant; calendar date is its Seoul day.
+      eventDate = new Date(
+        `${seoulDateString(new Date(insp.inspected_at))}T00:00:00Z`,
+      );
+      const label = insp.type === "move_out" ? "퇴거 점검" : "입주 점검";
+      summary = `${label}: ${insp.tenant_name}`;
+      description = `${insp.address} - ${insp.tenant_name}`;
       break;
     }
 

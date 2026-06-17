@@ -3,6 +3,7 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DataPanel } from "@/components/data-panel";
 import { UtilityTypes } from "../../_components/utility-types";
+import { BillPresets } from "../../_components/bill-presets";
 import { BaseLocations } from "../../_components/base-locations";
 import { ServiceCategories } from "../../_components/service-categories";
 import { ExchangeVendors } from "../../_components/exchange-vendors";
@@ -40,9 +41,20 @@ interface ExchangeVendorRow {
   phone: string | null;
 }
 
+interface BillPresetRow {
+  id: number;
+  label: string;
+  type: string;
+  default_amount: string | null;
+  default_currency: string;
+  default_due_day: number;
+  is_variable: boolean;
+}
+
 interface DataSettingsProps {
   utilityTypes: UtilityTypeRow[];
   utilityUsageMap: Record<string, number>;
+  billPresets: BillPresetRow[];
   baseLocations: BaseLocationRow[];
   baseLocationUsageMap: Record<string, number>;
   serviceCategories: ServiceCategoryRow[];
@@ -56,6 +68,7 @@ interface DataSettingsProps {
 export function DataSettings({
   utilityTypes,
   utilityUsageMap,
+  billPresets,
   baseLocations,
   baseLocationUsageMap,
   serviceCategories,
@@ -77,6 +90,7 @@ export function DataSettings({
       <Tabs defaultValue="utility-types">
         <TabsList>
           <TabsTrigger value="utility-types">공과금 유형</TabsTrigger>
+          <TabsTrigger value="bill-presets">청구 유형</TabsTrigger>
           <TabsTrigger value="base-locations">기지 위치</TabsTrigger>
           <TabsTrigger value="service-categories">AS 카테고리</TabsTrigger>
           <TabsTrigger value="exchange-vendors">환전업체</TabsTrigger>
@@ -86,6 +100,11 @@ export function DataSettings({
         <TabsContent value="utility-types">
           <DataPanel>
             <UtilityTypes types={utilityTypes} usageMap={utilityUsageMap} />
+          </DataPanel>
+        </TabsContent>
+        <TabsContent value="bill-presets">
+          <DataPanel>
+            <BillPresets presets={billPresets} />
           </DataPanel>
         </TabsContent>
         <TabsContent value="base-locations">

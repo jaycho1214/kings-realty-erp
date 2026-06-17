@@ -1,4 +1,4 @@
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { seoulYMD } from "@/lib/date";
 import { CalendarGrid } from "./_components/calendar-grid";
@@ -37,8 +37,16 @@ export default async function CalendarPage({
         .execute(),
       db
         .selectFrom("property")
-        .select(["id", "address"])
-        .orderBy("address", "asc")
+        .select([
+          "id",
+          sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+            "address",
+          ),
+        ])
+        .orderBy(
+          sql`coalesce(property.address_jibeon, property.address)`,
+          "asc",
+        )
         .execute(),
       db
         .selectFrom("event_category")

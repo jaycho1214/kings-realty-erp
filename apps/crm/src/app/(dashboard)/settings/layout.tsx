@@ -27,14 +27,14 @@ export default function SettingsLayout({
       />
       <div className="flex flex-col gap-6">
         <nav className="overflow-x-auto">
-          <ul className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted p-[3px] text-muted-foreground">
+          <ul className="inline-flex h-9 items-stretch gap-1 rounded-lg bg-muted p-[3px] text-muted-foreground">
             {settingsNav.map((item) => {
               const isActive =
                 item.href === "/settings"
                   ? pathname === "/settings"
                   : pathname.startsWith(item.href);
               return (
-                <li key={item.href}>
+                <li key={item.href} className="flex">
                   <Link
                     href={item.href}
                     className={cn(

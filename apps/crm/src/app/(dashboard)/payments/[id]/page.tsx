@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/ui/badge";
 import { DataPanel } from "@/components/data-panel";
@@ -80,7 +80,9 @@ export default async function PaymentDetailPage({
       "tenant.id as tenant_id",
       "tenant.name as tenant_name",
       "property.id as property_id",
-      "property.address as property_address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "property_address",
+      ),
     ])
     .where("payment.id", "=", numId)
     .executeTakeFirst();
@@ -99,7 +101,7 @@ export default async function PaymentDetailPage({
         .executeTakeFirst()
     : null;
 
-  const [leases, utilityBills, documents] = await Promise.all([
+  const [leases, utilityBills, documents, billPresets] = await Promise.all([
     db
       .selectFrom("lease")
       .innerJoin("tenant", "tenant.id", "lease.tenant_id")
@@ -107,7 +109,9 @@ export default async function PaymentDetailPage({
       .select([
         "lease.id",
         "tenant.name as tenant_name",
-        "property.address as property_address",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "property_address",
+        ),
       ])
       .where((eb) =>
         eb.or([
@@ -165,6 +169,11 @@ export default async function PaymentDetailPage({
       .where("entity_type", "=", "payment")
       .where("entity_id", "=", numId)
       .orderBy("created_at", "desc")
+      .execute(),
+    db
+      .selectFrom("bill_preset")
+      .select(["id", "label", "type"])
+      .orderBy("sort_order", "asc")
       .execute(),
   ]);
 
@@ -277,6 +286,7 @@ export default async function PaymentDetailPage({
       }}
       paymentId={numId}
       leases={leases}
+      billPresets={billPresets}
     />
   );
 

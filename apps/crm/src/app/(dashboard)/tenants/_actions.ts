@@ -4,7 +4,11 @@ import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, requireAdmin, requireSensitiveAccess } from "@/lib/authz";
-import { seoulYMD, firstOfMonth } from "@/lib/date";
+import { seoulYMD, seoulDateString, firstOfMonth } from "@/lib/date";
+import {
+  generateRecurringChargesForMonth,
+  recomputeChargeStatus,
+} from "@/lib/charges";
 
 export async function createTenant(formData: FormData) {
   const session = await requireUser();
@@ -584,6 +588,128 @@ export async function deleteCharge(id: number, tenantId: number) {
     .where("id", "=", id)
     .where("tenant_id", "=", tenantId)
     .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+/** Fill a variable placeholder's amount, flipping 미청구 → 청구됨/미납. */
+export async function setChargeAmount(
+  id: number,
+  tenantId: number,
+  amount: number,
+) {
+  await requireUser();
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("금액을 올바르게 입력해주세요.");
+  }
+  const db = getDb();
+  await db
+    .updateTable("charge_item")
+    .set({ amount: String(amount), updated_at: new Date() })
+    .where("id", "=", id)
+    .where("tenant_id", "=", tenantId)
+    .where("paid_by_payment_id", "is", null)
+    .execute();
+  await recomputeChargeStatus([id], seoulDateString());
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+// --- Recurring charges (정기 청구 정의) ---
+
+function parseRecurringForm(formData: FormData) {
+  const label = (formData.get("label") as string)?.trim();
+  if (!label) throw new Error("항목 이름을 입력해주세요.");
+  const type = (formData.get("type") as string)?.trim() || "custom";
+  const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
+  const dueDayRaw = Number(formData.get("due_day"));
+  const due_day =
+    Number.isFinite(dueDayRaw) && dueDayRaw >= 1 && dueDayRaw <= 31
+      ? Math.floor(dueDayRaw)
+      : 10;
+  const amountRaw = (formData.get("amount") as string)?.trim();
+  const amount = amountRaw ? Number(amountRaw) : null; // null = 변동(월마다 입력)
+  if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
+    throw new Error("금액을 올바르게 입력해주세요.");
+  }
+  const startRaw = (formData.get("start_month") as string)?.trim();
+  const endRaw = (formData.get("end_month") as string)?.trim();
+  return {
+    label,
+    type,
+    currency,
+    due_day,
+    amount: amount == null ? null : String(amount),
+    start_month: startRaw ? `${startRaw}-01` : null,
+    end_month: endRaw ? `${endRaw}-01` : null,
+  };
+}
+
+/** Add a recurring-bill definition for a tenant (optionally seeded from a preset). */
+export async function addRecurringCharge(tenantId: number, formData: FormData) {
+  const session = await requireUser();
+  const db = getDb();
+  const fields = parseRecurringForm(formData);
+  await db
+    .insertInto("recurring_charge")
+    .values({
+      tenant_id: tenantId,
+      ...fields,
+      created_by: Number(session.user.id),
+    })
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+/** Update a definition. Amount changes apply to FUTURE generated charges only. */
+export async function updateRecurringCharge(
+  id: number,
+  tenantId: number,
+  formData: FormData,
+) {
+  await requireUser();
+  const db = getDb();
+  const fields = parseRecurringForm(formData);
+  await db
+    .updateTable("recurring_charge")
+    .set({ ...fields, updated_at: new Date() })
+    .where("id", "=", id)
+    .where("tenant_id", "=", tenantId)
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+export async function toggleRecurringChargeActive(
+  id: number,
+  tenantId: number,
+  active: boolean,
+) {
+  await requireUser();
+  const db = getDb();
+  await db
+    .updateTable("recurring_charge")
+    .set({ active, updated_at: new Date() })
+    .where("id", "=", id)
+    .where("tenant_id", "=", tenantId)
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+export async function deleteRecurringCharge(id: number, tenantId: number) {
+  await requireUser();
+  const db = getDb();
+  // Already-generated charges keep their history (FK on delete set null).
+  await db
+    .deleteFrom("recurring_charge")
+    .where("id", "=", id)
+    .where("tenant_id", "=", tenantId)
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+/** Materialize this month's recurring charges for one tenant (manual trigger). */
+export async function generateTenantRecurringCharges(tenantId: number) {
+  await requireUser();
+  const { year, month } = seoulYMD();
+  await generateRecurringChargesForMonth(firstOfMonth(year, month), tenantId);
   revalidatePath(`/tenants/${tenantId}`);
 }
 

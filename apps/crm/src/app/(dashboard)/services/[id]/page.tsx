@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { DocumentList } from "@/components/document-list";
 import { StatusBadge } from "@/components/status-badge";
@@ -55,7 +55,11 @@ export default async function ServiceDetailPage({
     .innerJoin("tenant", "tenant.id", "lease.tenant_id")
     .innerJoin("property", "property.id", "lease.property_id")
     .innerJoin("user", "user.id", "service_request.logged_by")
-    .leftJoin("service_vendor", "service_vendor.id", "service_request.vendor_id")
+    .leftJoin(
+      "service_vendor",
+      "service_vendor.id",
+      "service_request.vendor_id",
+    )
     .select([
       "service_request.id",
       "service_request.lease_id",
@@ -82,7 +86,9 @@ export default async function ServiceDetailPage({
       "service_request.created_at",
       "tenant.name as tenant_name",
       "tenant.id as tenant_id",
-      "property.address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "address",
+      ),
       "property.id as property_id",
       "user.name as logged_by_name",
     ])
@@ -93,52 +99,52 @@ export default async function ServiceDetailPage({
 
   const [serviceCategories, statusLogs, documents, assignees, users, vendors] =
     await Promise.all([
-    serviceCategoriesPromise,
-    db
-      .selectFrom("service_request_status_log")
-      .innerJoin("user", "user.id", "service_request_status_log.changed_by")
-      .select([
-        "service_request_status_log.id",
-        "service_request_status_log.status",
-        "service_request_status_log.note",
-        "service_request_status_log.created_at",
-        "user.name as changed_by_name",
-      ])
-      .where("service_request_status_log.service_request_id", "=", numId)
-      .orderBy("service_request_status_log.created_at", "desc")
-      .execute(),
-    db
-      .selectFrom("document")
-      .select([
-        "id",
-        "file_name",
-        "file_url",
-        "file_type",
-        "title",
-        "comments",
-        "created_at",
-      ])
-      .where("entity_type", "=", "service_request")
-      .where("entity_id", "=", numId)
-      .orderBy("created_at", "desc")
-      .execute(),
-    db
-      .selectFrom("service_request_assignee")
-      .innerJoin("user", "user.id", "service_request_assignee.user_id")
-      .select(["user.id as user_id", "user.name"])
-      .where("service_request_assignee.service_request_id", "=", numId)
-      .execute(),
-    db
-      .selectFrom("user")
-      .select(["id", "name"])
-      .orderBy("name", "asc")
-      .execute(),
-    db
-      .selectFrom("service_vendor")
-      .select(["id", "name", "phone"])
-      .orderBy("name", "asc")
-      .execute(),
-  ]);
+      serviceCategoriesPromise,
+      db
+        .selectFrom("service_request_status_log")
+        .innerJoin("user", "user.id", "service_request_status_log.changed_by")
+        .select([
+          "service_request_status_log.id",
+          "service_request_status_log.status",
+          "service_request_status_log.note",
+          "service_request_status_log.created_at",
+          "user.name as changed_by_name",
+        ])
+        .where("service_request_status_log.service_request_id", "=", numId)
+        .orderBy("service_request_status_log.created_at", "desc")
+        .execute(),
+      db
+        .selectFrom("document")
+        .select([
+          "id",
+          "file_name",
+          "file_url",
+          "file_type",
+          "title",
+          "comments",
+          "created_at",
+        ])
+        .where("entity_type", "=", "service_request")
+        .where("entity_id", "=", numId)
+        .orderBy("created_at", "desc")
+        .execute(),
+      db
+        .selectFrom("service_request_assignee")
+        .innerJoin("user", "user.id", "service_request_assignee.user_id")
+        .select(["user.id as user_id", "user.name"])
+        .where("service_request_assignee.service_request_id", "=", numId)
+        .execute(),
+      db
+        .selectFrom("user")
+        .select(["id", "name"])
+        .orderBy("name", "asc")
+        .execute(),
+      db
+        .selectFrom("service_vendor")
+        .select(["id", "name", "phone"])
+        .orderBy("name", "asc")
+        .execute(),
+    ]);
 
   const assigneeIds = assignees.map((a) => a.user_id);
   const assigneeNames = assignees.map((a) => a.name).join(", ");

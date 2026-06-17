@@ -4,6 +4,7 @@ export type EventCategory =
   | "rent_due"
   | "utility_due"
   | "service_request"
+  | "inspection"
   | "custom";
 
 export interface CalendarEvent {
@@ -54,6 +55,12 @@ export const categoryConfig: Record<
     dotColor: "bg-orange-500",
     bgColor: "bg-orange-50 dark:bg-orange-500/10",
     textColor: "text-orange-600 dark:text-orange-400",
+  },
+  inspection: {
+    label: "입주/퇴거 점검",
+    dotColor: "bg-teal-500",
+    bgColor: "bg-teal-50 dark:bg-teal-500/10",
+    textColor: "text-teal-600 dark:text-teal-400",
   },
   custom: {
     label: "일정",

@@ -15,6 +15,8 @@ const selectClassName =
 const paymentTypeOptions = [
   { value: "rent", label: "월세" },
   { value: "utility", label: "공과금" },
+  { value: "management", label: "관리비" },
+  { value: "parking", label: "주차" },
   { value: "deposit", label: "보증금" },
   { value: "service", label: "AS비" },
 ];
@@ -52,6 +54,16 @@ interface PaymentFormProps {
   paymentId?: number;
   leases: { id: number; tenant_name: string; property_address: string }[];
   variant?: "card" | "plain";
+  /**
+   * Override the submit handler. When set, it replaces the default create/update
+   * action — used by the tenant 납부 내역 dialog so saving stays on the page and
+   * closes the dialog instead of redirecting to the payment detail.
+   */
+  action?: (formData: FormData) => void | Promise<void>;
+  submitLabel?: string;
+  /** Bill/payment type catalog — drives the 유형 options so newly-added types
+   *  (from the collector or settings) show up here too. */
+  billPresets?: { id: number; label: string; type: string }[];
 }
 
 export function PaymentForm({
@@ -59,10 +71,41 @@ export function PaymentForm({
   paymentId,
   leases,
   variant = "card",
+  action,
+  submitLabel,
+  billPresets,
 }: PaymentFormProps) {
-  const formAction = paymentId
-    ? updatePayment.bind(null, paymentId)
-    : createPayment;
+  const formAction =
+    action ?? (paymentId ? updatePayment.bind(null, paymentId) : createPayment);
+
+  // Built-in (lease-derived) types always present; the rest come from the
+  // shared bill_preset catalog. Dedupe, and keep the row's current type even if
+  // it's no longer in the catalog so editing never silently changes it.
+  const builtinTypes = [
+    { value: "rent", label: "월세" },
+    { value: "deposit", label: "보증금" },
+    { value: "service", label: "AS비" },
+  ];
+  const typeOptions: { value: string; label: string }[] = [];
+  const seenTypes = new Set<string>();
+  for (const o of [
+    ...builtinTypes,
+    ...(billPresets ?? []).map((p) => ({ value: p.type, label: p.label })),
+    ...(defaultValues?.payment_type
+      ? [
+          {
+            value: defaultValues.payment_type,
+            label: defaultValues.payment_type,
+          },
+        ]
+      : []),
+  ]) {
+    if (seenTypes.has(o.value)) continue;
+    seenTypes.add(o.value);
+    typeOptions.push(o);
+  }
+  // No catalog passed → fall back to the full static list.
+  const finalTypeOptions = billPresets ? typeOptions : paymentTypeOptions;
 
   const content = (
     <form action={formAction}>
@@ -96,7 +139,7 @@ export function PaymentForm({
               defaultValue={defaultValues?.payment_type ?? "rent"}
               className={selectClassName}
             >
-              {paymentTypeOptions.map((option) => (
+              {finalTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -219,7 +262,7 @@ export function PaymentForm({
         </div>
 
         <div className="flex justify-end pt-2">
-          <SubmitButton label={paymentId ? "저장" : "등록"} />
+          <SubmitButton label={submitLabel ?? (paymentId ? "저장" : "등록")} />
         </div>
       </FieldGroup>
     </form>

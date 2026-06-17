@@ -13,7 +13,13 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      data-orientation={orientation}
+      orientation={orientation}
+      // Base UI only emits `data-orientation`; the Tailwind variants below
+      // (and in TabsList/TabsTrigger) key off bare `data-horizontal`/
+      // `data-vertical`, so stamp those too or the layout/indicator styles
+      // never match and the root falls back to a flex row.
+      data-horizontal={orientation === "horizontal" ? "" : undefined}
+      data-vertical={orientation === "vertical" ? "" : undefined}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",
         className,

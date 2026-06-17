@@ -29,6 +29,11 @@ export interface DetailViewProps {
   tabs?: DetailTab[];
   /** Entity-specific header actions (e.g. 계약서 PDF, 상태 변경). */
   actions?: React.ReactNode;
+  /**
+   * Optional desktop side rail (e.g. a persistent notes panel). On xl+ it sits
+   * beside the tabs in a sticky right column; below xl it stacks under the tabs.
+   */
+  aside?: React.ReactNode;
 }
 
 export function DetailView({
@@ -39,6 +44,7 @@ export function DetailView({
   info,
   tabs = [],
   actions,
+  aside,
 }: DetailViewProps) {
   const [active, setActive] = React.useState("0");
   const [editing, setEditing] = React.useState(false);
@@ -117,52 +123,69 @@ export function DetailView({
 
       {facts && facts.length > 0 && <KeyFacts items={facts} />}
 
-      {/* Tabs */}
-      <Tabs value={active} onValueChange={changeTab} className="flex-col">
-        <TabsList
-          variant="line"
-          className="h-9 w-full items-stretch justify-start gap-0 overflow-x-auto p-0 scrollbar-none"
-        >
-          {allTabs.map((tab, i) => {
-            const isActive = active === String(i);
-            return (
-              <TabsTrigger
-                key={tab.label}
-                value={String(i)}
-                className={cn(
-                  // The active indicator is a real bottom border (painted inside
-                  // the box, so overflow-x-auto can't clip it). gap-0 keeps the
-                  // per-tab borders touching into one continuous rail: muted
-                  // under inactive tabs, brand under the active one — same line.
-                  "flex-none rounded-none border-0 border-b-2 border-border px-3 text-muted-foreground after:hidden",
-                  "data-active:border-b-brand data-active:font-semibold data-active:text-foreground",
-                )}
-              >
-                {tab.label}
-                {tab.count != null && (
-                  <span
+      {/* Work area: tabs, optionally beside a sticky side rail on xl+. */}
+      <div
+        className={cn(
+          aside && "xl:grid xl:grid-cols-[minmax(0,1fr)_21rem] xl:gap-6",
+        )}
+      >
+        <div className="min-w-0">
+          {/* Tabs */}
+          <Tabs value={active} onValueChange={changeTab}>
+            <TabsList
+              variant="line"
+              className="h-9 w-full items-stretch justify-start gap-0 overflow-x-auto p-0 scrollbar-none"
+            >
+              {allTabs.map((tab, i) => {
+                const isActive = active === String(i);
+                return (
+                  <TabsTrigger
+                    key={tab.label}
+                    value={String(i)}
                     className={cn(
-                      "tabular ml-0.5 inline-flex min-w-5 items-center justify-center rounded-md px-1 text-[11px] font-medium",
-                      tab.alert
-                        ? "bg-danger-weak text-danger"
-                        : isActive
-                          ? "bg-brand-weak text-brand"
-                          : "bg-secondary text-muted-foreground",
+                      // The active indicator is a real bottom border (painted inside
+                      // the box, so overflow-x-auto can't clip it). gap-0 keeps the
+                      // per-tab borders touching into one continuous rail: muted
+                      // under inactive tabs, brand under the active one — same line.
+                      "flex-none rounded-none border-0 border-b-2 border-border px-3 text-muted-foreground after:hidden",
+                      "data-active:border-b-brand data-active:font-semibold data-active:text-foreground",
                     )}
                   >
-                    {tab.count}
-                  </span>
-                )}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-        {allTabs.map((tab, i) => (
-          <TabsContent key={tab.label} value={String(i)} className="mt-5">
-            {tab.content}
-          </TabsContent>
-        ))}
-      </Tabs>
+                    {tab.label}
+                    {tab.count != null && (
+                      <span
+                        className={cn(
+                          "tabular ml-0.5 inline-flex min-w-5 items-center justify-center rounded-md px-1 text-[11px] font-medium",
+                          tab.alert
+                            ? "bg-danger-weak text-danger"
+                            : isActive
+                              ? "bg-brand-weak text-brand"
+                              : "bg-secondary text-muted-foreground",
+                        )}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+            {allTabs.map((tab, i) => (
+              <TabsContent key={tab.label} value={String(i)} className="mt-5">
+                {tab.content}
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+
+        {aside && (
+          // Stretched grid cell so the sticky child has room to travel as the
+          // tab content scrolls. Stacks below the tabs (with a gap) under xl.
+          <div className="mt-4 xl:mt-0">
+            <div className="xl:sticky xl:top-[4.75rem]">{aside}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

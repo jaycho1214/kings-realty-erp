@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2, FileText, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,18 +23,12 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 import { SubmitButton } from "@/components/submit-button";
 import { formatKRW } from "@/lib/utils";
 import {
   addCharge,
   generateTenantRentCharge,
-  updateChargeStatus,
+  setChargeAmount,
   deleteCharge,
 } from "../_actions";
 
@@ -43,7 +37,7 @@ interface ChargeRow {
   type: string;
   recurrence: string;
   billing_month: string | null;
-  amount: string;
+  amount: string | null;
   currency: string;
   due_date: string | null;
   status: string;
@@ -57,22 +51,67 @@ const statusMeta: Record<
   unbilled: { label: "미청구", tone: "default" },
   billed: { label: "청구됨", tone: "warning" },
   paid: { label: "수납완료", tone: "success" },
-  partial: { label: "부분납", tone: "warning" },
   overdue: { label: "미납", tone: "danger" },
 };
 
-const STATUS_OPTIONS = ["billed", "paid", "partial", "overdue", "unbilled"];
 const typeLabel: Record<string, string> = {
   rent: "월세",
   deposit: "보증금",
   prepayment: "선불금",
   realty_fee: "중개수수료",
+  management: "관리비",
+  parking: "주차",
+  utility: "공과금",
 };
+
 const selectClassName =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
 
 function fmtDate(v: string | null) {
   return v ? new Date(v).toLocaleDateString("ko-KR") : "-";
+}
+
+function fmtAmount(amount: string, currency: string) {
+  return currency === "USD"
+    ? `$${Number(amount).toLocaleString()}`
+    : formatKRW(amount);
+}
+
+/** Inline amount entry for a variable placeholder (미청구) charge. */
+function PlaceholderAmount({
+  chargeId,
+  tenantId,
+}: {
+  chargeId: number;
+  tenantId: number;
+}) {
+  const [value, setValue] = useState("");
+  const [pending, startTransition] = useTransition();
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="금액 입력"
+        className="h-7 w-28 text-right"
+      />
+      <Button
+        size="icon-sm"
+        variant="outline"
+        disabled={pending || !value}
+        aria-label="금액 저장"
+        onClick={() =>
+          startTransition(async () => {
+            await setChargeAmount(chargeId, tenantId, Number(value));
+          })
+        }
+      >
+        <Check className="size-3.5" />
+      </Button>
+    </div>
+  );
 }
 
 export function TenantCharges({
@@ -143,7 +182,7 @@ export function TenantCharges({
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">
-                      {typeLabel[c.type] ?? c.type}
+                      {c.memo ?? typeLabel[c.type] ?? c.type}
                       {c.recurrence === "monthly" && (
                         <span className="ml-1.5 text-[11px] text-muted-foreground">
                           정기
@@ -165,47 +204,30 @@ export function TenantCharges({
                       {fmtDate(c.due_date)}
                     </TableCell>
                     <TableCell className="tabular text-right">
-                      {c.currency === "USD"
-                        ? `$${Number(c.amount).toLocaleString()}`
-                        : formatKRW(c.amount)}
+                      {c.amount == null ? (
+                        <PlaceholderAmount
+                          chargeId={c.id}
+                          tenantId={tenantId}
+                        />
+                      ) : (
+                        fmtAmount(c.amount, c.currency)
+                      )}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <button type="button" className="cursor-pointer" />
-                          }
-                        >
-                          <Badge
-                            variant="outline"
-                            className={
-                              meta.tone === "danger"
-                                ? "border-danger/30 text-danger"
-                                : meta.tone === "success"
-                                  ? "border-success/30 text-success"
-                                  : meta.tone === "warning"
-                                    ? "border-warning/30 text-warning"
-                                    : ""
-                            }
-                          >
-                            {meta.label}
-                          </Badge>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {STATUS_OPTIONS.map((s) => (
-                            <DropdownMenuItem
-                              key={s}
-                              onClick={() =>
-                                startTransition(() =>
-                                  updateChargeStatus(c.id, tenantId, s),
-                                )
-                              }
-                            >
-                              {statusMeta[s]?.label ?? s}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Badge
+                        variant="outline"
+                        className={
+                          meta.tone === "danger"
+                            ? "border-danger/30 text-danger"
+                            : meta.tone === "success"
+                              ? "border-success/30 text-success"
+                              : meta.tone === "warning"
+                                ? "border-warning/30 text-warning"
+                                : ""
+                        }
+                      >
+                        {meta.label}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Button

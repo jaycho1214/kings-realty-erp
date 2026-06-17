@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { LandlordForm } from "./_components/landlord-form";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 200;
 
 export default async function LandlordsPage({
   searchParams,

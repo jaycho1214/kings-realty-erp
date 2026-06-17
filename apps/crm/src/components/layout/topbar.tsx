@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Menu, Bell, ChevronDown, LogOut, Download } from "lucide-react";
+import { Menu, Bell, ChevronDown, LogOut } from "lucide-react";
 
 const CommandMenu = dynamic(
   () => import("@/components/layout/command-menu").then((m) => m.CommandMenu),
@@ -77,13 +77,6 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <div className="hidden md:block">
           <CommandMenu />
         </div>
-
-        <Link href="/settings/data" className="hidden lg:inline-flex">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Download className="size-4" />
-            내보내기
-          </Button>
-        </Link>
 
         <Button
           variant="ghost"

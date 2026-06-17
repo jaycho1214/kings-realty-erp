@@ -31,6 +31,16 @@ function allocateProportional(total: number, weights: number[]): number[] {
   return cents.map((c) => c / 100);
 }
 
+/** Payment-type categories stored verbatim; others normalize to "service". */
+const KNOWN_PAYMENT_TYPES = new Set([
+  "rent",
+  "utility",
+  "deposit",
+  "service",
+  "management",
+  "parking",
+]);
+
 export async function createBulkPayment(formData: FormData) {
   const session = await getSession();
   if (!session?.user?.id || !isStaffOrAdmin(session.user.role)) {
@@ -47,15 +57,23 @@ export async function createBulkPayment(formData: FormData) {
   const payment_date = new Date(formData.get("payment_date") as string);
   const notes = (formData.get("notes") as string) || null;
 
-  // Parse line items
+  // Parse line items. A line may carry `charge_id` when it was added from the
+  // tenant's open charges — that charge is settled (수납완료) by this payment.
   const itemCount = Number(formData.get("item_count") ?? "0");
-  const items: { type: string; label: string; amount_krw: number }[] = [];
+  const items: {
+    type: string;
+    label: string;
+    amount_krw: number;
+    charge_id: number | null;
+  }[] = [];
   for (let i = 0; i < itemCount; i++) {
     const type = formData.get(`items[${i}].type`) as string;
     const label = formData.get(`items[${i}].label`) as string;
     const amount_krw = Number(formData.get(`items[${i}].amount_krw`) ?? "0");
+    const chargeIdRaw = formData.get(`items[${i}].charge_id`) as string | null;
+    const charge_id = chargeIdRaw ? Number(chargeIdRaw) : null;
     if (amount_krw > 0) {
-      items.push({ type, label, amount_krw });
+      items.push({ type, label, amount_krw, charge_id });
     }
   }
 
@@ -119,14 +137,13 @@ export async function createBulkPayment(formData: FormData) {
   await db.transaction().execute(async (trx) => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const paymentType =
-        item.type === "rent"
-          ? "rent"
-          : item.type === "utility"
-            ? "utility"
-            : "service";
+      // Keep the line's own type when it's a known category (so 관리비/주차 etc.
+      // carry through from a charge); fall back to "service" for ad-hoc lines.
+      const paymentType = KNOWN_PAYMENT_TYPES.has(item.type)
+        ? item.type
+        : "service";
 
-      await trx
+      const inserted = await trx
         .insertInto("payment")
         .values({
           lease_id,
@@ -143,12 +160,72 @@ export async function createBulkPayment(formData: FormData) {
           received_by: Number(session.user.id),
           bundle_id: bundleId,
         })
-        .execute();
+        .returning("id")
+        .executeTakeFirstOrThrow();
+
+      // Settle the linked charge (binary — no partial). Guard on lease_id so a
+      // stale/foreign charge id can't be flipped.
+      if (item.charge_id) {
+        await trx
+          .updateTable("charge_item")
+          .set({
+            paid_by_payment_id: inserted.id,
+            status: "paid",
+            updated_at: new Date(),
+          })
+          .where("id", "=", item.charge_id)
+          .where("lease_id", "=", lease_id)
+          .execute();
+      }
     }
   });
 
   revalidatePath("/payments");
+  revalidatePath("/"); // dashboard 미납 board reads charges
   return { success: true, error: null };
+}
+
+/**
+ * Add a bill/payment type to the shared `bill_preset` catalog from the payment
+ * collector (inline "+ 새 유형"). Dedupes by label. `type` is the stable key
+ * stored on payments/charges; for ad-hoc additions we use the label itself so
+ * it displays correctly without a hard catalog link.
+ */
+export async function addBillPreset(label: string) {
+  const session = await getSession();
+  if (!session?.user?.id || !isStaffOrAdmin(session.user.role)) {
+    return null;
+  }
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+
+  const db = getDb();
+  const existing = await db
+    .selectFrom("bill_preset")
+    .select(["id", "label", "type"])
+    .where("label", "=", trimmed)
+    .executeTakeFirst();
+  if (existing) return existing;
+
+  const maxOrder = await db
+    .selectFrom("bill_preset")
+    .select(({ fn }) => fn.max("sort_order").as("m"))
+    .executeTakeFirst();
+
+  const result = await db
+    .insertInto("bill_preset")
+    .values({
+      label: trimmed,
+      type: trimmed, // ad-hoc key = label (no canonical category)
+      is_variable: false,
+      sort_order: Number(maxOrder?.m ?? 0) + 1,
+    })
+    .returning(["id", "label", "type"])
+    .executeTakeFirst();
+
+  revalidatePath("/settings");
+  revalidatePath("/payments/new");
+  return result ?? null;
 }
 
 export async function addPaymentUtilityType(name: string) {

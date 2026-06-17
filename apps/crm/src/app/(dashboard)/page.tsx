@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import {
   Wallet,
   CreditCard,
@@ -10,6 +10,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatKRW, formatUSD, cn } from "@/lib/utils";
 import { seoulYMD, daysUntil, seoulDateString } from "@/lib/date";
+import { getUsdToKrwRate, toKrw } from "@/lib/exchange";
 import { getSession } from "@/lib/session";
 import { isAdmin } from "@/lib/authz";
 import { ExchangeRateQuick } from "./_components/exchange-rate-quick";
@@ -73,6 +74,46 @@ function toBoardItem(p: PaymentRow): BoardItem {
   };
 }
 
+type ChargeRow = {
+  id: number;
+  type: string;
+  memo: string | null;
+  amount: string | number | null;
+  currency: string | null;
+  billing_month: Date | string | null;
+  due_date: Date | string | null;
+  status: string;
+  tenant_name: string;
+  tenant_id: number;
+  address: string;
+};
+
+const chargeTypeLabel: Record<string, string> = {
+  rent: "월세",
+  utility: "공과금",
+  management: "관리비",
+  parking: "주차",
+  deposit: "보증금",
+  realty_fee: "중개수수료",
+};
+
+function chargeAmountLabel(c: ChargeRow): string {
+  const amt = Number(c.amount ?? 0);
+  return c.currency === "USD" ? formatUSD(amt) : formatKRW(amt);
+}
+
+function chargeToBoardItem(c: ChargeRow): BoardItem {
+  return {
+    id: c.id,
+    typeKey: c.type,
+    typeLabel: c.memo ?? chargeTypeLabel[c.type] ?? c.type,
+    amount: chargeAmountLabel(c),
+    who: c.tenant_name,
+    address: c.address,
+    dateLabel: `${shortDate(c.billing_month)} 청구`,
+  };
+}
+
 const paymentSelect = [
   "payment.id",
   "payment.payment_type",
@@ -84,7 +125,9 @@ const paymentSelect = [
   "payment.payment_date",
   "tenant.name as tenant_name",
   "tenant.id as tenant_id",
-  "property.address",
+  sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+    "address",
+  ),
 ] as const;
 
 export default async function DashboardPage() {
@@ -93,20 +136,22 @@ export default async function DashboardPage() {
   // are correct regardless of the server's timezone (UTC on Vercel).
   const { year: sy, month: sm, day: sd } = seoulYMD();
   const today = new Date(sy, sm - 1, sd);
+  const monthStart = new Date(sy, sm - 1, 1);
   const windowStart = new Date(sy, sm - 1 - 5, 1);
   const thirtyDays = new Date(today.getTime() + 30 * 864e5);
   const sixtyDays = new Date(today.getTime() + 60 * 864e5);
 
   const [
     payWindow,
-    unpaidTotal,
+    openCharges,
     serviceRows,
-    openPayments,
     paidPayments,
     recentPayments,
     expiringLeases,
     derosApproaching,
     todayRates,
+    monthCharges,
+    usdRate,
   ] = await Promise.all([
     db
       .selectFrom("payment")
@@ -117,16 +162,31 @@ export default async function DashboardPage() {
       .where("tenant.deleted_at", "is", null)
       .execute(),
     db
-      .selectFrom("payment")
-      .innerJoin("lease", "lease.id", "payment.lease_id")
+      .selectFrom("charge_item")
+      .innerJoin("lease", "lease.id", "charge_item.lease_id")
       .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .select(({ fn }) => [
-        fn.count<number>("payment.id").as("cnt"),
-        fn.sum<number>("payment.amount_krw").as("amt"),
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "charge_item.id",
+        "charge_item.type",
+        "charge_item.memo",
+        "charge_item.amount",
+        "charge_item.currency",
+        "charge_item.billing_month",
+        "charge_item.due_date",
+        "charge_item.status",
+        "tenant.name as tenant_name",
+        "tenant.id as tenant_id",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
       ])
-      .where("payment.status", "in", ["pending", "overdue"])
+      .where("charge_item.paid_by_payment_id", "is", null)
+      .where("charge_item.amount", "is not", null)
+      .where("charge_item.status", "in", ["billed", "overdue"])
       .where("tenant.deleted_at", "is", null)
-      .executeTakeFirst(),
+      .orderBy("charge_item.due_date", "asc")
+      .execute(),
     db
       .selectFrom("service_request")
       .select(({ fn }) => ["status", fn.count<number>("id").as("cnt")])
@@ -137,17 +197,6 @@ export default async function DashboardPage() {
         "postponed",
       ])
       .groupBy("status")
-      .execute(),
-    db
-      .selectFrom("payment")
-      .innerJoin("lease", "lease.id", "payment.lease_id")
-      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-      .innerJoin("property", "property.id", "lease.property_id")
-      .select(paymentSelect)
-      .where("payment.status", "in", ["pending", "overdue"])
-      .where("tenant.deleted_at", "is", null)
-      .orderBy("payment.billing_month", "asc")
-      .limit(12)
       .execute(),
     db
       .selectFrom("payment")
@@ -178,7 +227,9 @@ export default async function DashboardPage() {
         "lease.id",
         "lease.end_date",
         "tenant.name as tenant_name",
-        "property.address",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
       ])
       .where("lease.status", "in", ["active", "renewed"])
       .where("tenant.deleted_at", "is", null)
@@ -203,6 +254,20 @@ export default async function DashboardPage() {
       .where("date", "=", today)
       .orderBy("denomination", "desc")
       .execute(),
+    db
+      .selectFrom("charge_item")
+      .innerJoin("lease", "lease.id", "charge_item.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select([
+        "charge_item.status",
+        "charge_item.amount",
+        "charge_item.currency",
+      ])
+      .where("charge_item.billing_month", "=", monthStart)
+      .where("charge_item.amount", "is not", null)
+      .where("tenant.deleted_at", "is", null)
+      .execute(),
+    getUsdToKrwRate(),
   ]);
 
   // Exchange-rate quick-entry (admin only): today's $100/$20 for the dashboard.
@@ -224,11 +289,6 @@ export default async function DashboardPage() {
     };
   });
   const monthIdx = new Map(months.map((m, i) => [m.key, i]));
-  let mDone = 0,
-    mPending = 0,
-    mOverdue = 0,
-    collectedAmt = 0,
-    expectedAmt = 0;
   for (const p of payWindow) {
     const d = new Date(p.billing_month as Date);
     const amt = Number(p.amount_krw);
@@ -237,23 +297,59 @@ export default async function DashboardPage() {
       months[i].expected += amt;
       if (p.status === "paid") months[i].collected += amt;
     }
-    if (d.getFullYear() === sy && d.getMonth() === sm - 1) {
-      expectedAmt += amt;
-      if (p.status === "paid") {
-        mDone += 1;
-        collectedAmt += amt;
-      } else if (p.status === "overdue") mOverdue += 1;
-      else mPending += 1;
+  }
+
+  // Current-month collection status from charges (what's owed), so it agrees
+  // with the charge-based 미납 surfaces. 완료=수납, 미납=청구됨, 연체=마감 경과.
+  let mDone = 0,
+    mPending = 0,
+    mOverdue = 0,
+    collectedAmt = 0,
+    expectedAmt = 0;
+  for (const c of monthCharges) {
+    const krw = toKrw(Number(c.amount ?? 0), c.currency ?? "KRW", usdRate);
+    expectedAmt += krw;
+    if (c.status === "paid") {
+      mDone += 1;
+      collectedAmt += krw;
+    } else if (c.status === "overdue") {
+      mOverdue += 1;
+    } else {
+      mPending += 1;
     }
   }
   const collectionRate =
     expectedAmt > 0 ? Math.round((collectedAmt / expectedAmt) * 100) : 0;
 
-  const unpaidCount = Number(unpaidTotal?.cnt ?? 0);
-  const unpaidAmt = Number(unpaidTotal?.amt ?? 0);
-  const overdueOpen = (openPayments as PaymentRow[]).filter(
-    (p) => p.status === "overdue",
-  ).length;
+  // 미납 = 금액이 있는 미수납 청구(charge_item). USD 는 $20 환율로 환산해 합산.
+  const charges = openCharges as ChargeRow[];
+  const unpaidCount = charges.length;
+  const unpaidAmt = charges.reduce(
+    (sum, c) =>
+      sum + toKrw(Number(c.amount ?? 0), c.currency ?? "KRW", usdRate),
+    0,
+  );
+  const overdueOpen = charges.filter((c) => c.status === "overdue").length;
+
+  // 미납 세입자 — 세입자별 미납 합계 상위.
+  const arrearsByTenant = new Map<
+    number,
+    { name: string; amt: number; count: number }
+  >();
+  for (const c of charges) {
+    const e = arrearsByTenant.get(c.tenant_id) ?? {
+      name: c.tenant_name,
+      amt: 0,
+      count: 0,
+    };
+    e.amt += toKrw(Number(c.amount ?? 0), c.currency ?? "KRW", usdRate);
+    e.count += 1;
+    arrearsByTenant.set(c.tenant_id, e);
+  }
+  const arrearsTenants = [...arrearsByTenant.entries()]
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => b.amt - a.amt)
+    .slice(0, 5);
   const svcReceived = Number(
     serviceRows.find((s) => s.status === "received")?.cnt ?? 0,
   );
@@ -277,15 +373,14 @@ export default async function DashboardPage() {
     .map((m, i) => `${px(i).toFixed(0)},${py(m.collected).toFixed(0)}`)
     .join(" ");
 
-  const open = openPayments as PaymentRow[];
-  const pending = open
-    .filter((p) => p.status === "pending")
+  const pending = charges
+    .filter((c) => c.status === "billed")
     .slice(0, 5)
-    .map(toBoardItem);
-  const overdue = open
-    .filter((p) => p.status === "overdue")
+    .map(chargeToBoardItem);
+  const overdue = charges
+    .filter((c) => c.status === "overdue")
     .slice(0, 5)
-    .map(toBoardItem);
+    .map(chargeToBoardItem);
   const paid = (paidPayments as PaymentRow[]).slice(0, 5).map(toBoardItem);
   const list: ListItem[] = (recentPayments as PaymentRow[]).map((p) => ({
     id: p.id,
@@ -306,6 +401,14 @@ export default async function DashboardPage() {
           오늘의 수납 현황과 미납·만료·DEROS를 한눈에.
         </p>
       </div>
+
+      {/* Board + list */}
+      <PaymentBoard
+        pending={pending}
+        overdue={overdue}
+        paid={paid}
+        list={list}
+      />
 
       {/* Stat cards */}
       <div className="grid gap-3 lg:grid-cols-[1.15fr_0.95fr_1.5fr]">
@@ -449,16 +552,32 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Board + list */}
-      <PaymentBoard
-        pending={pending}
-        overdue={overdue}
-        paid={paid}
-        list={list}
-      />
-
       {/* Secondary panels */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Panel title="미납 세입자" href="/payments">
+          {arrearsTenants.length === 0 ? (
+            <Empty>미납 없음</Empty>
+          ) : (
+            arrearsTenants.map((t) => (
+              <Link
+                key={t.id}
+                href={`/tenants/${t.id}`}
+                className="flex items-center justify-between px-3.5 py-2 text-[13px] hover:bg-secondary"
+              >
+                <span className="truncate">
+                  {t.name}
+                  <span className="ml-1.5 text-muted-foreground">
+                    {t.count}건
+                  </span>
+                </span>
+                <span className="tabular shrink-0 pl-2 font-medium text-danger">
+                  {formatKRW(t.amt)}
+                </span>
+              </Link>
+            ))
+          )}
+        </Panel>
+
         <Panel title="만료 예정 계약" meta="30일 이내" href="/notifications">
           {expiringLeases.length === 0 ? (
             <Empty>예정 없음</Empty>

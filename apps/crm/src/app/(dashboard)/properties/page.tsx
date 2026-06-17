@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Building2 } from "lucide-react";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { CreateDialog } from "@/components/create-dialog";
 import { SearchInput } from "@/components/search-input";
 import { Pagination } from "@/components/pagination";
@@ -36,7 +36,7 @@ const TYPE_LABEL: Record<string, string> = {
   house: "주택",
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 200;
 
 const statusOptions = [
   { value: "all", label: "전체" },
@@ -79,7 +79,10 @@ export default async function PropertiesPage({
     .innerJoin("landlord", "landlord.id", "property.landlord_id")
     .select([
       "property.id",
-      "property.address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "address",
+      ),
+      "property.address_detail",
       "property.property_type",
       "property.monthly_rent_krw",
       "property.deposit_krw",
@@ -91,7 +94,12 @@ export default async function PropertiesPage({
   if (search) {
     // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
     const escaped = search.replace(/[\\%_]/g, (c) => `\\${c}`);
-    query = query.where("property.address", "ilike", `%${escaped}%`);
+    query = query.where((eb) =>
+      eb.or([
+        eb("property.address", "ilike", `%${escaped}%`),
+        eb("property.address_jibeon", "ilike", `%${escaped}%`),
+      ]),
+    );
   }
 
   if (statusFilter) {
@@ -112,7 +120,33 @@ export default async function PropertiesPage({
       .clearSelect()
       .select((eb) => eb.fn.countAll<number>().as("count"))
       .executeTakeFirstOrThrow(),
+    // Latest tenant per property: the tenant on the most recent lease.
+    // DISTINCT ON returns at most one row per property, so this left join
+    // does not fan out rows.
     query
+      .leftJoin(
+        (eb) =>
+          eb
+            .selectFrom("lease")
+            .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+            .where("tenant.deleted_at", "is", null)
+            .distinctOn("lease.property_id")
+            .orderBy("lease.property_id")
+            .orderBy("lease.start_date", "desc")
+            .select([
+              "lease.property_id",
+              "tenant.id as tenant_id",
+              "tenant.name as tenant_name",
+              "lease.status as lease_status",
+            ])
+            .as("latest_lease"),
+        (join) => join.onRef("latest_lease.property_id", "=", "property.id"),
+      )
+      .select([
+        "latest_lease.tenant_id as latest_tenant_id",
+        "latest_lease.tenant_name as latest_tenant_name",
+        "latest_lease.lease_status as latest_lease_status",
+      ])
       .orderBy("property.created_at", "desc")
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE)
@@ -170,6 +204,25 @@ export default async function PropertiesPage({
                     >
                       {property.address}
                     </Link>
+                    {property.address_detail ? (
+                      <span className="block text-sm font-normal text-muted-foreground">
+                        {property.address_detail}
+                      </span>
+                    ) : null}
+                    {property.latest_tenant_name ? (
+                      <Link
+                        href={`/tenants/${property.latest_tenant_id}`}
+                        className="mt-0.5 block text-sm font-normal text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <span className="text-muted-foreground/70">
+                          {property.latest_lease_status === "active"
+                            ? "현재"
+                            : "이전"}{" "}
+                          ·{" "}
+                        </span>
+                        {property.latest_tenant_name}
+                      </Link>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {TYPE_LABEL[property.property_type] ??

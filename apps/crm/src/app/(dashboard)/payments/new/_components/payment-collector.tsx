@@ -38,7 +38,7 @@ import { Trash2, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { formatKRW } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { seoulDateString, seoulYMD } from "@/lib/date";
-import { createBulkPayment, addPaymentUtilityType } from "../_actions";
+import { createBulkPayment, addBillPreset } from "../_actions";
 
 interface Lease {
   id: number;
@@ -53,16 +53,28 @@ interface ExchangeRate {
   usd_to_krw: number;
 }
 
-interface UtilityType {
+interface PresetOption {
   id: number;
-  name: string;
+  label: string;
+  type: string;
 }
 
 interface LineItem {
   id: string;
-  type: "rent" | "utility" | "other";
+  type: string;
   label: string;
   amount: number;
+  chargeId?: number;
+}
+
+interface ChargeOption {
+  id: number;
+  type: string;
+  label: string;
+  amount: number;
+  currency: string;
+  billing_month: string;
+  status: string;
 }
 
 function generateId() {
@@ -88,12 +100,14 @@ function formatNumber(n: number): string {
 export function PaymentCollector({
   leases,
   exchangeRates,
-  utilityTypes,
+  billPresets,
+  openChargesByLease,
   defaultLeaseId,
 }: {
   leases: Lease[];
   exchangeRates: ExchangeRate[];
-  utilityTypes: UtilityType[];
+  billPresets: PresetOption[];
+  openChargesByLease?: Record<number, ChargeOption[]>;
   defaultLeaseId?: number;
 }) {
   const [comboOpen, setComboOpen] = useState(false);
@@ -116,7 +130,7 @@ export function PaymentCollector({
   const [isPending, startTransition] = useTransition();
   const [showAddType, setShowAddType] = useState<string | false>(false);
   const [newTypeName, setNewTypeName] = useState("");
-  const [localUtilityTypes, setLocalUtilityTypes] = useState(utilityTypes);
+  const [localPresets, setLocalPresets] = useState(billPresets);
   const [isAddingType, startAddTypeTransition] = useTransition();
 
   const selectedLease = useMemo(
@@ -196,6 +210,31 @@ export function PaymentCollector({
     ]);
   }, [selectedLease]);
 
+  // Open (unpaid) charges for the selected lease, minus ones already added as
+  // line items — offered as one-click "불러오기" buttons that settle on save.
+  const availableCharges = useMemo(() => {
+    if (!selectedLeaseId || !openChargesByLease) return [] as ChargeOption[];
+    const added = new Set(
+      lineItems.map((i) => i.chargeId).filter((v): v is number => v != null),
+    );
+    return (openChargesByLease[selectedLeaseId as number] ?? []).filter(
+      (c) => !added.has(c.id),
+    );
+  }, [openChargesByLease, selectedLeaseId, lineItems]);
+
+  const addChargeLine = useCallback((c: ChargeOption) => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        type: c.type,
+        label: c.label,
+        amount: c.amount,
+        chargeId: c.id,
+      },
+    ]);
+  }, []);
+
   const removeLineItem = useCallback((id: string) => {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
@@ -253,6 +292,7 @@ export function PaymentCollector({
       fd.set(`items[${i}].type`, item.type);
       fd.set(`items[${i}].label`, item.label);
       fd.set(`items[${i}].amount_krw`, String(item.amount));
+      if (item.chargeId) fd.set(`items[${i}].charge_id`, String(item.chargeId));
     });
 
     fd.set("usd_amount", String(usdAmount || 0));
@@ -271,21 +311,23 @@ export function PaymentCollector({
     });
   };
 
-  // Utility type options for line item select
-  const lineTypeOptions = [
-    ...localUtilityTypes.map((ut) => ({ value: ut.id, label: ut.name })),
-    { value: "other", label: "기타" },
-  ];
-
+  // Line-item type options come from the shared bill/payment type catalog.
   const handleAddType = (lineItemId?: string) => {
     if (!newTypeName.trim()) return;
     startAddTypeTransition(async () => {
-      const result = await addPaymentUtilityType(newTypeName.trim());
+      const result = await addBillPreset(newTypeName.trim());
       if (result) {
-        setLocalUtilityTypes((prev) => [...prev, result]);
+        setLocalPresets((prev) =>
+          prev.some((p) => p.id === result.id)
+            ? prev
+            : [
+                ...prev,
+                { id: result.id, label: result.label, type: result.type },
+              ],
+        );
         if (lineItemId) {
-          updateLineItem(lineItemId, "label", result.name);
-          updateLineItem(lineItemId, "type", "utility");
+          updateLineItem(lineItemId, "label", result.label);
+          updateLineItem(lineItemId, "type", result.type);
         }
       }
       setNewTypeName("");
@@ -435,8 +477,8 @@ export function PaymentCollector({
                   {lineItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        {item.type === "rent" ? (
-                          "월세"
+                        {item.chargeId || item.type === "rent" ? (
+                          item.label || "월세"
                         ) : showAddType === item.id ? (
                           <div className="flex items-center gap-1">
                             <Input
@@ -476,24 +518,25 @@ export function PaymentCollector({
                                 setNewTypeName("");
                                 return;
                               }
-                              const isUtility = localUtilityTypes.some(
-                                (ut) => ut.name === selected,
+                              const preset = localPresets.find(
+                                (p) => p.label === selected,
                               );
                               updateLineItem(item.id, "label", selected);
                               updateLineItem(
                                 item.id,
                                 "type",
-                                isUtility ? "utility" : "other",
+                                preset ? preset.type : "service",
                               );
                             }}
                             className="h-7 w-full rounded-md border border-input bg-transparent px-1.5 text-sm dark:bg-input/30"
                           >
                             <option value="">선택...</option>
-                            {lineTypeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.label}>
+                            {localPresets.map((opt) => (
+                              <option key={opt.id} value={opt.label}>
                                 {opt.label}
                               </option>
                             ))}
+                            <option value="기타">기타</option>
                             <option value="__new__">+ 새 유형 추가</option>
                           </select>
                         )}
@@ -529,6 +572,35 @@ export function PaymentCollector({
                   ))}
                 </TableBody>
               </Table>
+
+              {availableCharges.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-dashed border-input p-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    미납·청구 항목 불러오기
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableCharges.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => addChargeLine(c)}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+                      >
+                        <Plus className="size-3.5" />
+                        <span>
+                          {c.billing_month} {c.label}
+                        </span>
+                        <span className="tabular text-muted-foreground">
+                          {formatKRW(c.amount)}
+                        </span>
+                        {c.status === "overdue" && (
+                          <span className="text-[11px] text-danger">미납</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <button

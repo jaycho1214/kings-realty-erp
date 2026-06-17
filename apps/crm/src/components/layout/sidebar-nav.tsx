@@ -14,7 +14,6 @@ import {
   Wrench,
   Settings,
   Bell,
-  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -94,7 +93,6 @@ export function SidebarNav({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const [billingOpen, setBillingOpen] = React.useState(true);
 
   // Lock body scroll while the mobile drawer is open
   React.useEffect(() => {
@@ -127,8 +125,6 @@ export function SidebarNav({
     },
     { title: "임대인", href: "/landlords", icon: Contact },
   ];
-
-  const billingActive = pathname.startsWith("/payments");
 
   return (
     <>
@@ -176,56 +172,11 @@ export function SidebarNav({
           <div className="mt-3">
             <GroupLabel>정산</GroupLabel>
             <div className="flex flex-col gap-0.5">
-              {/* Expandable: 수납 */}
-              <button
-                type="button"
-                onClick={() => setBillingOpen((v) => !v)}
-                className={cn(
-                  "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium transition-colors",
-                  billingActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                )}
-                aria-expanded={billingOpen}
-              >
-                <CreditCard
-                  className="size-[17px] shrink-0"
-                  strokeWidth={1.8}
-                />
-                <span className="flex-1 truncate text-left">수납</span>
-                <ChevronDown
-                  className={cn(
-                    "size-3.5 shrink-0 text-muted-foreground transition-transform",
-                    billingOpen && "rotate-180",
-                  )}
-                />
-              </button>
-              {billingOpen && (
-                <div className="flex flex-col gap-0.5">
-                  <Link
-                    href="/payments?status=pending"
-                    onClick={onClose}
-                    className="ml-[26px] flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  >
-                    <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/60" />
-                    <span className="flex-1 truncate">미납 현황</span>
-                    {counts.unpaid > 0 && (
-                      <span className="tabular inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-danger px-1.5 text-[10.5px] font-semibold text-white">
-                        {counts.unpaid}
-                      </span>
-                    )}
-                  </Link>
-                  <Link
-                    href="/payments?type=deposit"
-                    onClick={onClose}
-                    className="ml-[26px] flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  >
-                    <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/60" />
-                    <span className="flex-1 truncate">보증금</span>
-                  </Link>
-                </div>
-              )}
-
+              <NavItem
+                item={{ title: "수납", href: "/payments", icon: CreditCard }}
+                pathname={pathname}
+                onNavigate={onClose}
+              />
               <NavItem
                 item={{
                   title: "환율",

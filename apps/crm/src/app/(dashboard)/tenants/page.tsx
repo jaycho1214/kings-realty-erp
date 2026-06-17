@@ -25,7 +25,7 @@ import { TenantLifecycleActions } from "./_components/tenant-lifecycle-actions";
 import { getSession } from "@/lib/session";
 import { isAdmin } from "@/lib/authz";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 200;
 
 const LIFECYCLE_VIEWS = new Set(["archived", "deleted"]);
 

@@ -8,6 +8,7 @@ export default async function DataSettingsPage() {
 
   const [
     utilityTypes,
+    billPresets,
     baseLocations,
     serviceCategories,
     utilityUsage,
@@ -23,6 +24,19 @@ export default async function DataSettingsPage() {
       .select(["id", "name", "is_default", "created_at"])
       .orderBy("is_default", "desc")
       .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("bill_preset")
+      .select([
+        "id",
+        "label",
+        "type",
+        "default_amount",
+        "default_currency",
+        "default_due_day",
+        "is_variable",
+      ])
+      .orderBy("sort_order", "asc")
       .execute(),
     db
       .selectFrom("base_location")
@@ -131,6 +145,7 @@ export default async function DataSettingsPage() {
     <DataSettings
       utilityTypes={utilityTypes}
       utilityUsageMap={utilityUsageMap}
+      billPresets={billPresets}
       baseLocations={baseLocations}
       baseLocationUsageMap={baseLocationUsageMap}
       serviceCategories={serviceCategories}

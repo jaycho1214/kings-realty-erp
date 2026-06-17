@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Wrench } from "lucide-react";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { CreateDialog } from "@/components/create-dialog";
 import { SearchInput } from "@/components/search-input";
 import { Pagination } from "@/components/pagination";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { ServiceForm } from "./_components/service-form";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 200;
 
 const statusMap: Record<string, string> = {
   received: "접수",
@@ -73,7 +73,9 @@ export default async function ServicesPage({
       "tenant.id as tenant_id",
       "tenant.name as tenant_name",
       "property.id as property_id",
-      "property.address",
+      sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        "address",
+      ),
     ])
     .where("tenant.deleted_at", "is", null);
 
@@ -127,47 +129,53 @@ export default async function ServicesPage({
     users,
     vendors,
   ] = await Promise.all([
-      query
-        .orderBy("service_request.created_at", "desc")
-        .limit(PAGE_SIZE)
-        .offset(offset)
-        .execute(),
-      countQuery.executeTakeFirst(),
-      db
-        .selectFrom("lease")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .innerJoin("property", "property.id", "lease.property_id")
-        .select(["lease.id", "tenant.name as tenant_name", "property.address"])
-        .where("lease.status", "=", "active")
-        .orderBy("tenant.name", "asc")
-        .execute(),
-      db
-        .selectFrom("service_category")
-        .select(["value", "label"])
-        .orderBy("sort_order", "asc")
-        .execute(),
-      db
-        .selectFrom("service_request")
-        .innerJoin("lease", "lease.id", "service_request.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .select([
-          "service_request.status",
-          ({ fn }) => fn.countAll<number>().as("count"),
-        ])
-        .where("tenant.deleted_at", "is", null)
-        .groupBy("service_request.status")
-        .execute(),
-      db
-        .selectFrom("user")
-        .select(["id", "name"])
-        .orderBy("name", "asc")
-        .execute(),
-      db
-        .selectFrom("service_vendor")
-        .select(["id", "name", "phone"])
-        .orderBy("name", "asc")
-        .execute(),
-    ]);
+    query
+      .orderBy("service_request.created_at", "desc")
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .execute(),
+    countQuery.executeTakeFirst(),
+    db
+      .selectFrom("lease")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "lease.id",
+        "tenant.name as tenant_name",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+      ])
+      .where("lease.status", "=", "active")
+      .orderBy("tenant.name", "asc")
+      .execute(),
+    db
+      .selectFrom("service_category")
+      .select(["value", "label"])
+      .orderBy("sort_order", "asc")
+      .execute(),
+    db
+      .selectFrom("service_request")
+      .innerJoin("lease", "lease.id", "service_request.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select([
+        "service_request.status",
+        ({ fn }) => fn.countAll<number>().as("count"),
+      ])
+      .where("tenant.deleted_at", "is", null)
+      .groupBy("service_request.status")
+      .execute(),
+    db
+      .selectFrom("user")
+      .select(["id", "name"])
+      .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("service_vendor")
+      .select(["id", "name", "phone"])
+      .orderBy("name", "asc")
+      .execute(),
+  ]);
 
   const total = Number(totalResult?.count ?? 0);
 

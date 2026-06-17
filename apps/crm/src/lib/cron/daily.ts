@@ -1,12 +1,17 @@
 import { getDb } from "@kingsrealty/db";
 import { seoulDateString, seoulYMD, firstOfMonth } from "@/lib/date";
-import { generateRentChargesForMonth, markOverdueCharges } from "@/lib/charges";
+import {
+  generateRentChargesForMonth,
+  generateRecurringChargesForMonth,
+  markOverdueCharges,
+} from "@/lib/charges";
 import { generateContractExpiryNotifications } from "@/lib/notifications";
 
 export interface DailyJobResult {
   archivedTenants: number;
   softDeletedTenants: number;
   rentChargesCreated: number;
+  recurringChargesCreated: number;
   chargesMarkedOverdue: number;
   expiryNotifications: number;
   errors: string[];
@@ -39,6 +44,7 @@ export async function runDailyJobs(): Promise<DailyJobResult> {
     archivedTenants: 0,
     softDeletedTenants: 0,
     rentChargesCreated: 0,
+    recurringChargesCreated: 0,
     chargesMarkedOverdue: 0,
     expiryNotifications: 0,
     errors: [],
@@ -85,6 +91,13 @@ export async function runDailyJobs(): Promise<DailyJobResult> {
   await run("generateRentCharges", async () => {
     const { year, month } = seoulYMD();
     result.rentChargesCreated = await generateRentChargesForMonth(
+      firstOfMonth(year, month),
+    );
+  });
+
+  await run("generateRecurringCharges", async () => {
+    const { year, month } = seoulYMD();
+    result.recurringChargesCreated = await generateRecurringChargesForMonth(
       firstOfMonth(year, month),
     );
   });

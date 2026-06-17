@@ -42,6 +42,8 @@ export const paymentStatusMap: Record<string, string> = {
 export const paymentTypeMap: Record<string, string> = {
   rent: "월세",
   utility: "공과금",
+  management: "관리비",
+  parking: "주차",
   deposit: "보증금",
   service: "AS비",
 };

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getDb } from "@kingsrealty/db";
+import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { StatusBadge } from "@/components/status-badge";
 import { DataPanel } from "@/components/data-panel";
@@ -73,14 +73,18 @@ export default async function LandlordDetailPage({
       .selectFrom("property")
       .select([
         "id",
-        "address",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+        "address_detail",
         "property_type",
         "status",
         "monthly_rent_krw",
         "deposit_krw",
       ])
       .where("landlord_id", "=", numId)
-      .orderBy("created_at", "desc")
+      .orderBy(sql`coalesce(property.address_jibeon, property.address)`, "asc")
+      .orderBy("address_detail", "asc")
       .execute(),
     db
       .selectFrom("landlord_family_member")
@@ -150,7 +154,9 @@ export default async function LandlordDetailPage({
               "payment.status",
               "payment.payment_date",
               "tenant.name as tenant_name",
-              "property.address as property_address",
+              sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+                "property_address",
+              ),
             ])
             .where("property.landlord_id", "=", numId)
             .where("tenant.deleted_at", "is", null)
@@ -299,9 +305,16 @@ export default async function LandlordDetailPage({
                       <TableCell>
                         <Link
                           href={`/properties/${property.id}`}
-                          className="font-medium group-hover:underline"
+                          className="group-hover:underline"
                         >
-                          {property.address}
+                          <span className="font-medium">
+                            {property.address}
+                          </span>
+                          {property.address_detail && (
+                            <span className="ml-1.5 text-muted-foreground">
+                              {property.address_detail}
+                            </span>
+                          )}
                         </Link>
                       </TableCell>
                       <TableCell className="text-muted-foreground">

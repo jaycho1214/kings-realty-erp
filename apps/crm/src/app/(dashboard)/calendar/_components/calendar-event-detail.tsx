@@ -8,6 +8,7 @@ import {
   Zap,
   Wrench,
   CalendarHeart,
+  ClipboardCheck,
   ArrowRight,
   X,
   CalendarPlus,
@@ -56,6 +57,7 @@ const categoryIcon: Record<EventCategory, typeof FileText> = {
   rent_due: CreditCard,
   utility_due: Zap,
   service_request: Wrench,
+  inspection: ClipboardCheck,
   custom: CalendarHeart,
 };
 
