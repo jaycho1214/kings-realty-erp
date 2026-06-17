@@ -62,3 +62,14 @@ export function daysUntil(
     (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000,
   );
 }
+
+/**
+ * Upcoming Sunday (the end of the current week) as "YYYY-MM-DD", in Asia/Seoul.
+ * Returns `from` itself when it is already a Sunday. Used to bucket the 계획 뷰's
+ * "이번 주" column relative to today.
+ */
+export function seoulWeekEnd(from: string = seoulDateString()): string {
+  const [y, m, d] = from.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+  return addDays(from, (7 - dow) % 7);
+}
