@@ -562,7 +562,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <Card size="sm" className="gap-0 overflow-hidden p-0">
+    <Card className="gap-0 overflow-hidden p-0">
       <div className="flex items-center justify-between border-b px-3.5 py-2.5">
         <h2 className="text-[13px] font-semibold">
           {title}
