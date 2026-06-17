@@ -118,8 +118,15 @@ export default async function ServicesPage({
     countQuery = countQuery.where("service_request.category", "=", category);
   }
 
-  const [services, totalResult, leases, serviceCategories, statusCountRows] =
-    await Promise.all([
+  const [
+    services,
+    totalResult,
+    leases,
+    serviceCategories,
+    statusCountRows,
+    users,
+    vendors,
+  ] = await Promise.all([
       query
         .orderBy("service_request.created_at", "desc")
         .limit(PAGE_SIZE)
@@ -149,6 +156,16 @@ export default async function ServicesPage({
         ])
         .where("tenant.deleted_at", "is", null)
         .groupBy("service_request.status")
+        .execute(),
+      db
+        .selectFrom("user")
+        .select(["id", "name"])
+        .orderBy("name", "asc")
+        .execute(),
+      db
+        .selectFrom("service_vendor")
+        .select(["id", "name", "phone"])
+        .orderBy("name", "asc")
         .execute(),
     ]);
 
@@ -185,6 +202,8 @@ export default async function ServicesPage({
               variant="plain"
               leases={leases}
               categories={serviceCategories}
+              users={users}
+              vendors={vendors}
             />
           </CreateDialog>
         }

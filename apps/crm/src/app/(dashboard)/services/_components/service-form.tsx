@@ -21,6 +21,11 @@ import { Combobox } from "@/components/combobox";
 import { cn } from "@/lib/utils";
 import { useCreateDialog } from "@/components/create-dialog";
 import { createServiceRequest, updateServiceRequest } from "../_actions";
+import {
+  ServiceAssignmentFields,
+  type UserOption,
+  type VendorOption,
+} from "./service-assignment-fields";
 
 const STATUSES = [
   { value: "received", label: "접수" },
@@ -62,7 +67,10 @@ interface ServiceFormProps {
     cost_krw?: string | number | null;
     location?: string | null;
     bearer?: string | null;
-    assignee?: string | null;
+    assignee_user_ids?: number[];
+    vendor_name?: string | null;
+    vendor_phone?: string | null;
+    landlord_self?: boolean;
     scheduled_date?: string | null;
     estimated_cost?: string | number | null;
     actual_cost?: string | number | null;
@@ -74,6 +82,8 @@ interface ServiceFormProps {
   variant?: "card" | "plain";
   leases?: LeaseOption[];
   categories?: CategoryOption[];
+  users?: UserOption[];
+  vendors?: VendorOption[];
 }
 
 export function ServiceForm({
@@ -82,6 +92,8 @@ export function ServiceForm({
   variant = "card",
   leases = [],
   categories = [],
+  users = [],
+  vendors = [],
 }: ServiceFormProps) {
   const isEditMode = !!serviceId;
   const router = useRouter();
@@ -340,15 +352,6 @@ export function ServiceForm({
             />
           </Field>
           <Field>
-            <Label htmlFor="assignee">담당자/업체</Label>
-            <Input
-              id="assignee"
-              name="assignee"
-              defaultValue={defaultValues?.assignee ?? ""}
-              placeholder="담당자 또는 외주 업체"
-            />
-          </Field>
-          <Field>
             <Label htmlFor="scheduled_date">예약(방문)일</Label>
             <Input
               id="scheduled_date"
@@ -404,6 +407,15 @@ export function ServiceForm({
             </select>
           </Field>
         </div>
+
+        <ServiceAssignmentFields
+          users={users}
+          vendors={vendors}
+          defaultAssigneeIds={defaultValues?.assignee_user_ids}
+          defaultVendorName={defaultValues?.vendor_name}
+          defaultVendorPhone={defaultValues?.vendor_phone}
+          defaultLandlordSelf={defaultValues?.landlord_self}
+        />
 
         <Field>
           <Label htmlFor="postpone_reason">수리연기 사유</Label>
@@ -495,10 +507,6 @@ export function ServiceForm({
             </select>
           </Field>
           <Field>
-            <Label htmlFor="assignee">담당자/업체</Label>
-            <Input id="assignee" name="assignee" placeholder="담당자/업체" />
-          </Field>
-          <Field>
             <Label htmlFor="scheduled_date">예약(방문)일</Label>
             <Input id="scheduled_date" name="scheduled_date" type="date" />
           </Field>
@@ -513,6 +521,8 @@ export function ServiceForm({
             />
           </Field>
         </div>
+
+        <ServiceAssignmentFields users={users} vendors={vendors} />
 
         <Field>
           <Label htmlFor="notes">비고</Label>
