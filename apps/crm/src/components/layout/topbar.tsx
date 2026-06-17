@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Menu, Bell, ChevronDown, LogOut } from "lucide-react";
+import { useState } from "react";
+import { Menu, Bell, ChevronDown, LogOut, Camera } from "lucide-react";
 
 const CommandMenu = dynamic(
   () => import("@/components/layout/command-menu").then((m) => m.CommandMenu),
@@ -20,7 +21,8 @@ const CommandMenu = dynamic(
 
 import { useSession, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ProfilePhotoDialog } from "@/components/layout/profile-photo-dialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -32,10 +34,12 @@ import {
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const name = session?.user?.name ?? "사용자";
   const email = session?.user?.email ?? "";
   const initials = name.slice(0, 2);
+  const image = session?.user?.image ?? null;
 
   function handleSignOut() {
     signOut({
@@ -94,6 +98,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             }
           >
             <Avatar className="size-6">
+              {image && <AvatarImage src={image} alt="" />}
               <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-indigo-700 text-[10px] font-semibold text-white">
                 {initials}
               </AvatarFallback>
@@ -103,6 +108,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           <DropdownMenuContent align="end" side="bottom" className="w-56">
             <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
               <Avatar className="size-8">
+                {image && <AvatarImage src={image} alt="" />}
                 <AvatarFallback className="bg-gradient-to-br from-indigo-400 to-indigo-700 text-xs font-semibold text-white">
                   {initials}
                 </AvatarFallback>
@@ -115,12 +121,23 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               </div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setPhotoOpen(true)}>
+              <Camera />
+              프로필 사진
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />
               로그아웃
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <ProfilePhotoDialog
+          open={photoOpen}
+          onOpenChange={setPhotoOpen}
+          currentImage={image}
+          name={name}
+        />
       </div>
     </header>
   );
