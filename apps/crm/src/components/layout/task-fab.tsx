@@ -24,14 +24,16 @@ export function TaskFab() {
   // The dashboard already shows the board — no FAB there.
   if (pathname === "/") return null;
 
+  function load() {
+    setLoading(true);
+    getTaskBoardData()
+      .then(setData)
+      .finally(() => setLoading(false));
+  }
+
   function onOpenChange(v: boolean) {
     setOpen(v);
-    if (v && !data) {
-      setLoading(true);
-      getTaskBoardData()
-        .then(setData)
-        .finally(() => setLoading(false));
-    }
+    if (v && !data) load();
   }
 
   return (
@@ -63,6 +65,7 @@ export function TaskFab() {
                 today={today}
                 layout="columns"
                 defaultMine
+                onChanged={load}
               />
             )}
           </div>

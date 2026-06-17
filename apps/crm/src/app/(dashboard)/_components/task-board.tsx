@@ -147,11 +147,14 @@ export function TaskBoard({
   today,
   layout,
   defaultMine = false,
+  onChanged,
 }: {
   data: BoardData;
   today: string;
   layout: "columns" | "stack";
   defaultMine?: boolean;
+  /** Called after a create/edit save — lets client surfaces (FAB) refetch. */
+  onChanged?: () => void;
 }) {
   const weekEnd = React.useMemo(() => seoulWeekEnd(today), [today]);
   const [view, setView] = React.useState<View>("plan");
@@ -360,6 +363,9 @@ export function TaskBoard({
       const key = draft.suggestionKey;
       setSuggestions((list) => list.filter((x) => x.dedupKey !== key));
     }
+    // Client surfaces (FAB) don't get revalidatePath — pull fresh data so the
+    // newly created/edited task appears.
+    onChanged?.();
   }
 
   const stack = layout === "stack";
