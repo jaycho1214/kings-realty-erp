@@ -101,21 +101,7 @@ export function PaymentCollector({
     defaultLeaseId ?? "",
   );
   const [billingMonth, setBillingMonth] = useState(currentMonthString());
-  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
-    const lease = defaultLeaseId
-      ? leases.find((l) => l.id === defaultLeaseId)
-      : undefined;
-    return lease
-      ? [
-          {
-            id: generateId(),
-            type: "rent",
-            label: "월세",
-            amount: lease.monthly_rent_krw,
-          },
-        ]
-      : [];
-  });
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentDate, setPaymentDate] = useState(todayString());
   const [notes, setNotes] = useState("");
@@ -144,26 +130,12 @@ export function PaymentCollector({
     return r?.usd_to_krw ?? null;
   }, [exchangeRates]);
 
-  // When lease selection changes, reset line items
-  const handleLeaseSelect = useCallback(
-    (leaseId: number | "") => {
-      setSelectedLeaseId(leaseId);
-      const lease = leases.find((l) => l.id === leaseId);
-      if (lease) {
-        setLineItems([
-          {
-            id: generateId(),
-            type: "rent",
-            label: "월세",
-            amount: lease.monthly_rent_krw,
-          },
-        ]);
-      } else {
-        setLineItems([]);
-      }
-    },
-    [leases],
-  );
+  // When lease selection changes, clear line items (rent is no longer
+  // auto-added — staff add it on demand via "월세 추가").
+  const handleLeaseSelect = useCallback((leaseId: number | "") => {
+    setSelectedLeaseId(leaseId);
+    setLineItems([]);
+  }, []);
 
   // Auto-dismiss success message
   useEffect(() => {
@@ -205,6 +177,24 @@ export function PaymentCollector({
       { id: generateId(), type: "utility", label: "", amount: 0 },
     ]);
   }, []);
+
+  const hasRentLine = useMemo(
+    () => lineItems.some((item) => item.type === "rent"),
+    [lineItems],
+  );
+
+  const addRentLine = useCallback(() => {
+    if (!selectedLease) return;
+    setLineItems((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        type: "rent",
+        label: "월세",
+        amount: selectedLease.monthly_rent_krw,
+      },
+    ]);
+  }, [selectedLease]);
 
   const removeLineItem = useCallback((id: string) => {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
@@ -527,30 +517,39 @@ export function PaymentCollector({
                         />
                       </TableCell>
                       <TableCell>
-                        {item.type !== "rent" && (
-                          <button
-                            type="button"
-                            onClick={() => removeLineItem(item.id)}
-                            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-danger"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeLineItem(item.id)}
+                          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-danger"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
 
-              <button
-                type="button"
-                onClick={addLineItem}
-                disabled={!selectedLease}
-                className="inline-flex h-7 items-center gap-1 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
-              >
-                <Plus className="size-3.5" />
-                항목 추가
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={addRentLine}
+                  disabled={!selectedLease || hasRentLine}
+                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+                >
+                  <Plus className="size-3.5" />
+                  월세 추가
+                </button>
+                <button
+                  type="button"
+                  onClick={addLineItem}
+                  disabled={!selectedLease}
+                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+                >
+                  <Plus className="size-3.5" />
+                  항목 추가
+                </button>
+              </div>
 
               <div className="flex items-center justify-between border-t pt-3">
                 <span className="text-sm font-medium">총 청구금액</span>
