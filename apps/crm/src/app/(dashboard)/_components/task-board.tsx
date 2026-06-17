@@ -29,11 +29,10 @@ import {
 import type { BoardData, TaskView, SuggestedTask } from "@/lib/tasks/types";
 import { TaskCard } from "./task-card";
 import { SuggestionRail } from "./suggestion-rail";
-import { TaskDialog } from "./task-dialog";
+import { TaskDialog, type TaskDraft } from "./task-dialog";
 import {
   moveTask,
   deleteTask,
-  acceptSuggestion,
   dismissSuggestion,
   snoozeSuggestion,
 } from "../_task-actions";
@@ -113,7 +112,7 @@ function Column({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-24 flex-col rounded-lg bg-secondary/40 p-2",
+        "flex min-h-72 flex-col rounded-lg bg-secondary/40 p-2",
         isOver && "ring-2 ring-brand/40",
       )}
     >
@@ -167,6 +166,7 @@ export function TaskBoard({
   const [busyKeys, setBusyKeys] = React.useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<TaskView | undefined>();
+  const [draft, setDraft] = React.useState<TaskDraft | undefined>();
   const [error, setError] = React.useState<string | null>(null);
 
   // Re-sync optimistic state when the server sends fresh props (after a
@@ -224,9 +224,16 @@ export function TaskBoard({
     return map;
   }, [visible, cols, colOf, today]);
 
-  function reload() {
-    // Server actions revalidate "/"; for client-only surfaces the parent
-    // refreshes props. Optimistic state already reflects the change.
+  function openNew() {
+    setEditing(undefined);
+    setDraft(undefined);
+    setDialogOpen(true);
+  }
+
+  function openEdit(t: TaskView) {
+    setDraft(undefined);
+    setEditing(t);
+    setDialogOpen(true);
   }
 
   async function handleDragEnd(e: DragEndEvent) {
@@ -236,7 +243,6 @@ export function TaskBoard({
     const moved = tasks.find((t) => t.id === activeId);
     if (!moved) return;
 
-    // Resolve the target column id from either a column droppable or a card.
     let targetCol: ColId;
     if (typeof overId === "string" && overId.startsWith("col:")) {
       targetCol = overId.slice(4) as ColId;
@@ -246,7 +252,6 @@ export function TaskBoard({
       targetCol = colOf(overTask);
     }
 
-    // Compute neighbors in the target column (excluding the moved card).
     const colTasks = (byCol.get(targetCol) ?? []).filter(
       (t) => t.id !== activeId,
     );
@@ -281,7 +286,8 @@ export function TaskBoard({
     }
 
     const prev = tasks;
-    const completed_at = status === "done" ? (moved.completed_at ?? today) : null;
+    const completed_at =
+      status === "done" ? (moved.completed_at ?? today) : null;
     setTasks((ts) =>
       ts.map((t) =>
         t.id === activeId
@@ -321,24 +327,39 @@ export function TaskBoard({
     });
   }
 
+  // 추가 → open a prefilled dialog so the user can customize before saving.
   function handleAccept(s: SuggestedTask) {
-    mark(s.dedupKey, true);
-    setSuggestions((list) => list.filter((x) => x.dedupKey !== s.dedupKey));
-    acceptSuggestion(s)
-      .catch(() => {
-        setSuggestions((list) => [s, ...list]);
-        setError("추가하지 못했습니다.");
-      })
-      .finally(() => mark(s.dedupKey, false));
+    setEditing(undefined);
+    setDraft({
+      title: s.title,
+      dueDate: s.dueDate,
+      links: [],
+      suggestionKey: s.dedupKey,
+      refEntityType: s.refEntityType,
+      refEntityId: s.refEntityId,
+    });
+    setDialogOpen(true);
   }
 
   function handleDismiss(key: string, snooze: boolean) {
     const removed = suggestions.find((x) => x.dedupKey === key);
+    mark(key, true);
     setSuggestions((list) => list.filter((x) => x.dedupKey !== key));
-    (snooze ? snoozeSuggestion(key) : dismissSuggestion(key)).catch(() => {
-      if (removed) setSuggestions((list) => [removed, ...list]);
-      setError("처리하지 못했습니다.");
-    });
+    (snooze ? snoozeSuggestion(key) : dismissSuggestion(key))
+      .catch(() => {
+        if (removed) setSuggestions((list) => [removed, ...list]);
+        setError("처리하지 못했습니다.");
+      })
+      .finally(() => mark(key, false));
+  }
+
+  function handleSaved() {
+    // After accepting a suggestion, drop it from the rail optimistically
+    // (the server also filters it out on the next load via suggestion_key).
+    if (draft?.suggestionKey) {
+      const key = draft.suggestionKey;
+      setSuggestions((list) => list.filter((x) => x.dedupKey !== key));
+    }
   }
 
   const stack = layout === "stack";
@@ -400,10 +421,7 @@ export function TaskBoard({
         </select>
         <button
           type="button"
-          onClick={() => {
-            setEditing(undefined);
-            setDialogOpen(true);
-          }}
+          onClick={openNew}
           className="ml-auto flex items-center gap-1 rounded-md bg-brand px-2.5 py-1.5 text-[12px] font-medium text-white hover:opacity-90"
         >
           <Plus className="size-3.5" /> 할 일
@@ -412,64 +430,60 @@ export function TaskBoard({
 
       {error && <p className="text-[12px] text-danger">{error}</p>}
 
-      {/* Board + suggestions */}
-      <div
-        className={cn(
-          "grid gap-3",
-          stack ? "grid-cols-1" : "lg:grid-cols-[1fr_260px]",
-        )}
+      {/* Board */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragEnd={handleDragEnd}
       >
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragEnd={handleDragEnd}
+        <div
+          className={cn("grid gap-2", stack && "grid-cols-1")}
+          style={
+            stack
+              ? undefined
+              : { gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))` }
+          }
         >
-          <div
-            className={cn("grid gap-2", stack && "grid-cols-1")}
-            style={
-              stack
-                ? undefined
-                : {
-                    gridTemplateColumns: `repeat(${cols.length}, minmax(0,1fr))`,
-                  }
-            }
-          >
-            {cols.map((c) => (
-              <Column
-                key={c.id}
-                id={c.id}
-                label={c.label}
-                tasks={byCol.get(c.id) ?? []}
-                today={today}
-                onEdit={(t) => {
-                  setEditing(t);
-                  setDialogOpen(true);
-                }}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        </DndContext>
-
-        <div className={cn(stack && "border-t pt-3")}>
-          <SuggestionRail
-            suggestions={suggestions}
-            today={today}
-            onAccept={handleAccept}
-            onDismiss={(k) => handleDismiss(k, false)}
-            onSnooze={(k) => handleDismiss(k, true)}
-            busyKeys={busyKeys}
-          />
+          {cols.map((c) => (
+            <Column
+              key={c.id}
+              id={c.id}
+              label={c.label}
+              tasks={byCol.get(c.id) ?? []}
+              today={today}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          ))}
         </div>
+      </DndContext>
+
+      {/* 추천 — below the board, horizontally scrollable */}
+      <div className="border-t pt-3">
+        <SuggestionRail
+          suggestions={suggestions}
+          today={today}
+          onAccept={handleAccept}
+          onDismiss={(k) => handleDismiss(k, false)}
+          onSnooze={(k) => handleDismiss(k, true)}
+          busyKeys={busyKeys}
+        />
       </div>
 
       <TaskDialog
-        key={editing ? `edit-${editing.id}` : "new"}
+        key={
+          editing
+            ? `edit-${editing.id}`
+            : draft
+              ? `accept-${draft.suggestionKey}`
+              : "new"
+        }
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         staff={data.staff}
         task={editing}
-        onSaved={reload}
+        draft={draft}
+        onSaved={handleSaved}
       />
     </div>
   );

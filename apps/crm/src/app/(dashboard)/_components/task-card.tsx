@@ -1,17 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Users,
+  Building2,
+  Contact,
+  FileText,
+  Wrench,
+  Refrigerator,
+  type LucideIcon,
+} from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { daysUntil } from "@/lib/date";
 import { cn } from "@/lib/utils";
-import type { TaskView } from "@/lib/tasks/types";
+import { linkHref } from "@/lib/tasks/links";
+import type { TaskView, TaskLinkView, LinkEntityType } from "@/lib/tasks/types";
 
-const refHref: Record<string, (id: number) => string> = {
-  tenant: (id) => `/tenants/${id}`,
-  lease: (id) => `/leases/${id}`,
-  service_request: (id) => `/services/${id}`,
-  property: (id) => `/properties/${id}`,
+export const linkIcon: Record<LinkEntityType, LucideIcon> = {
+  tenant: Users,
+  property: Building2,
+  landlord: Contact,
+  lease: FileText,
+  service_request: Wrench,
+  appliance: Refrigerator,
 };
 
 export function DueBadge({
@@ -40,6 +53,20 @@ export function DueBadge({
   );
 }
 
+/** A single attached-entity chip (deep-links to its detail page). */
+export function LinkChip({ link }: { link: TaskLinkView }) {
+  const Icon = linkIcon[link.type];
+  return (
+    <Link
+      href={linkHref(link.type, link.id)}
+      className="flex max-w-[140px] items-center gap-1 rounded border bg-secondary/50 px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+    >
+      <Icon className="size-3 shrink-0" />
+      <span className="truncate">{link.label}</span>
+    </Link>
+  );
+}
+
 export function TaskCard({
   task,
   today,
@@ -51,10 +78,6 @@ export function TaskCard({
   onEdit?: (t: TaskView) => void;
   onDelete?: (id: number) => void;
 }) {
-  const href =
-    task.ref_entity_type && task.ref_entity_id
-      ? refHref[task.ref_entity_type]?.(task.ref_entity_id)
-      : undefined;
   return (
     <div className="group rounded-lg border bg-card p-2.5 text-[13px] shadow-xs">
       <div className="flex items-start gap-1.5">
@@ -82,17 +105,17 @@ export function TaskCard({
           )}
         </div>
       </div>
+
+      {task.links.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {task.links.map((l) => (
+            <LinkChip key={`${l.type}:${l.id}`} link={l} />
+          ))}
+        </div>
+      )}
+
       <div className="mt-2 flex items-center gap-1.5">
         <DueBadge due={task.due_date} today={today} />
-        {href && (
-          <Link
-            href={href}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="원본 보기"
-          >
-            <ExternalLink className="size-3" />
-          </Link>
-        )}
         <div className="ml-auto flex -space-x-1.5">
           {task.assignees.map((u) => (
             <Avatar key={u.id} className="size-5 ring-2 ring-card">
