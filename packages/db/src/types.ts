@@ -357,6 +357,7 @@ export interface ServiceRequest {
   escalated_to_landlord: Generated<boolean>;
   estimated_cost: Numeric | null;
   id: Generated<number>;
+  landlord_self: Generated<boolean>;
   lease_id: number;
   location: string | null;
   logged_by: number;
@@ -367,6 +368,14 @@ export interface ServiceRequest {
   status: Generated<string>;
   title: string;
   updated_at: Generated<Timestamp>;
+  vendor_id: number | null;
+}
+
+export interface ServiceRequestAssignee {
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  service_request_id: number;
+  user_id: number;
 }
 
 export interface ServiceRequestStatusLog {
@@ -376,6 +385,13 @@ export interface ServiceRequestStatusLog {
   note: string | null;
   service_request_id: number;
   status: string;
+}
+
+export interface ServiceVendor {
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  name: string;
+  phone: string | null;
 }
 
 export interface Session {
@@ -522,7 +538,9 @@ export interface DB {
   realty_fee_default: RealtyFeeDefault;
   service_category: ServiceCategory;
   service_request: ServiceRequest;
+  service_request_assignee: ServiceRequestAssignee;
   service_request_status_log: ServiceRequestStatusLog;
+  service_vendor: ServiceVendor;
   session: Session;
   tenant: Tenant;
   tenant_family_member: TenantFamilyMember;
