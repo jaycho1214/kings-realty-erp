@@ -442,6 +442,39 @@ export interface Session {
   userId: number;
 }
 
+export interface Task {
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: number;
+  due_date: Timestamp | null;
+  id: Generated<number>;
+  notes: string | null;
+  planned_date: Timestamp | null;
+  ref_entity_id: number | null;
+  ref_entity_type: string | null;
+  sort_order: Generated<number>;
+  source: Generated<string>;
+  status: Generated<string>;
+  suggestion_key: string | null;
+  title: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface TaskAssignee {
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  task_id: number;
+  user_id: number;
+}
+
+export interface TaskSuggestionDismissal {
+  created_at: Generated<Timestamp>;
+  dedup_key: string;
+  dismissed_by: number | null;
+  dismissed_until: Timestamp | null;
+  id: Generated<number>;
+}
+
 export interface Tenant {
   archived_at: Timestamp | null;
   base_location_id: number;
@@ -581,6 +614,9 @@ export interface DB {
   service_request_status_log: ServiceRequestStatusLog;
   service_vendor: ServiceVendor;
   session: Session;
+  task: Task;
+  task_assignee: TaskAssignee;
+  task_suggestion_dismissal: TaskSuggestionDismissal;
   tenant: Tenant;
   tenant_family_member: TenantFamilyMember;
   tenant_note: TenantNote;
