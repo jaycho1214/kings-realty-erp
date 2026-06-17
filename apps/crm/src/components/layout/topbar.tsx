@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { Menu, Bell, ChevronDown, LogOut, Camera } from "lucide-react";
+import { Menu, Bell, ChevronDown, LogOut, Pencil } from "lucide-react";
 
 const CommandMenu = dynamic(
   () => import("@/components/layout/command-menu").then((m) => m.CommandMenu),
@@ -22,7 +22,7 @@ const CommandMenu = dynamic(
 import { useSession, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ProfilePhotoDialog } from "@/components/layout/profile-photo-dialog";
+import { EditProfileDialog } from "@/components/layout/edit-profile-dialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -34,7 +34,7 @@ import {
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const [photoOpen, setPhotoOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const name = session?.user?.name ?? "사용자";
   const email = session?.user?.email ?? "";
@@ -121,9 +121,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setPhotoOpen(true)}>
-              <Camera />
-              프로필 사진
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              <Pencil />
+              프로필 편집
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />
@@ -132,11 +132,12 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <ProfilePhotoDialog
-          open={photoOpen}
-          onOpenChange={setPhotoOpen}
+        <EditProfileDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          currentName={name}
           currentImage={image}
-          name={name}
+          email={email}
         />
       </div>
     </header>
