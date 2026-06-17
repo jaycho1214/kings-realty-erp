@@ -24,6 +24,20 @@ export interface TaskAssigneeView {
   image: string | null;
 }
 
+export type LinkEntityType =
+  | "tenant"
+  | "property"
+  | "landlord"
+  | "lease"
+  | "service_request"
+  | "appliance";
+
+export interface TaskLinkView {
+  type: LinkEntityType;
+  id: number;
+  label: string;
+}
+
 export interface TaskView {
   id: number;
   title: string;
@@ -39,6 +53,7 @@ export interface TaskView {
   created_by: number;
   completed_at: string | null; // "YYYY-MM-DD"
   assignees: TaskAssigneeView[];
+  links: TaskLinkView[];
 }
 
 export interface StaffOption {

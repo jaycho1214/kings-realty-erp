@@ -467,6 +467,14 @@ export interface TaskAssignee {
   user_id: number;
 }
 
+export interface TaskLink {
+  created_at: Generated<Timestamp>;
+  entity_id: number;
+  entity_type: string;
+  id: Generated<number>;
+  task_id: number;
+}
+
 export interface TaskSuggestionDismissal {
   created_at: Generated<Timestamp>;
   dedup_key: string;
@@ -616,6 +624,7 @@ export interface DB {
   session: Session;
   task: Task;
   task_assignee: TaskAssignee;
+  task_link: TaskLink;
   task_suggestion_dismissal: TaskSuggestionDismissal;
   tenant: Tenant;
   tenant_family_member: TenantFamilyMember;

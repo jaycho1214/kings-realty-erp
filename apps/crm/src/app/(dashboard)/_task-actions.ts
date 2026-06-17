@@ -1,11 +1,21 @@
 "use server";
 
-import { getDb, type DB, type Transaction } from "@kingsrealty/db";
+import { getDb, sql, type DB, type Transaction } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireUser, isAdmin } from "@/lib/authz";
 import { seoulDateString, seoulWeekEnd } from "@/lib/date";
 import { loadBoardData } from "@/lib/tasks/queries";
-import type { BoardData, SuggestedTask, TaskStatus } from "@/lib/tasks/types";
+import type {
+  BoardData,
+  TaskStatus,
+  LinkEntityType,
+  TaskLinkView,
+} from "@/lib/tasks/types";
+
+export interface LinkInput {
+  type: LinkEntityType;
+  id: number;
+}
 
 async function nextSortOrder(trx: Transaction<DB>): Promise<number> {
   const row = await trx
@@ -34,20 +44,66 @@ async function insertAssignees(
     .execute();
 }
 
+async function insertLinks(
+  trx: Transaction<DB>,
+  taskId: number,
+  links: LinkInput[],
+): Promise<void> {
+  const seen = new Set<string>();
+  const rows = links
+    .filter((l) => l && l.type && Number.isInteger(l.id) && l.id > 0)
+    .filter((l) => {
+      const k = `${l.type}:${l.id}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .map((l) => ({ task_id: taskId, entity_type: l.type, entity_id: l.id }));
+  if (!rows.length) return;
+  await trx.insertInto("task_link").values(rows).execute();
+}
+
 export interface CreateTaskInput {
   title: string;
   notes?: string | null;
   dueDate?: string | null;
   plannedDate?: string | null;
   assigneeIds?: number[];
+  links?: LinkInput[];
+  // Provenance when created from a suggestion (keeps it from re-suggesting).
+  suggestionKey?: string | null;
+  refEntityType?: string | null;
+  refEntityId?: number | null;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<void> {
   const session = await requireUser();
   const title = input.title?.trim();
   if (!title) throw new Error("제목을 입력하세요.");
+
+  let planned = input.plannedDate ?? null;
+  if (planned == null && input.suggestionKey && input.dueDate) {
+    const today = seoulDateString();
+    const weekEnd = seoulWeekEnd(today);
+    planned =
+      input.dueDate < today
+        ? today
+        : input.dueDate <= weekEnd
+          ? input.dueDate
+          : null;
+  }
+
   const db = getDb();
   await db.transaction().execute(async (trx) => {
+    if (input.suggestionKey) {
+      const existing = await trx
+        .selectFrom("task")
+        .select(["id"])
+        .where("suggestion_key", "=", input.suggestionKey)
+        .where("status", "!=", "done")
+        .executeTakeFirst();
+      if (existing) return; // already added — don't duplicate
+    }
     const sort_order = await nextSortOrder(trx);
     const task = await trx
       .insertInto("task")
@@ -55,15 +111,19 @@ export async function createTask(input: CreateTaskInput): Promise<void> {
         title,
         notes: input.notes?.trim() || null,
         status: "todo",
-        planned_date: input.plannedDate ?? null,
+        planned_date: planned,
         due_date: input.dueDate ?? null,
         sort_order,
-        source: "manual",
+        source: input.suggestionKey ? "suggestion" : "manual",
+        suggestion_key: input.suggestionKey ?? null,
+        ref_entity_type: input.refEntityType ?? null,
+        ref_entity_id: input.refEntityId ?? null,
         created_by: Number(session.user.id),
       })
       .returning("id")
       .executeTakeFirstOrThrow();
     await insertAssignees(trx, task.id, input.assigneeIds ?? []);
+    await insertLinks(trx, task.id, input.links ?? []);
   });
   revalidatePath("/");
 }
@@ -72,6 +132,7 @@ export interface UpdateTaskInput {
   title?: string;
   notes?: string | null;
   dueDate?: string | null;
+  links?: LinkInput[];
 }
 
 export async function updateTask(
@@ -88,7 +149,13 @@ export async function updateTask(
   }
   if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
   if (input.dueDate !== undefined) patch.due_date = input.dueDate;
-  await db.updateTable("task").set(patch).where("id", "=", id).execute();
+  await db.transaction().execute(async (trx) => {
+    await trx.updateTable("task").set(patch).where("id", "=", id).execute();
+    if (input.links !== undefined) {
+      await trx.deleteFrom("task_link").where("task_id", "=", id).execute();
+      await insertLinks(trx, id, input.links);
+    }
+  });
   revalidatePath("/");
 }
 
@@ -134,66 +201,6 @@ export async function deleteTask(id: number): Promise<void> {
   revalidatePath("/");
 }
 
-export async function setAssignees(
-  id: number,
-  userIds: number[],
-): Promise<void> {
-  await requireUser();
-  const db = getDb();
-  const clean = Array.from(
-    new Set(userIds.filter((n) => Number.isInteger(n) && n > 0)),
-  );
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("task_assignee").where("task_id", "=", id).execute();
-    await insertAssignees(trx, id, clean);
-  });
-  revalidatePath("/");
-}
-
-/** Turn a suggestion into a real task (idempotent on dedupKey). */
-export async function acceptSuggestion(s: SuggestedTask): Promise<void> {
-  const session = await requireUser();
-  const db = getDb();
-  const today = seoulDateString();
-  const weekEnd = seoulWeekEnd(today);
-
-  let planned: string | null = null;
-  if (s.dueDate) {
-    if (s.dueDate < today) planned = today;
-    else if (s.dueDate <= weekEnd) planned = s.dueDate;
-    else planned = null;
-  }
-
-  await db.transaction().execute(async (trx) => {
-    const existing = await trx
-      .selectFrom("task")
-      .select(["id"])
-      .where("suggestion_key", "=", s.dedupKey)
-      .where("status", "!=", "done")
-      .executeTakeFirst();
-    if (existing) return; // race / double-click guard
-    const sort_order = await nextSortOrder(trx);
-    const task = await trx
-      .insertInto("task")
-      .values({
-        title: s.title,
-        status: "todo",
-        planned_date: planned,
-        due_date: s.dueDate,
-        sort_order,
-        source: "suggestion",
-        suggestion_key: s.dedupKey,
-        ref_entity_type: s.refEntityType,
-        ref_entity_id: s.refEntityId,
-        created_by: Number(session.user.id),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    await insertAssignees(trx, task.id, s.suggestedAssigneeIds);
-  });
-  revalidatePath("/");
-}
-
 async function upsertDismissal(
   dedupKey: string,
   dismissedUntil: string | null,
@@ -233,6 +240,95 @@ export async function snoozeSuggestion(dedupKey: string): Promise<void> {
     until > plus7Str ? until : plus7Str,
     Number(session.user.id),
   );
+}
+
+/** Search tenants/properties/landlords/leases/AS/appliances to attach. */
+export async function searchLinkTargets(q: string): Promise<TaskLinkView[]> {
+  await requireUser();
+  const term = q.trim();
+  if (!term) return [];
+  const db = getDb();
+  const like = `%${term}%`;
+
+  const [tenants, properties, landlords, leases, services, appliances] =
+    await Promise.all([
+      db
+        .selectFrom("tenant")
+        .select(["id", "name"])
+        .where("name", "ilike", like)
+        .where("deleted_at", "is", null)
+        .limit(6)
+        .execute(),
+      db
+        .selectFrom("property")
+        .select([
+          "id",
+          sql<string>`coalesce(address_jibeon, address)`.as("label"),
+        ])
+        .where((eb) =>
+          eb.or([
+            eb("address", "ilike", like),
+            eb("address_jibeon", "ilike", like),
+          ]),
+        )
+        .limit(6)
+        .execute(),
+      db
+        .selectFrom("landlord")
+        .select(["id", "name"])
+        .where("name", "ilike", like)
+        .limit(6)
+        .execute(),
+      db
+        .selectFrom("lease")
+        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+        .select(["lease.id as id", "tenant.name as name"])
+        .where("tenant.name", "ilike", like)
+        .limit(6)
+        .execute(),
+      db
+        .selectFrom("service_request")
+        .select(["id", "title"])
+        .where("title", "ilike", like)
+        .limit(6)
+        .execute(),
+      db
+        .selectFrom("appliance")
+        .select(["id", "name"])
+        .where("name", "ilike", like)
+        .limit(6)
+        .execute(),
+    ]);
+
+  const out: TaskLinkView[] = [];
+  for (const r of tenants) out.push({ type: "tenant", id: r.id, label: r.name });
+  for (const r of properties)
+    out.push({ type: "property", id: r.id, label: r.label });
+  for (const r of landlords)
+    out.push({ type: "landlord", id: r.id, label: r.name });
+  for (const r of leases)
+    out.push({ type: "lease", id: r.id, label: `${r.name} 계약` });
+  for (const r of services)
+    out.push({ type: "service_request", id: r.id, label: r.title });
+  for (const r of appliances)
+    out.push({ type: "appliance", id: r.id, label: r.name });
+  return out;
+}
+
+export async function setAssignees(
+  id: number,
+  userIds: number[],
+): Promise<void> {
+  await requireUser();
+  const db = getDb();
+  const clean = Array.from(
+    new Set(userIds.filter((n) => Number.isInteger(n) && n > 0)),
+  );
+  await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom("task_assignee").where("task_id", "=", id).execute();
+    await insertAssignees(trx, id, clean);
+  });
+  revalidatePath("/");
 }
 
 export async function getTaskBoardData(): Promise<BoardData> {

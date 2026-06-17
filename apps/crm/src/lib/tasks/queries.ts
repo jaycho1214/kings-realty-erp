@@ -7,10 +7,99 @@ import type {
   SuggestedTask,
   TaskView,
   TaskAssigneeView,
+  TaskLinkView,
+  LinkEntityType,
 } from "./types";
 
 const d = (v: Date | string | null): string | null =>
   v == null ? null : seoulDateString(v instanceof Date ? v : new Date(v));
+
+/** Resolve human labels for attached entities, keyed "type:id". */
+async function resolveLinkLabels(
+  db: ReturnType<typeof getDb>,
+  links: { entity_type: string; entity_id: number }[],
+): Promise<Map<string, string>> {
+  const ids: Record<LinkEntityType, number[]> = {
+    tenant: [],
+    property: [],
+    landlord: [],
+    lease: [],
+    service_request: [],
+    appliance: [],
+  };
+  for (const l of links) {
+    const t = l.entity_type as LinkEntityType;
+    if (ids[t]) ids[t].push(l.entity_id);
+  }
+  const map = new Map<string, string>();
+  const jobs: Promise<unknown>[] = [];
+  if (ids.tenant.length)
+    jobs.push(
+      db
+        .selectFrom("tenant")
+        .select(["id", "name"])
+        .where("id", "in", ids.tenant)
+        .execute()
+        .then((rs) => rs.forEach((r) => map.set(`tenant:${r.id}`, r.name))),
+    );
+  if (ids.property.length)
+    jobs.push(
+      db
+        .selectFrom("property")
+        .select([
+          "id",
+          sql<string>`coalesce(address_jibeon, address)`.as("label"),
+        ])
+        .where("id", "in", ids.property)
+        .execute()
+        .then((rs) =>
+          rs.forEach((r) => map.set(`property:${r.id}`, r.label)),
+        ),
+    );
+  if (ids.landlord.length)
+    jobs.push(
+      db
+        .selectFrom("landlord")
+        .select(["id", "name"])
+        .where("id", "in", ids.landlord)
+        .execute()
+        .then((rs) => rs.forEach((r) => map.set(`landlord:${r.id}`, r.name))),
+    );
+  if (ids.lease.length)
+    jobs.push(
+      db
+        .selectFrom("lease")
+        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+        .select(["lease.id as id", "tenant.name as name"])
+        .where("lease.id", "in", ids.lease)
+        .execute()
+        .then((rs) =>
+          rs.forEach((r) => map.set(`lease:${r.id}`, `${r.name} 계약`)),
+        ),
+    );
+  if (ids.service_request.length)
+    jobs.push(
+      db
+        .selectFrom("service_request")
+        .select(["id", "title"])
+        .where("id", "in", ids.service_request)
+        .execute()
+        .then((rs) =>
+          rs.forEach((r) => map.set(`service_request:${r.id}`, r.title)),
+        ),
+    );
+  if (ids.appliance.length)
+    jobs.push(
+      db
+        .selectFrom("appliance")
+        .select(["id", "name"])
+        .where("id", "in", ids.appliance)
+        .execute()
+        .then((rs) => rs.forEach((r) => map.set(`appliance:${r.id}`, r.name))),
+    );
+  await Promise.all(jobs);
+  return map;
+}
 
 /** Load the full shared board: tasks (+assignees), live suggestions, staff. */
 export async function loadBoardData(): Promise<BoardData> {
@@ -21,30 +110,48 @@ export async function loadBoardData(): Promise<BoardData> {
   const in60 = new Date(Date.now() + 60 * 864e5);
   const todayDate = new Date(today);
 
-  const [taskRows, assigneeRows, staff, dismissalRows] = await Promise.all([
-    db.selectFrom("task").selectAll().orderBy("sort_order", "asc").execute(),
-    db
-      .selectFrom("task_assignee")
-      .innerJoin("user", "user.id", "task_assignee.user_id")
-      .select([
-        "task_assignee.task_id",
-        "user.id as id",
-        "user.name as name",
-        "user.image as image",
-      ])
-      .execute(),
-    db
-      .selectFrom("user")
-      .select(["id", "name", "image"])
-      .where("role", "is not", null)
-      .where("role", "not like", "%pending%")
-      .orderBy("name", "asc")
-      .execute(),
-    db
-      .selectFrom("task_suggestion_dismissal")
-      .select(["dedup_key", "dismissed_until"])
-      .execute(),
-  ]);
+  const [taskRows, assigneeRows, staff, dismissalRows, linkRows] =
+    await Promise.all([
+      db.selectFrom("task").selectAll().orderBy("sort_order", "asc").execute(),
+      db
+        .selectFrom("task_assignee")
+        .innerJoin("user", "user.id", "task_assignee.user_id")
+        .select([
+          "task_assignee.task_id",
+          "user.id as id",
+          "user.name as name",
+          "user.image as image",
+        ])
+        .execute(),
+      db
+        .selectFrom("user")
+        .select(["id", "name", "image"])
+        .where("role", "is not", null)
+        .where("role", "not like", "%pending%")
+        .orderBy("name", "asc")
+        .execute(),
+      db
+        .selectFrom("task_suggestion_dismissal")
+        .select(["dedup_key", "dismissed_until"])
+        .execute(),
+      db
+        .selectFrom("task_link")
+        .select(["task_id", "entity_type", "entity_id"])
+        .execute(),
+    ]);
+
+  const labelMap = await resolveLinkLabels(db, linkRows);
+  const byLinks = new Map<number, TaskLinkView[]>();
+  for (const r of linkRows) {
+    const type = r.entity_type as LinkEntityType;
+    const list = byLinks.get(r.task_id) ?? [];
+    list.push({
+      type,
+      id: r.entity_id,
+      label: labelMap.get(`${type}:${r.entity_id}`) ?? `${type} #${r.entity_id}`,
+    });
+    byLinks.set(r.task_id, list);
+  }
 
   const byTask = new Map<number, TaskAssigneeView[]>();
   for (const a of assigneeRows) {
@@ -68,6 +175,7 @@ export async function loadBoardData(): Promise<BoardData> {
     created_by: t.created_by,
     completed_at: d(t.completed_at),
     assignees: byTask.get(t.id) ?? [],
+    links: byLinks.get(t.id) ?? [],
   }));
 
   // ---- Suggestion candidates from operational signals ----
