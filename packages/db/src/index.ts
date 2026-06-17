@@ -46,5 +46,6 @@ export function getDb(): Kysely<DB> {
 }
 
 export { sql } from "kysely";
+export type { Transaction } from "kysely";
 export type { DB } from "./types";
 export * from "./types";

@@ -1,9 +1,55 @@
 "use server";
 
-import { getDb } from "@kingsrealty/db";
+import { getDb, type DB, type Transaction } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/authz";
+
+function parseAssigneeIds(raw: FormDataEntryValue | null): number[] {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const ids = parsed
+      .map((v) => Number(v))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    return Array.from(new Set(ids));
+  } catch {
+    return [];
+  }
+}
+
+// Upsert an external vendor by name; returns its id (or null when no name).
+// Name is the source of truth so a free-typed entry resolves correctly; a
+// changed phone updates the stored one.
+async function resolveVendor(
+  trx: Transaction<DB>,
+  vendorName: string | null,
+  vendorPhone: string | null,
+): Promise<number | null> {
+  if (!vendorName) return null;
+  const existing = await trx
+    .selectFrom("service_vendor")
+    .select(["id", "phone"])
+    .where("name", "=", vendorName)
+    .executeTakeFirst();
+  if (existing) {
+    if (vendorPhone && vendorPhone !== existing.phone) {
+      await trx
+        .updateTable("service_vendor")
+        .set({ phone: vendorPhone })
+        .where("id", "=", existing.id)
+        .execute();
+    }
+    return existing.id;
+  }
+  const created = await trx
+    .insertInto("service_vendor")
+    .values({ name: vendorName, phone: vendorPhone })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+  return created.id;
+}
 
 export async function createServiceRequest(formData: FormData) {
   const session = await requirePermission("service", "create");
@@ -15,16 +61,21 @@ export async function createServiceRequest(formData: FormData) {
   const category = formData.get("category") as string;
   const location = (formData.get("location") as string)?.trim() || null;
   const bearer = (formData.get("bearer") as string) || null;
-  const assignee = (formData.get("assignee") as string)?.trim() || null;
   const scheduled_date = (formData.get("scheduled_date") as string) || null;
   const estimated_cost = (formData.get("estimated_cost") as string) || null;
   const notes = (formData.get("notes") as string) || null;
+  const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
+  const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
+  const vendor_phone = (formData.get("vendor_phone") as string)?.trim() || null;
+  const landlord_self = formData.get("landlord_self") === "true";
 
   if (!Number.isInteger(lease_id) || lease_id <= 0 || !category?.trim()) {
     return null;
   }
 
   const result = await db.transaction().execute(async (trx) => {
+    const vendor_id = await resolveVendor(trx, vendor_name, vendor_phone);
+
     const sr = await trx
       .insertInto("service_request")
       .values({
@@ -34,7 +85,8 @@ export async function createServiceRequest(formData: FormData) {
         category,
         location,
         bearer,
-        assignee,
+        vendor_id,
+        landlord_self,
         scheduled_date,
         estimated_cost,
         logged_by: Number(session.user.id),
@@ -51,6 +103,18 @@ export async function createServiceRequest(formData: FormData) {
         changed_by: Number(session.user.id),
       })
       .execute();
+
+    if (assigneeIds.length > 0) {
+      await trx
+        .insertInto("service_request_assignee")
+        .values(
+          assigneeIds.map((user_id) => ({
+            service_request_id: sr.id,
+            user_id,
+          })),
+        )
+        .execute();
+    }
 
     return sr;
   });
@@ -69,7 +133,6 @@ export async function updateServiceRequest(id: number, formData: FormData) {
   const status = formData.get("status") as string;
   const location = (formData.get("location") as string)?.trim() || null;
   const bearer = (formData.get("bearer") as string) || null;
-  const assignee = (formData.get("assignee") as string)?.trim() || null;
   const scheduled_date = (formData.get("scheduled_date") as string) || null;
   const estimated_cost = (formData.get("estimated_cost") as string) || null;
   const actual_cost = (formData.get("actual_cost") as string) || null;
@@ -78,6 +141,10 @@ export async function updateServiceRequest(id: number, formData: FormData) {
   const escalated_to_landlord =
     formData.get("escalated_to_landlord") === "true";
   const notes = (formData.get("notes") as string) || null;
+  const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
+  const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
+  const vendor_phone = (formData.get("vendor_phone") as string)?.trim() || null;
+  const landlord_self = formData.get("landlord_self") === "true";
 
   const existing = await db
     .selectFrom("service_request")
@@ -89,6 +156,8 @@ export async function updateServiceRequest(id: number, formData: FormData) {
   const statusChanged = !!existing && existing.status !== status;
 
   await db.transaction().execute(async (trx) => {
+    const vendor_id = await resolveVendor(trx, vendor_name, vendor_phone);
+
     await trx
       .updateTable("service_request")
       .set({
@@ -98,7 +167,8 @@ export async function updateServiceRequest(id: number, formData: FormData) {
         status,
         location,
         bearer,
-        assignee,
+        vendor_id,
+        landlord_self,
         scheduled_date,
         estimated_cost,
         actual_cost,
@@ -127,6 +197,23 @@ export async function updateServiceRequest(id: number, formData: FormData) {
           status,
           changed_by: Number(session.user.id),
         })
+        .execute();
+    }
+
+    // Replace the assignee set wholesale so removals persist.
+    await trx
+      .deleteFrom("service_request_assignee")
+      .where("service_request_id", "=", id)
+      .execute();
+    if (assigneeIds.length > 0) {
+      await trx
+        .insertInto("service_request_assignee")
+        .values(
+          assigneeIds.map((user_id) => ({
+            service_request_id: id,
+            user_id,
+          })),
+        )
         .execute();
     }
   });
