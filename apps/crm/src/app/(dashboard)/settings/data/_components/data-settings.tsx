@@ -40,17 +40,6 @@ interface ExchangeVendorRow {
   phone: string | null;
 }
 
-interface OhaRateRow {
-  id: number;
-  rank: string;
-  dependent_status: string;
-  region: string;
-  amount: string;
-  currency: string;
-  effective_from: string | Date;
-  effective_to: string | Date | null;
-}
-
 interface DataSettingsProps {
   utilityTypes: UtilityTypeRow[];
   utilityUsageMap: Record<string, number>;
@@ -59,7 +48,8 @@ interface DataSettingsProps {
   serviceCategories: ServiceCategoryRow[];
   serviceCategoryUsageMap: Record<string, number>;
   exchangeVendors: ExchangeVendorRow[];
-  ohaRates: OhaRateRow[];
+  ohaRows: Record<string, { with: string; without: string }>;
+  canEditOha: boolean;
   realtyFeeDefaults: { currency: string; amount: string }[];
 }
 
@@ -71,7 +61,8 @@ export function DataSettings({
   serviceCategories,
   serviceCategoryUsageMap,
   exchangeVendors,
-  ohaRates,
+  ohaRows,
+  canEditOha,
   realtyFeeDefaults,
 }: DataSettingsProps) {
   return (
@@ -83,7 +74,7 @@ export function DataSettings({
         </p>
       </div>
 
-      <Tabs defaultValue="utility-types" className="flex-col">
+      <Tabs defaultValue="utility-types">
         <TabsList>
           <TabsTrigger value="utility-types">공과금 유형</TabsTrigger>
           <TabsTrigger value="base-locations">기지 위치</TabsTrigger>
@@ -120,7 +111,7 @@ export function DataSettings({
         </TabsContent>
         <TabsContent value="oha-rates">
           <DataPanel>
-            <OhaRates rates={ohaRates} />
+            <OhaRates rows={ohaRows} editable={canEditOha} />
           </DataPanel>
         </TabsContent>
         <TabsContent value="realty-fee">

@@ -1,4 +1,6 @@
-import { getDb, sql } from "@kingsrealty/db";
+import { getDb } from "@kingsrealty/db";
+import { getSession } from "@/lib/session";
+import { isAdmin } from "@/lib/authz";
 import { DataSettings } from "./_components/data-settings";
 
 export default async function DataSettingsPage() {
@@ -80,19 +82,9 @@ export default async function DataSettingsPage() {
       .execute(),
     db
       .selectFrom("oha_rate")
-      .select([
-        "id",
-        "rank",
-        "dependent_status",
-        "region",
-        "amount",
-        "currency",
-        "effective_from",
-        "effective_to",
-      ])
-      .orderBy(sql`"effective_to" asc nulls first`)
-      .orderBy("rank", "asc")
-      .orderBy("dependent_status", "asc")
+      .select(["code", "dependent_status", "amount", "effective_from"])
+      .where("effective_to", "is", null)
+      .where("region", "=", "Default")
       .execute(),
     db
       .selectFrom("realty_fee_default")
@@ -125,6 +117,16 @@ export default async function DataSettingsPage() {
     serviceCategoryUsageMap[row.category] = Number(row.count);
   }
 
+  const ohaRows: Record<string, { with: string; without: string }> = {};
+  for (const r of ohaRates) {
+    const entry = (ohaRows[r.code] ??= { with: "0", without: "0" });
+    if (r.dependent_status === "with") entry.with = String(r.amount);
+    else entry.without = String(r.amount);
+  }
+
+  const session = await getSession();
+  const canEditOha = isAdmin(session?.user?.role);
+
   return (
     <DataSettings
       utilityTypes={utilityTypes}
@@ -134,7 +136,8 @@ export default async function DataSettingsPage() {
       serviceCategories={serviceCategories}
       serviceCategoryUsageMap={serviceCategoryUsageMap}
       exchangeVendors={exchangeVendors}
-      ohaRates={ohaRates}
+      ohaRows={ohaRows}
+      canEditOha={canEditOha}
       realtyFeeDefaults={realtyFeeDefaults}
     />
   );
