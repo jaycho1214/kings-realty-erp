@@ -58,9 +58,10 @@ const permissionMap: Record<string, string> = {
 export default async function PropertyDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -264,6 +265,8 @@ export default async function PropertyDetailPage({
   return (
     <DetailView
       back={{ href: "/properties", label: "매물" }}
+      basePath={`/properties/${numId}`}
+      activeTab={activeTab}
       title={property.address}
       badges={
         <>
@@ -280,6 +283,7 @@ export default async function PropertyDetailPage({
       info={{ read: readView, edit: editView }}
       tabs={[
         {
+          key: "equipment",
           label: "장비/설비",
           count: equipment.length,
           content: (
@@ -287,6 +291,7 @@ export default async function PropertyDetailPage({
           ),
         },
         {
+          key: "leases",
           label: "임대 계약",
           count: leases.length,
           content: (
@@ -351,6 +356,7 @@ export default async function PropertyDetailPage({
           ),
         },
         {
+          key: "payments",
           label: "수납 내역",
           count: payments.length,
           content: (

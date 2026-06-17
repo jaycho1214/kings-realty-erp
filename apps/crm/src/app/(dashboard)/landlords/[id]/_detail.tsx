@@ -47,9 +47,10 @@ const statusMap: Record<string, string> = {
 export default async function LandlordDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -273,11 +274,14 @@ export default async function LandlordDetailPage({
   return (
     <DetailView
       back={{ href: "/landlords", label: "임대인" }}
+      basePath={`/landlords/${numId}`}
+      activeTab={activeTab}
       title={landlord.name}
       facts={facts}
       info={{ read: readView, edit: editView }}
       tabs={[
         {
+          key: "family",
           label: "가족 구성원",
           count: familyMembers.length,
           content: (
@@ -285,6 +289,7 @@ export default async function LandlordDetailPage({
           ),
         },
         {
+          key: "properties",
           label: "소유 매물",
           count: properties.length,
           content: (
@@ -340,6 +345,7 @@ export default async function LandlordDetailPage({
           ),
         },
         {
+          key: "payments",
           label: "수납 내역",
           count: recentPayments.length,
           content: (
@@ -399,6 +405,7 @@ export default async function LandlordDetailPage({
           ),
         },
         {
+          key: "settlement",
           label: "임대인 정산",
           count: recentSettlements.length,
           content: (

@@ -31,9 +31,10 @@ const realtyFeeCurrencySymbol: Record<string, string> = {
 export default async function LeaseDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -391,6 +392,8 @@ export default async function LeaseDetailPage({
   return (
     <DetailView
       back={{ href: `/tenants/${lease.tenant_id}`, label: lease.tenant_name }}
+      basePath={`/leases/${numId}`}
+      activeTab={activeTab}
       title={lease.tenant_name}
       badges={
         <StatusBadge
@@ -403,6 +406,7 @@ export default async function LeaseDetailPage({
       info={{ read: readView, edit: editView }}
       tabs={[
         {
+          key: "utilities",
           label: "공과금",
           count: utilityBills.length,
           content: (
@@ -414,6 +418,7 @@ export default async function LeaseDetailPage({
           ),
         },
         {
+          key: "inspections",
           label: "입주/퇴거 점검",
           count: inspections.length,
           content: (
@@ -431,6 +436,7 @@ export default async function LeaseDetailPage({
           ),
         },
         {
+          key: "settlement",
           label: "보증금 정산",
           content: (
             <DepositSettlement
@@ -460,6 +466,7 @@ export default async function LeaseDetailPage({
           ),
         },
         {
+          key: "checklist",
           label: "체크리스트",
           content: (
             <div className="space-y-6">

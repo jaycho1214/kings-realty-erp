@@ -27,30 +27,62 @@ function stripItemSegment(notes: string): string | null {
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL not set");
-  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: url }) }) });
+  const db = new Kysely<DB>({
+    dialect: new PostgresDialect({
+      pool: new pg.Pool({ connectionString: url }),
+    }),
+  });
 
-  const rows = await db.selectFrom("payment").select(["id", "payment_type", "notes", "label"]).where("notes", "like", "항목:%").execute();
-  const updates: { id: number; label: string | null; notes: string | null }[] = [];
+  const rows = await db
+    .selectFrom("payment")
+    .select(["id", "payment_type", "notes", "label"])
+    .where("notes", "like", "항목:%")
+    .execute();
+  const updates: { id: number; label: string | null; notes: string | null }[] =
+    [];
   for (const r of rows) {
     if (r.label) continue; // already set (e.g. app-created)
     const m = /항목:\s*([^|]+)/.exec(r.notes || "");
     const item = m?.[1]?.trim() || null;
-    const label = item && (r.payment_type === "utility" || r.payment_type === "service") ? item : null;
+    const label =
+      item && (r.payment_type === "utility" || r.payment_type === "service")
+        ? item
+        : null;
     const notes = stripItemSegment(r.notes || "");
     updates.push({ id: r.id, label, notes });
   }
 
   const byLabel: Record<string, number> = {};
-  for (const u of updates) if (u.label) byLabel[u.label] = (byLabel[u.label] || 0) + 1;
-  console.log(`Payments touched: ${updates.length} (notes decluttered); labels set: ${updates.filter((u) => u.label).length}`);
+  for (const u of updates)
+    if (u.label) byLabel[u.label] = (byLabel[u.label] || 0) + 1;
+  console.log(
+    `Payments touched: ${updates.length} (notes decluttered); labels set: ${updates.filter((u) => u.label).length}`,
+  );
   console.log("Top labels:");
-  for (const [k, n] of Object.entries(byLabel).sort((a, b) => b[1] - a[1]).slice(0, 12)) console.log(`  ${k.padEnd(22)} ×${n}`);
+  for (const [k, n] of Object.entries(byLabel)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12))
+    console.log(`  ${k.padEnd(22)} ×${n}`);
 
-  if (!WRITE) { console.log("\nDRY RUN — nothing written."); await db.destroy(); return; }
+  if (!WRITE) {
+    console.log("\nDRY RUN — nothing written.");
+    await db.destroy();
+    return;
+  }
   await db.transaction().execute(async (tx) => {
-    for (const u of updates) await tx.updateTable("payment").set({ label: u.label, notes: u.notes }).where("id", "=", u.id).execute();
+    for (const u of updates)
+      await tx
+        .updateTable("payment")
+        .set({ label: u.label, notes: u.notes })
+        .where("id", "=", u.id)
+        .execute();
   });
-  console.log(`\n✓ Applied label + notes cleanup to ${updates.length} payments.`);
+  console.log(
+    `\n✓ Applied label + notes cleanup to ${updates.length} payments.`,
+  );
   await db.destroy();
 }
-main().catch((e) => { console.error("Failed:", e); process.exit(1); });
+main().catch((e) => {
+  console.error("Failed:", e);
+  process.exit(1);
+});

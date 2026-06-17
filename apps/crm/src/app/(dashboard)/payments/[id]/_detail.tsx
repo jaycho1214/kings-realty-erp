@@ -50,9 +50,10 @@ const statusMap: Record<string, string> = {
 export default async function PaymentDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -292,6 +293,7 @@ export default async function PaymentDetailPage({
 
   const tabs: DetailTab[] = [
     {
+      key: "documents",
       label: "문서",
       count: documents.length,
       content: (
@@ -306,6 +308,7 @@ export default async function PaymentDetailPage({
 
   if (utilityBills.length > 0) {
     tabs.push({
+      key: "utility-bill",
       label: "공과금 청구서",
       count: utilityBills.length,
       content: (
@@ -366,6 +369,8 @@ export default async function PaymentDetailPage({
   return (
     <DetailView
       back={{ href: "/payments", label: "수납" }}
+      basePath={`/payments/${numId}`}
+      activeTab={activeTab}
       title={payment.tenant_name}
       badges={
         <>

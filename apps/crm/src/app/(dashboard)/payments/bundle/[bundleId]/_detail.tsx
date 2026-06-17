@@ -50,9 +50,10 @@ const statusMap: Record<string, string> = {
 export default async function BundleDetailPage({
   params,
 }: {
-  params: Promise<{ bundleId: string }>;
+  params: Promise<{ bundleId: string; tab?: string[] }>;
 }) {
-  const { bundleId } = await params;
+  const { bundleId, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const db = getDb();
 
   const payments = await db
@@ -64,6 +65,7 @@ export default async function BundleDetailPage({
       "payment.id",
       "payment.lease_id",
       "payment.payment_type",
+      "payment.label",
       "payment.billing_month",
       "payment.amount_krw",
       "payment.amount_paid",
@@ -185,10 +187,13 @@ export default async function BundleDetailPage({
         </TableHeader>
         <TableBody>
           {payments.map((payment) => {
-            const typeInfo = paymentTypeMap[payment.payment_type] ?? {
+            const baseType = paymentTypeMap[payment.payment_type] ?? {
               label: payment.payment_type,
               variant: "outline" as const,
             };
+            const typeInfo = payment.label
+              ? { ...baseType, label: payment.label }
+              : baseType;
             const paidAmount =
               payment.currency_paid === "USD"
                 ? formatUSD(payment.amount_paid)
@@ -245,6 +250,8 @@ export default async function BundleDetailPage({
   return (
     <DetailView
       back={{ href: "/payments", label: "수납" }}
+      basePath={`/payments/bundle/${bundleId}`}
+      activeTab={activeTab}
       title={`${first.tenant_name} · 묶음 수납`}
       badges={
         <>
@@ -265,8 +272,13 @@ export default async function BundleDetailPage({
       }
       facts={facts}
       tabs={[
-        { label: "요약", content: summary },
-        { label: "묶음 내역", count: payments.length, content: breakdown },
+        { key: "", label: "요약", content: summary },
+        {
+          key: "breakdown",
+          label: "묶음 내역",
+          count: payments.length,
+          content: breakdown,
+        },
       ]}
     />
   );

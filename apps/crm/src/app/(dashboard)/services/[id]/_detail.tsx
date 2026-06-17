@@ -37,9 +37,10 @@ const bearerMap: Record<string, string> = {
 export default async function ServiceDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -320,6 +321,8 @@ export default async function ServiceDetailPage({
   return (
     <DetailView
       back={{ href: "/services", label: "AS 요청" }}
+      basePath={`/services/${numId}`}
+      activeTab={activeTab}
       title={sr.title}
       badges={
         <>
@@ -341,6 +344,7 @@ export default async function ServiceDetailPage({
       info={{ read: readView, edit: editView }}
       tabs={[
         {
+          key: "progress",
           label: "진행 상태",
           content: (
             <ServiceStatus
@@ -362,6 +366,7 @@ export default async function ServiceDetailPage({
           ),
         },
         {
+          key: "documents",
           label: "문서",
           count: documents.length,
           content: (

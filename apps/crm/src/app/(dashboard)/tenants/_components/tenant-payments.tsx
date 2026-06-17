@@ -221,7 +221,9 @@ export function TenantPayments({
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {p.label ?? paymentTypeMap[p.payment_type] ?? p.payment_type}
+                          {p.label ??
+                            paymentTypeMap[p.payment_type] ??
+                            p.payment_type}
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular text-right">

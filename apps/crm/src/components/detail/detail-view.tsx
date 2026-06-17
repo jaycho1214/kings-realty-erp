@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -9,6 +10,11 @@ import { KeyFacts, type Fact } from "./key-facts";
 import { cn } from "@/lib/utils";
 
 export interface DetailTab {
+  /**
+   * URL slug for this tab's subroute, e.g. "leases" → `${basePath}/leases`.
+   * The default tab (shown at `basePath`) uses an empty string.
+   */
+  key: string;
   label: string;
   count?: number;
   /** Render the count as a danger pill (attention items like open AS). */
@@ -19,6 +25,13 @@ export interface DetailTab {
 export interface DetailViewProps {
   /** Breadcrumb parent, e.g. { href: "/tenants", label: "세입자" }. */
   back: { href: string; label: string };
+  /**
+   * Entity base path, e.g. "/tenants/123". Tabs hang off this as subroutes so a
+   * refresh (or a shared link) lands on the same tab instead of resetting.
+   */
+  basePath: string;
+  /** Active tab key from the route's optional catch-all segment ("" = default). */
+  activeTab?: string;
   title: string;
   /** Status / identity chips rendered next to the title. */
   badges?: React.ReactNode;
@@ -38,6 +51,8 @@ export interface DetailViewProps {
 
 export function DetailView({
   back,
+  basePath,
+  activeTab = "",
   title,
   badges,
   facts,
@@ -46,32 +61,41 @@ export function DetailView({
   actions,
   aside,
 }: DetailViewProps) {
-  const [active, setActive] = React.useState("0");
-  const [editing, setEditing] = React.useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [, startTransition] = React.useTransition();
 
   const infoLabel = info?.label ?? "기본 정보";
+  // The info tab is always the default (key ""); other tabs carry their own slug.
   const allTabs: DetailTab[] = info
-    ? [{ label: infoLabel, content: editing ? info.edit : info.read }, ...tabs]
+    ? [{ key: "", label: infoLabel, content: null }, ...tabs]
     : tabs;
 
-  const onInfoTab = info != null && active === "0";
+  // Resolve the active tab from the route segment, falling back to the first tab
+  // for unknown/stale slugs so a bad deep-link still renders something sane.
+  const current = allTabs.find((t) => t.key === activeTab) ?? allTabs[0];
+  const currentKey = current?.key ?? "";
+  const onInfoTab = info != null && currentKey === "";
 
-  // Discard any in-progress edit when navigating to a different tab, so the
-  // header button's label/variant and toggleEdit's branch stay in sync. Handled
-  // in the change event (not an effect) to avoid cascading-render setState.
-  function changeTab(v: string) {
-    if (!v) return;
-    if (v !== "0") setEditing(false);
-    setActive(v);
+  // Edit lives as `?edit=1` on the base (info) route. Keeping it in the URL means
+  // a refresh preserves edit mode, and the update action's redirect back to
+  // basePath (without the param) naturally returns to the read view.
+  const editing = onInfoTab && searchParams.get("edit") === "1";
+  const infoContent = info ? (editing ? info.edit : info.read) : null;
+
+  function hrefFor(key: string) {
+    return key === "" ? basePath : `${basePath}/${key}`;
+  }
+
+  function changeTab(key: string) {
+    if (!key && key !== "") return;
+    if (key === currentKey) return;
+    startTransition(() => router.push(hrefFor(key)));
   }
 
   function toggleEdit() {
-    if (editing) {
-      setEditing(false);
-    } else {
-      setActive("0");
-      setEditing(true);
-    }
+    const href = editing ? basePath : `${basePath}?edit=1`;
+    startTransition(() => router.replace(href));
   }
 
   return (
@@ -99,12 +123,12 @@ export function DetailView({
             {actions}
             {info && (
               <Button
-                variant={editing && onInfoTab ? "default" : "outline"}
+                variant={editing ? "default" : "outline"}
                 size="sm"
                 className="gap-1.5"
                 onClick={toggleEdit}
               >
-                {editing && onInfoTab ? (
+                {editing ? (
                   <>
                     <X className="size-4" />
                     취소
@@ -131,17 +155,17 @@ export function DetailView({
       >
         <div className="min-w-0">
           {/* Tabs */}
-          <Tabs value={active} onValueChange={changeTab}>
+          <Tabs value={currentKey} onValueChange={changeTab}>
             <TabsList
               variant="line"
               className="h-9 w-full items-stretch justify-start gap-0 overflow-x-auto p-0 scrollbar-none"
             >
-              {allTabs.map((tab, i) => {
-                const isActive = active === String(i);
+              {allTabs.map((tab) => {
+                const isActive = tab.key === currentKey;
                 return (
                   <TabsTrigger
-                    key={tab.label}
-                    value={String(i)}
+                    key={tab.key}
+                    value={tab.key}
                     className={cn(
                       // The active indicator is a real bottom border (painted inside
                       // the box, so overflow-x-auto can't clip it). gap-0 keeps the
@@ -170,9 +194,9 @@ export function DetailView({
                 );
               })}
             </TabsList>
-            {allTabs.map((tab, i) => (
-              <TabsContent key={tab.label} value={String(i)} className="mt-5">
-                {tab.content}
+            {allTabs.map((tab) => (
+              <TabsContent key={tab.key} value={tab.key} className="mt-5">
+                {info && tab.key === "" ? infoContent : tab.content}
               </TabsContent>
             ))}
           </Tabs>

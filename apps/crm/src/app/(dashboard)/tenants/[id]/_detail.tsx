@@ -50,9 +50,10 @@ import { Inspections } from "../../leases/[id]/_components/inspections";
 export default async function TenantDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; tab?: string[] }>;
 }) {
-  const { id } = await params;
+  const { id, tab } = await params;
+  const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
 
@@ -119,6 +120,7 @@ export default async function TenantDetailPage({
         "payment.lease_id",
         "payment.billing_month",
         "payment.payment_type",
+        "payment.label",
         "payment.amount_krw",
         "payment.amount_paid",
         "payment.currency_paid",
@@ -599,6 +601,8 @@ export default async function TenantDetailPage({
   return (
     <DetailView
       back={{ href: "/tenants", label: "세입자" }}
+      basePath={`/tenants/${numId}`}
+      activeTab={activeTab}
       title={tenant.name}
       badges={
         <>
@@ -631,16 +635,19 @@ export default async function TenantDetailPage({
       }
       tabs={[
         {
+          key: "family",
           label: "가족 구성원",
           count: familyMembers.length,
           content: <FamilyMembers tenantId={numId} members={familyMembers} />,
         },
         {
+          key: "pets",
           label: "반려동물",
           count: pets.length,
           content: <TenantPets tenantId={numId} pets={pets} />,
         },
         {
+          key: "documents",
           label: "문서",
           count: documents.length,
           content: (
@@ -652,6 +659,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "leases",
           label: "임대 계약",
           count: leases.length,
           content: (
@@ -724,6 +732,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "inspections",
           label: "입주/퇴거 점검",
           count: inspections.length,
           content: inspectionLease ? (
@@ -749,6 +758,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "recurring",
           label: "정기 청구",
           count: recurringRows.length,
           content: (
@@ -761,6 +771,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "charges",
           label: "청구",
           count: chargeRows.length,
           content: (
@@ -772,6 +783,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "ledger",
           label: "원장",
           count: ledger.rows.length,
           content: (
@@ -787,6 +799,7 @@ export default async function TenantDetailPage({
           ),
         },
         {
+          key: "payments",
           label: "납부 내역",
           count: payments.length,
           content: (
