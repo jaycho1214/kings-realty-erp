@@ -55,6 +55,7 @@ export default async function ServiceDetailPage({
     .innerJoin("tenant", "tenant.id", "lease.tenant_id")
     .innerJoin("property", "property.id", "lease.property_id")
     .innerJoin("user", "user.id", "service_request.logged_by")
+    .leftJoin("service_vendor", "service_vendor.id", "service_request.vendor_id")
     .select([
       "service_request.id",
       "service_request.lease_id",
@@ -66,6 +67,9 @@ export default async function ServiceDetailPage({
       "service_request.location",
       "service_request.bearer",
       "service_request.assignee",
+      "service_request.landlord_self",
+      "service_vendor.name as vendor_name",
+      "service_vendor.phone as vendor_phone",
       "service_request.scheduled_date",
       "service_request.completed_date",
       "service_request.estimated_cost",
@@ -87,7 +91,8 @@ export default async function ServiceDetailPage({
 
   if (!sr) notFound();
 
-  const [serviceCategories, statusLogs, documents] = await Promise.all([
+  const [serviceCategories, statusLogs, documents, assignees, users, vendors] =
+    await Promise.all([
     serviceCategoriesPromise,
     db
       .selectFrom("service_request_status_log")
@@ -117,7 +122,26 @@ export default async function ServiceDetailPage({
       .where("entity_id", "=", numId)
       .orderBy("created_at", "desc")
       .execute(),
+    db
+      .selectFrom("service_request_assignee")
+      .innerJoin("user", "user.id", "service_request_assignee.user_id")
+      .select(["user.id as user_id", "user.name"])
+      .where("service_request_assignee.service_request_id", "=", numId)
+      .execute(),
+    db
+      .selectFrom("user")
+      .select(["id", "name"])
+      .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("service_vendor")
+      .select(["id", "name", "phone"])
+      .orderBy("name", "asc")
+      .execute(),
   ]);
+
+  const assigneeIds = assignees.map((a) => a.user_id);
+  const assigneeNames = assignees.map((a) => a.name).join(", ");
 
   const logIds = statusLogs.map((l) => l.id);
   const logImages =
@@ -187,7 +211,26 @@ export default async function ServiceDetailPage({
           <Def label="비용 부담">
             {sr.bearer ? (bearerMap[sr.bearer] ?? sr.bearer) : "-"}
           </Def>
-          <Def label="담당자/업체">{sr.assignee || "-"}</Def>
+          <Def label="담당자">{assigneeNames || "-"}</Def>
+          <Def label="외부 업체">
+            {sr.vendor_name
+              ? sr.vendor_phone
+                ? `${sr.vendor_name} · ${sr.vendor_phone}`
+                : sr.vendor_name
+              : "-"}
+          </Def>
+          <Def label="임대인 직접 처리">
+            {sr.landlord_self ? (
+              <span className="text-success">예</span>
+            ) : (
+              "아니오"
+            )}
+          </Def>
+          {sr.assignee && (
+            <Def label="기존 기록">
+              <span className="text-muted-foreground">{sr.assignee}</span>
+            </Def>
+          )}
           <Def label="예약일" mono>
             {formatDate(sr.scheduled_date)}
           </Def>
@@ -248,7 +291,10 @@ export default async function ServiceDetailPage({
         cost_krw: sr.cost_krw,
         location: sr.location,
         bearer: sr.bearer,
-        assignee: sr.assignee,
+        assignee_user_ids: assigneeIds,
+        vendor_name: sr.vendor_name,
+        vendor_phone: sr.vendor_phone,
+        landlord_self: sr.landlord_self,
         scheduled_date: sr.scheduled_date
           ? new Date(sr.scheduled_date).toISOString().split("T")[0]
           : null,
@@ -260,6 +306,8 @@ export default async function ServiceDetailPage({
       }}
       serviceId={numId}
       categories={serviceCategories}
+      users={users}
+      vendors={vendors}
     />
   );
 
