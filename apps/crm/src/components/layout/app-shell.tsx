@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Topbar } from "@/components/layout/topbar";
 import { SidebarNav, type NavCounts } from "@/components/layout/sidebar-nav";
+import { TaskFab } from "@/components/layout/task-fab";
 
 export function AppShell({
   counts,
@@ -26,6 +27,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      <TaskFab />
     </div>
   );
 }
