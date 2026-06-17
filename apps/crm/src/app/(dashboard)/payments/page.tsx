@@ -66,6 +66,7 @@ type PaymentRow = {
   id: number;
   billing_month: Date | string;
   payment_type: string;
+  label: string | null;
   amount_krw: string | number;
   amount_paid: string | number;
   currency_paid: string;
@@ -215,6 +216,7 @@ export default async function PaymentsPage({
             "payment.id",
             "payment.billing_month",
             "payment.payment_type",
+            "payment.label",
             "payment.amount_krw",
             "payment.amount_paid",
             "payment.currency_paid",
@@ -290,10 +292,13 @@ export default async function PaymentsPage({
               {displayItems.map((item) => {
                 if (item.kind === "single") {
                   const payment = item.payment;
-                  const paymentType = typeMap[payment.payment_type] ?? {
+                  const baseType = typeMap[payment.payment_type] ?? {
                     label: payment.payment_type,
                     variant: "outline" as const,
                   };
+                  const paymentType = payment.label
+                    ? { ...baseType, label: payment.label }
+                    : baseType;
                   const paidAmount =
                     payment.currency_paid === "USD"
                       ? formatUSD(payment.amount_paid)
@@ -446,10 +451,13 @@ function BundleRows({ bundle }: { bundle: BundleGroup }) {
       </TableRow>
       {/* Individual items within bundle */}
       {bundle.payments.map((payment) => {
-        const paymentType = typeMap[payment.payment_type] ?? {
+        const baseType = typeMap[payment.payment_type] ?? {
           label: payment.payment_type,
           variant: "outline" as const,
         };
+        const paymentType = payment.label
+          ? { ...baseType, label: payment.label }
+          : baseType;
         return (
           <TableRow
             key={payment.id}

@@ -160,6 +160,7 @@ export async function createBulkPayment(formData: FormData) {
         .values({
           lease_id,
           payment_type: paymentType,
+          label: item.label?.trim() || null, // specific line item (전기요금/수도요금/관리비…)
           billing_month,
           amount_krw: String(item.amount_krw),
           currency_paid: currencyPaid,

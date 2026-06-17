@@ -298,6 +298,7 @@ export interface Payment {
   exchange_rate_id: number | null;
   exchange_vendor_id: number | null;
   id: Generated<number>;
+  label: string | null;
   lease_id: number;
   notes: string | null;
   paid_by_family_member_id: number | null;

@@ -48,6 +48,7 @@ export type TenantPaymentRow = {
   lease_id: number;
   billing_month: Date | string;
   payment_type: string;
+  label: string | null;
   amount_krw: string | number;
   amount_paid: string | number;
   currency_paid: string;
@@ -220,7 +221,7 @@ export function TenantPayments({
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {paymentTypeMap[p.payment_type] ?? p.payment_type}
+                          {p.label ?? paymentTypeMap[p.payment_type] ?? p.payment_type}
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular text-right">
@@ -329,7 +330,7 @@ function BundleRows({
             <TableCell />
             <TableCell>
               <Badge variant="outline" className="text-[10px]">
-                {paymentTypeMap[p.payment_type] ?? p.payment_type}
+                {p.label ?? paymentTypeMap[p.payment_type] ?? p.payment_type}
               </Badge>
             </TableCell>
             <TableCell className="tabular text-right text-xs">
