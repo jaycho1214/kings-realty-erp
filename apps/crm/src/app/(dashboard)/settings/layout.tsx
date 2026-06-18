@@ -2,13 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Database, Users } from "lucide-react";
+import { Settings, Database, Users, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
 const settingsNav = [
   { href: "/settings", label: "일반", icon: Settings },
   { href: "/settings/data", label: "데이터 관리", icon: Database },
+  {
+    href: "/settings/inspection-checklist",
+    label: "점검 체크리스트",
+    icon: ClipboardCheck,
+  },
   { href: "/settings/users", label: "사용자 관리", icon: Users },
 ];
 

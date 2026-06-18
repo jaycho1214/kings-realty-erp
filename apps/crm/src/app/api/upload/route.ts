@@ -34,6 +34,7 @@ const ALLOWED_ENTITY_TYPES = new Set([
   "service_request_status_log",
   "payment",
   "appliance",
+  "inspection",
 ]);
 
 const INTEGER_REGEX = /^\d+$/;
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
   const comments = (formData.get("comments") as string) || null;
 
   const db = getDb();
-  await db
+  const inserted = await db
     .insertInto("document")
     .values({
       entity_type: entityType,
@@ -128,7 +129,8 @@ export async function POST(request: NextRequest) {
       title,
       comments,
     })
-    .execute();
+    .returning("id")
+    .executeTakeFirstOrThrow();
 
-  return NextResponse.json({ url: blob.url });
+  return NextResponse.json({ id: inserted.id, url: blob.url });
 }
