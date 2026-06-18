@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DataPanel } from "@/components/data-panel";
 import { SubmitButton } from "@/components/submit-button";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
 import {
   addSection,
   updateSection,
@@ -154,17 +155,20 @@ function SectionCard({ section }: { section: SectionRow }) {
               >
                 <Pencil className="size-4" />
               </Button>
-              <form action={deleteSectionAction}>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="섹션 삭제"
-                  className="hover:text-danger"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </form>
+              <ConfirmActionButton
+                action={deleteSectionAction}
+                label=""
+                ariaLabel="섹션 삭제"
+                icon={<Trash2 className="size-4" />}
+                variant="ghost"
+                size="icon-sm"
+                className="hover:text-danger"
+                confirmWord="삭제"
+                confirmLabel="삭제"
+                title="섹션을 삭제하시겠습니까?"
+                description="이 섹션과 모든 항목이 삭제됩니다. 기존 점검 기록에는 영향을 주지 않습니다."
+                pendingLabel="삭제 중..."
+              />
             </div>
           </>
         )}
@@ -270,17 +274,20 @@ function ItemRowView({ item }: { item: ItemRow }) {
         >
           <Pencil className="size-3.5" />
         </Button>
-        <form action={deleteAction}>
-          <Button
-            type="submit"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="항목 삭제"
-            className="hover:text-danger"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </form>
+        <ConfirmActionButton
+          action={deleteAction}
+          label=""
+          ariaLabel="항목 삭제"
+          icon={<Trash2 className="size-3.5" />}
+          variant="ghost"
+          size="icon-sm"
+          className="hover:text-danger"
+          confirmWord="삭제"
+          confirmLabel="삭제"
+          title="항목을 삭제하시겠습니까?"
+          description="이 항목이 템플릿에서 삭제됩니다. 기존 점검 기록에는 영향을 주지 않습니다."
+          pendingLabel="삭제 중..."
+        />
       </span>
     </li>
   );

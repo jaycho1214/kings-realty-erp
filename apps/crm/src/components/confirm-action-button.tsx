@@ -33,8 +33,10 @@ export function ConfirmActionButton({
   className,
   pendingLabel = "처리 중...",
   confirmLabel,
+  ariaLabel,
 }: {
   action: () => Promise<void>;
+  /** Trigger button text. Pass "" for an icon-only trigger (set `ariaLabel`). */
   label: string;
   icon?: ReactNode;
   /** Word the user must retype to enable the confirm button. */
@@ -45,8 +47,10 @@ export function ConfirmActionButton({
   size?: ButtonProps["size"];
   className?: string;
   pendingLabel?: string;
-  /** Confirm button label; defaults to `label`. */
+  /** Confirm button label; defaults to `label`, then `confirmWord`. */
   confirmLabel?: string;
+  /** Accessible name for an icon-only trigger (when `label` is empty). */
+  ariaLabel?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [confirmText, setConfirmText] = useState("");
@@ -61,6 +65,7 @@ export function ConfirmActionButton({
         size={size}
         className={className}
         disabled={pending}
+        aria-label={ariaLabel}
         onClick={() => setOpen(true)}
       >
         {icon}
@@ -106,7 +111,7 @@ export function ConfirmActionButton({
               disabled={!confirmed || pending}
               onClick={() => startTransition(() => action())}
             >
-              {pending ? pendingLabel : (confirmLabel ?? label)}
+              {pending ? pendingLabel : confirmLabel || label || confirmWord}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
 import {
   Dialog,
   DialogContent,
@@ -122,16 +123,19 @@ export function Inspections({
                       {new Date(insp.inspected_at).toLocaleDateString("ko-KR")}
                     </span>
                   </div>
-                  <form action={del}>
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="삭제"
-                    >
-                      <Trash2 className="size-3.5 text-danger" />
-                    </Button>
-                  </form>
+                  <ConfirmActionButton
+                    action={del}
+                    label=""
+                    ariaLabel="삭제"
+                    icon={<Trash2 className="size-3.5 text-danger" />}
+                    variant="ghost"
+                    size="icon-sm"
+                    confirmWord="삭제"
+                    confirmLabel="삭제"
+                    title="점검 기록을 삭제하시겠습니까?"
+                    description="점검 기록과 첨부된 사진이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+                    pendingLabel="삭제 중..."
+                  />
                 </div>
                 <div className="mt-2 flex items-center gap-3 text-sm">
                   {counts.issue > 0 && (
