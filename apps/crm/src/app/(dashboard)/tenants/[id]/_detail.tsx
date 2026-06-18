@@ -190,7 +190,7 @@ export default async function TenantDetailPage({
       .innerJoin("landlord", "landlord.id", "property.landlord_id")
       .select([
         "property.id",
-        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        sql<string>`coalesce(property.address_jibeon, property.address) || coalesce(' ' || nullif(btrim(property.address_detail), ''), '')`.as(
           "address",
         ),
         // The 도로명 address as the combobox's second line — only when 지번 is
@@ -400,7 +400,11 @@ export default async function TenantDetailPage({
 
   const derosDays = tenant.deros ? daysUntil(tenant.deros) : null;
 
-  const statusLabel = tenant.status === "active" ? "활성" : "비활성";
+  // 조기 퇴거 — moved out while a contracted lease is still running (left
+  // mid-lease, e.g. a sudden PCS order).
+  const leaseRunning =
+    tenant.status === "inactive" &&
+    leases.some((l) => daysUntil(l.end_date) > 0);
   const branchLabel = tenant.branch
     ? (branchMap[tenant.branch] ?? tenant.branch)
     : null;
@@ -613,7 +617,17 @@ export default async function TenantDetailPage({
       title={tenant.name}
       badges={
         <>
-          <StatusBadge status={tenant.status} label={statusLabel} />
+          {tenant.status === "active" ? (
+            <StatusBadge status="active" label="입주" />
+          ) : leaseRunning ? (
+            <StatusBadge
+              status="inactive"
+              label="조기 퇴거"
+              className="border-warning/30 bg-warning-weak text-warning"
+            />
+          ) : (
+            <StatusBadge status="inactive" label="퇴거" />
+          )}
           {tenant.status === "inactive" && tenant.archived_at && (
             <Badge
               variant="outline"

@@ -47,6 +47,7 @@ export default async function DashboardPage() {
     openCharges,
     serviceRows,
     expiringLeases,
+    earlyTerminations,
     derosApproaching,
     todayRates,
     monthCharges,
@@ -116,6 +117,28 @@ export default async function DashboardPage() {
       .where("lease.end_date", ">=", today)
       .where("lease.end_date", "<=", thirtyDays)
       .orderBy("lease.end_date", "asc")
+      .limit(5)
+      .execute(),
+    // 조기 퇴거 — moved-out (inactive) tenants whose contracted lease term is
+    // still running (left mid-lease, e.g. a sudden PCS order). The unit is now
+    // vacant before term and the deposit/landlord contract still needs settling.
+    db
+      .selectFrom("lease")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .select([
+        "lease.id",
+        "lease.end_date",
+        "tenant.id as tenant_id",
+        "tenant.name as tenant_name",
+        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+          "address",
+        ),
+      ])
+      .where("tenant.status", "=", "inactive")
+      .where("tenant.deleted_at", "is", null)
+      .where("lease.end_date", ">", today)
+      .orderBy("lease.end_date", "desc")
       .limit(5)
       .execute(),
     db
@@ -459,6 +482,38 @@ export default async function DashboardPage() {
                     )}
                   >
                     D-{dleft}
+                  </span>
+                </Link>
+              );
+            })
+          )}
+        </Panel>
+
+        <Panel
+          title="조기 퇴거"
+          meta="잔여 계약"
+          href="/tenants?status=inactive"
+        >
+          {earlyTerminations.length === 0 ? (
+            <Empty>없음</Empty>
+          ) : (
+            earlyTerminations.map((l) => {
+              const monthsLeft = Math.max(
+                1,
+                Math.round(daysUntil(l.end_date) / 30),
+              );
+              return (
+                <Link
+                  key={l.id}
+                  href={`/leases/${l.id}`}
+                  className="flex items-center justify-between px-3.5 py-2 text-[13px] hover:bg-secondary"
+                >
+                  <span className="truncate">
+                    {l.tenant_name}{" "}
+                    <span className="text-muted-foreground">{l.address}</span>
+                  </span>
+                  <span className="tabular shrink-0 pl-2 text-muted-foreground">
+                    잔여 {monthsLeft}개월
                   </span>
                 </Link>
               );

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
 import { formatPhone } from "@/lib/utils";
+import { seoulYMD } from "@/lib/date";
 import { branchMap } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,9 +66,14 @@ export default async function TenantsPage({
   const isDeletedView = view === "deleted";
   const statusFilter = view === "active" || view === "inactive" ? view : null;
 
+  // A moved-out tenant whose contracted lease term is still running left
+  // mid-lease (조기 퇴거, e.g. a sudden PCS order) — flag it for the badge.
+  const { year: sy, month: sm, day: sd } = seoulYMD();
+  const today = new Date(sy, sm - 1, sd);
+
   let query = db
     .selectFrom("tenant")
-    .select([
+    .select((eb) => [
       "tenant.id",
       "tenant.name",
       "tenant.phone",
@@ -77,6 +83,15 @@ export default async function TenantsPage({
       "tenant.unit",
       "tenant.status",
       "tenant.deleted_at",
+      eb
+        .exists(
+          eb
+            .selectFrom("lease")
+            .select("lease.id")
+            .whereRef("lease.tenant_id", "=", "tenant.id")
+            .where("lease.end_date", ">", today),
+        )
+        .as("lease_running"),
     ])
     .where("tenant.deleted_at", isDeletedView ? "is not" : "is", null);
 
@@ -192,11 +207,16 @@ export default async function TenantsPage({
                   <TableCell>
                     {tenant.deleted_at ? (
                       <StatusBadge status="inactive" label="삭제됨" />
-                    ) : (
+                    ) : tenant.status === "active" ? (
+                      <StatusBadge status="active" label="입주" />
+                    ) : tenant.lease_running ? (
                       <StatusBadge
-                        status={tenant.status}
-                        label={tenant.status === "active" ? "입주" : "퇴거"}
+                        status="inactive"
+                        label="조기 퇴거"
+                        className="border-warning/30 bg-warning-weak text-warning"
                       />
+                    ) : (
+                      <StatusBadge status="inactive" label="퇴거" />
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
