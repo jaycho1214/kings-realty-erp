@@ -91,6 +91,13 @@ export default async function LeaseDetailPage({
         sql<string>`coalesce(property.address_jibeon, property.address)`.as(
           "address",
         ),
+        // The 도로명 address as the combobox's second line — only when 지번 is
+        // the primary, so it never duplicates the label.
+        sql<
+          string | null
+        >`case when property.address_jibeon is not null then property.address else null end`.as(
+          "address_sub",
+        ),
         "monthly_rent_krw",
         "deposit_krw",
       ])

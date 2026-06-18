@@ -193,6 +193,13 @@ export default async function TenantDetailPage({
         sql<string>`coalesce(property.address_jibeon, property.address)`.as(
           "address",
         ),
+        // The 도로명 address as the combobox's second line — only when 지번 is
+        // the primary, so it never duplicates the label.
+        sql<
+          string | null
+        >`case when property.address_jibeon is not null then property.address else null end`.as(
+          "address_sub",
+        ),
         "property.monthly_rent_krw",
         "property.deposit_krw",
         "landlord.name as landlord_name",
@@ -607,6 +614,14 @@ export default async function TenantDetailPage({
       badges={
         <>
           <StatusBadge status={tenant.status} label={statusLabel} />
+          {tenant.status === "inactive" && tenant.archived_at && (
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground"
+            >
+              퇴거 {formatDate(tenant.archived_at)}
+            </Badge>
+          )}
           {branchLabel && <Badge variant="secondary">{branchLabel}</Badge>}
           {tenant.rank && (
             <OhaAllowancePopover
@@ -671,6 +686,7 @@ export default async function TenantDetailPage({
                     properties={vacantProperties.map((p) => ({
                       id: p.id,
                       address: `${p.address} (${p.landlord_name})`,
+                      address_sub: p.address_sub,
                       monthly_rent_krw: p.monthly_rent_krw,
                       deposit_krw: p.deposit_krw,
                     }))}

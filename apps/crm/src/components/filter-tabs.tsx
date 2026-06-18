@@ -14,21 +14,24 @@ export function FilterTabs({
   paramKey,
   options,
   className,
+  defaultValue = "all",
 }: {
   paramKey: string;
   options: FilterOption[];
   className?: string;
+  /** Tab selected when the param is absent; selecting it clears the param. */
+  defaultValue?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
-  const current = searchParams.get(paramKey) ?? "all";
+  const current = searchParams.get(paramKey) ?? defaultValue;
 
   function handleSelect(value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === "all") {
+    if (value === defaultValue) {
       params.delete(paramKey);
     } else {
       params.set(paramKey, value);

@@ -124,34 +124,40 @@ export function LandlordForm({
           </Field>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-3">
-          <Field>
-            <Label htmlFor="bank_name">은행명</Label>
-            <BankSelect
-              id="bank_name"
-              name="bank_name"
-              defaultValue={defaultValues?.bank_name ?? ""}
-            />
-          </Field>
-          <Field>
-            <Label htmlFor="bank_account">계좌번호</Label>
-            <Input
-              id="bank_account"
-              name="bank_account"
-              defaultValue={defaultValues?.bank_account ?? ""}
-              placeholder="계좌번호"
-            />
-          </Field>
-          <Field>
-            <Label htmlFor="account_holder">예금주</Label>
-            <Input
-              id="account_holder"
-              name="account_holder"
-              defaultValue={defaultValues?.account_holder ?? ""}
-              placeholder="예금주"
-            />
-          </Field>
-        </div>
+        {/* Bank details are sensitive (admin/accounting only), same tier as the
+            RRN — hide the inputs entirely for non-privileged editors so they are
+            neither shown nor submitted (updateLandlord also refuses to overwrite
+            them without sensitive access). */}
+        {canViewRrn && (
+          <div className="grid gap-5 sm:grid-cols-3">
+            <Field>
+              <Label htmlFor="bank_name">은행명</Label>
+              <BankSelect
+                id="bank_name"
+                name="bank_name"
+                defaultValue={defaultValues?.bank_name ?? ""}
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="bank_account">계좌번호</Label>
+              <Input
+                id="bank_account"
+                name="bank_account"
+                defaultValue={defaultValues?.bank_account ?? ""}
+                placeholder="계좌번호"
+              />
+            </Field>
+            <Field>
+              <Label htmlFor="account_holder">예금주</Label>
+              <Input
+                id="account_holder"
+                name="account_holder"
+                defaultValue={defaultValues?.account_holder ?? ""}
+                placeholder="예금주"
+              />
+            </Field>
+          </div>
+        )}
 
         {canViewRrn && (
           <Field>

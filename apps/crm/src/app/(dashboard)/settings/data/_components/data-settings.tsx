@@ -83,13 +83,12 @@ export function DataSettings({
       <div>
         <h2 className="text-base font-semibold">데이터 관리</h2>
         <p className="text-sm text-muted-foreground">
-          공과금 유형, 기지 위치, AS 카테고리를 관리합니다.
+          청구 유형, 기지 위치, AS 카테고리 등 기준 데이터를 관리합니다.
         </p>
       </div>
 
-      <Tabs defaultValue="utility-types">
+      <Tabs defaultValue="bill-presets">
         <TabsList>
-          <TabsTrigger value="utility-types">공과금 유형</TabsTrigger>
           <TabsTrigger value="bill-presets">청구 유형</TabsTrigger>
           <TabsTrigger value="base-locations">기지 위치</TabsTrigger>
           <TabsTrigger value="service-categories">AS 카테고리</TabsTrigger>
@@ -97,15 +96,26 @@ export function DataSettings({
           <TabsTrigger value="oha-rates">OHA 기준표</TabsTrigger>
           <TabsTrigger value="realty-fee">중개 수수료</TabsTrigger>
         </TabsList>
-        <TabsContent value="utility-types">
-          <DataPanel>
-            <UtilityTypes types={utilityTypes} usageMap={utilityUsageMap} />
-          </DataPanel>
-        </TabsContent>
-        <TabsContent value="bill-presets">
-          <DataPanel>
-            <BillPresets presets={billPresets} />
-          </DataPanel>
+        <TabsContent value="bill-presets" className="space-y-5">
+          <div className="space-y-1.5">
+            <p className="text-sm text-muted-foreground">
+              결제·정기청구에서 선택하는 청구 항목과 기본값입니다.
+            </p>
+            <DataPanel>
+              <BillPresets presets={billPresets} />
+            </DataPanel>
+          </div>
+          <div className="space-y-1.5">
+            <div>
+              <h3 className="text-sm font-medium">공과금 세부 유형</h3>
+              <p className="text-sm text-muted-foreground">
+                공과금 청구 시 선택하는 세부 항목입니다 (전기·수도·가스 등).
+              </p>
+            </div>
+            <DataPanel>
+              <UtilityTypes types={utilityTypes} usageMap={utilityUsageMap} />
+            </DataPanel>
+          </div>
         </TabsContent>
         <TabsContent value="base-locations">
           <DataPanel>

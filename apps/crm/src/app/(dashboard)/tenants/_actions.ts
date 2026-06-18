@@ -3,7 +3,12 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser, requireAdmin, requireSensitiveAccess } from "@/lib/authz";
+import {
+  requireUser,
+  requireAdmin,
+  requireSensitiveAccess,
+  requirePermission,
+} from "@/lib/authz";
 import { seoulYMD, seoulDateString, firstOfMonth } from "@/lib/date";
 import {
   generateRecurringChargesForMonth,
@@ -11,7 +16,7 @@ import {
 } from "@/lib/charges";
 
 export async function createTenant(formData: FormData) {
-  const session = await requireUser();
+  const session = await requirePermission("tenant", "create");
 
   const db = getDb();
 
@@ -120,7 +125,7 @@ export async function createTenant(formData: FormData) {
 }
 
 export async function updateTenant(id: number, formData: FormData) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 
@@ -169,7 +174,7 @@ export async function updateTenant(id: number, formData: FormData) {
 }
 
 export async function deleteTenant(id: number) {
-  await requireUser();
+  await requirePermission("tenant", "delete");
 
   const db = getDb();
 
@@ -215,7 +220,7 @@ export async function deleteTenant(id: number) {
 }
 
 export async function addFamilyMember(tenantId: number, formData: FormData) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 
@@ -243,7 +248,7 @@ export async function addFamilyMember(tenantId: number, formData: FormData) {
 }
 
 export async function deleteFamilyMember(id: number, tenantId: number) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 
@@ -253,7 +258,7 @@ export async function deleteFamilyMember(id: number, tenantId: number) {
 }
 
 export async function addPet(tenantId: number, formData: FormData) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 
@@ -272,7 +277,7 @@ export async function addPet(tenantId: number, formData: FormData) {
 }
 
 export async function deletePet(id: number, tenantId: number) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 
@@ -284,7 +289,7 @@ export async function deletePet(id: number, tenantId: number) {
 // --- Tenant Status ---
 
 export async function updateTenantStatus(id: number, status: string) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   if (status !== "active" && status !== "inactive") {
     throw new Error("올바르지 않은 상태입니다.");
@@ -296,8 +301,9 @@ export async function updateTenantStatus(id: number, status: string) {
     .updateTable("tenant")
     .set({
       status,
-      // Returning a tenant to active un-archives them.
-      ...(status === "active" ? { archived_at: null } : {}),
+      // Moving out archives the tenant (starts the 보관→휴지통 retention clock);
+      // returning to active un-archives them.
+      archived_at: status === "active" ? null : new Date(),
       updated_at: new Date(),
     })
     .where("id", "=", id)
@@ -307,23 +313,12 @@ export async function updateTenantStatus(id: number, status: string) {
   revalidatePath("/tenants");
 }
 
-// --- Tenant lifecycle (archive / soft-delete / purge) ---
+// --- Tenant lifecycle (soft-delete / purge) ---
+//
+// Moving a tenant out (updateTenantStatus → inactive) archives them, which is
+// what starts the retention clock; there is no separate manual archive step.
 
-/** Manually archive a moved-out tenant now (otherwise the daily job does it). */
-export async function archiveTenant(id: number) {
-  await requireUser();
-  const db = getDb();
-  await db
-    .updateTable("tenant")
-    .set({ archived_at: new Date(), updated_at: new Date() })
-    .where("id", "=", id)
-    .where("deleted_at", "is", null)
-    .execute();
-  revalidatePath("/tenants");
-  revalidatePath(`/tenants/${id}`);
-}
-
-/** Restore an archived or soft-deleted tenant back to the active roster. */
+/** Restore a soft-deleted tenant back to the active roster. */
 export async function restoreTenant(id: number) {
   await requireAdmin();
   const db = getDb();
@@ -716,7 +711,7 @@ export async function generateTenantRecurringCharges(tenantId: number) {
 // --- Tenant Notes ---
 
 export async function addTenantNote(tenantId: number, formData: FormData) {
-  const session = await requireUser();
+  const session = await requirePermission("tenant", "update");
 
   const content = formData.get("content") as string;
   if (!content?.trim()) return;
@@ -736,7 +731,7 @@ export async function addTenantNote(tenantId: number, formData: FormData) {
 }
 
 export async function deleteTenantNote(id: number, tenantId: number) {
-  await requireUser();
+  await requirePermission("tenant", "update");
 
   const db = getDb();
 

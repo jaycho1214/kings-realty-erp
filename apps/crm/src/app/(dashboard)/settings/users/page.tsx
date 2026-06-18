@@ -28,7 +28,10 @@ export default async function UsersSettingsPage() {
     .execute();
 
   const currentUserId = session?.user?.id ?? "";
-  const isAdmin = session?.user?.role === "admin";
+  // Use the authz helper so a composite role ("admin,accounting") is recognized;
+  // a bare === "admin" would hide the admin UI from multi-role admins who still
+  // passed the isAdminRole gate above.
+  const isAdmin = isAdminRole(session?.user?.role);
 
   const pendingUsers = allUsers.filter(
     (u) => u.role === "pending" && !u.banned,

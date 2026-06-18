@@ -28,7 +28,9 @@ export default async function LandlordsPage({
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const { q, page } = await searchParams;
-  const currentPage = Number(page ?? "1");
+  // Clamp to a valid 1-based page: ?page=0/-1/abc must not produce a negative
+  // SQL OFFSET (Postgres rejects it and 500s the page).
+  const currentPage = Math.max(1, Math.floor(Number(page ?? "1") || 1));
   const offset = (currentPage - 1) * PAGE_SIZE;
   const db = getDb();
 

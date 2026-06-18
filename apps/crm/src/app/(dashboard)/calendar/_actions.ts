@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/authz";
+import { requireUser, requirePermission } from "@/lib/authz";
 import { getDb } from "@kingsrealty/db";
 
 export async function generateCalendarToken() {
@@ -20,7 +20,7 @@ export async function generateCalendarToken() {
 }
 
 export async function createCalendarEvent(formData: FormData) {
-  const session = await requireUser();
+  const session = await requirePermission("calendar", "create");
 
   const title = formData.get("title") as string;
   const date = formData.get("date") as string;
@@ -95,7 +95,7 @@ export async function createCalendarEvent(formData: FormData) {
 }
 
 export async function deleteCalendarEvent(id: number) {
-  await requireUser();
+  await requirePermission("calendar", "delete");
 
   const db = getDb();
 

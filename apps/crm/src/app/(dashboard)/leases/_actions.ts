@@ -32,7 +32,7 @@ function parseContractTerms(formData: FormData) {
 }
 
 export async function createLease(formData: FormData) {
-  const session = await requireUser();
+  const session = await requirePermission("lease", "create");
 
   const db = getDb();
 
@@ -88,6 +88,10 @@ export async function createLease(formData: FormData) {
 
   revalidatePath("/leases");
   revalidatePath(`/tenants/${tenant_id}`);
+  // The lease flips the property to 점유중 and the tenant to 활성 — refresh both the
+  // property list and that property's detail so they don't show stale status.
+  revalidatePath("/properties");
+  revalidatePath(`/properties/${property_id}`);
   // Tenant-centric: return to the tenant the lease belongs to.
   redirect(`/tenants/${tenant_id}`);
 }
@@ -135,6 +139,12 @@ export async function updateLease(id: number, formData: FormData) {
     .execute();
 
   revalidatePath("/leases");
+  revalidatePath(`/leases/${id}`);
+  // An edit can reassign the tenant/property or change rent/dates, so the linked
+  // tenant and property detail pages must refresh too.
+  revalidatePath(`/tenants/${tenant_id}`);
+  revalidatePath("/properties");
+  revalidatePath(`/properties/${property_id}`);
   redirect(`/leases/${id}`);
 }
 
@@ -172,6 +182,7 @@ export async function deleteLease(id: number) {
     );
   }
 
+  let freedPropertyId: number | undefined;
   await db.transaction().execute(async (trx) => {
     const lease = await trx
       .selectFrom("lease")
@@ -182,6 +193,7 @@ export async function deleteLease(id: number) {
     await trx.deleteFrom("lease").where("id", "=", id).execute();
 
     if (lease) {
+      freedPropertyId = lease.property_id;
       await trx
         .updateTable("property")
         .set({ status: "vacant", updated_at: new Date() })
@@ -191,6 +203,9 @@ export async function deleteLease(id: number) {
   });
 
   revalidatePath("/leases");
+  // The freed property flips back to 공실 — refresh the property views too.
+  revalidatePath("/properties");
+  if (freedPropertyId) revalidatePath(`/properties/${freedPropertyId}`);
   redirect("/leases");
 }
 
@@ -334,8 +349,12 @@ export async function confirmDepositSettlement(leaseId: number) {
 
   const refund = Number(settlement.refund_amount);
 
+  let confirmed = false;
   await db.transaction().execute(async (trx) => {
-    await trx
+    // Guard the transition on the live status (not just the earlier read) so two
+    // concurrent confirms can't both post the refund: only the txn that actually
+    // flips →confirmed (numUpdatedRows === 1) writes the ledger entry.
+    const res = await trx
       .updateTable("deposit_settlement")
       .set({
         status: "confirmed",
@@ -344,7 +363,11 @@ export async function confirmDepositSettlement(leaseId: number) {
         updated_at: new Date(),
       })
       .where("lease_id", "=", leaseId)
-      .execute();
+      .where("status", "!=", "confirmed")
+      .executeTakeFirst();
+
+    if (Number(res.numUpdatedRows) === 0) return; // another confirm already won
+    confirmed = true;
 
     if (refund !== 0) {
       // refund > 0: company disburses the refund to the tenant.
@@ -369,13 +392,15 @@ export async function confirmDepositSettlement(leaseId: number) {
     }
   });
 
-  await logAudit({
-    actorId: Number(session.user.id),
-    action: "deposit_settlement.confirm",
-    entityType: "lease",
-    entityId: leaseId,
-    detail: { refund },
-  });
+  if (confirmed) {
+    await logAudit({
+      actorId: Number(session.user.id),
+      action: "deposit_settlement.confirm",
+      entityType: "lease",
+      entityId: leaseId,
+      detail: { refund },
+    });
+  }
 
   revalidatePath(`/leases/${leaseId}`);
   revalidatePath(`/tenants/${settlement.tenant_id}`);
@@ -437,6 +462,10 @@ export async function addInspection(
   });
 
   revalidatePath(`/leases/${leaseId}`);
+  // The inspection drives property status (점유중 / 퇴거 + 퇴거일) — refresh the
+  // property views so the change is visible outside the lease page.
+  revalidatePath("/properties");
+  revalidatePath(`/properties/${propertyId}`);
 }
 
 export async function deleteInspection(id: number, leaseId: number) {
@@ -447,7 +476,9 @@ export async function deleteInspection(id: number, leaseId: number) {
 }
 
 export async function markUtilityBillPaid(id: number, leaseId: number) {
-  await requireUser();
+  // Recording a disbursement to the utility company is an accounting fact —
+  // gate it like deleteUtilityBill (accounting/admin), not any approved user.
+  await requirePermission("accounting", "create");
 
   const db = getDb();
 

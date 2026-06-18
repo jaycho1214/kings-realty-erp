@@ -224,11 +224,21 @@ export default async function LandlordDetailPage({
           )}
         </DefGroup>
         <DefGroup label="계좌">
-          <Def label="은행명">{landlord.bank_name || "-"}</Def>
-          <Def label="계좌번호" mono>
-            {landlord.bank_account || "-"}
-          </Def>
-          <Def label="예금주">{landlord.account_holder || "-"}</Def>
+          {/* Bank details are sensitive landlord data (admin/accounting only),
+              the same access tier as the RRN. */}
+          {canViewRrn ? (
+            <>
+              <Def label="은행명">{landlord.bank_name || "-"}</Def>
+              <Def label="계좌번호" mono>
+                {landlord.bank_account || "-"}
+              </Def>
+              <Def label="예금주">{landlord.account_holder || "-"}</Def>
+            </>
+          ) : (
+            <Def label="계좌번호">
+              <span className="text-muted-foreground">접근 권한 없음</span>
+            </Def>
+          )}
           {landlord.notes && (
             <Def label="메모" full>
               <span className="whitespace-pre-wrap">{landlord.notes}</span>
@@ -260,9 +270,11 @@ export default async function LandlordDetailPage({
         birth: landlord.birth
           ? seoulDateString(new Date(landlord.birth))
           : null,
-        bank_name: landlord.bank_name,
-        bank_account: landlord.bank_account,
-        account_holder: landlord.account_holder,
+        // Don't serialize sensitive bank details to non-privileged users — the
+        // RSC payload reaches the client even when the inputs are hidden.
+        bank_name: canViewRrn ? landlord.bank_name : null,
+        bank_account: canViewRrn ? landlord.bank_account : null,
+        account_holder: canViewRrn ? landlord.account_holder : null,
         notes: landlord.notes,
       }}
       landlordId={numId}

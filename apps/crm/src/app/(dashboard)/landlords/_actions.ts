@@ -72,9 +72,6 @@ export async function updateLandlord(id: number, formData: FormData) {
   const business_type = (formData.get("business_type") as string) || null;
   const sex = (formData.get("sex") as string) || null;
   const birth = (formData.get("birth") as string) || null;
-  const bank_name = (formData.get("bank_name") as string) || null;
-  const bank_account = (formData.get("bank_account") as string) || null;
-  const account_holder = (formData.get("account_holder") as string) || null;
   const notes = (formData.get("notes") as string) || null;
 
   const values: Record<string, unknown> = {
@@ -85,12 +82,18 @@ export async function updateLandlord(id: number, formData: FormData) {
     business_type,
     sex,
     birth,
-    bank_name,
-    bank_account,
-    account_holder,
     notes,
     updated_at: new Date(),
   };
+
+  // Bank details are sensitive (admin/accounting only). Non-privileged editors
+  // don't get the inputs, so never let them overwrite the stored values — only
+  // apply bank fields when the caller may view/edit sensitive data.
+  if (canViewSensitive(session.user.role)) {
+    values.bank_name = (formData.get("bank_name") as string) || null;
+    values.bank_account = (formData.get("bank_account") as string) || null;
+    values.account_holder = (formData.get("account_holder") as string) || null;
+  }
 
   // Only privileged users can touch RRN. A non-empty value replaces it; a blank
   // value preserves the existing RRN (the field is never prefilled, so blank =

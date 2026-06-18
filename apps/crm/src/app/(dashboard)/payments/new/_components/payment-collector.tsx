@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ import { formatKRW } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { seoulDateString, seoulYMD } from "@/lib/date";
 import { createBulkPayment, addBillPreset } from "../_actions";
+import { TypeCombobox } from "./type-combobox";
 
 interface Lease {
   id: number;
@@ -110,7 +112,9 @@ export function PaymentCollector({
   openChargesByLease?: Record<number, ChargeOption[]>;
   defaultLeaseId?: number;
 }) {
-  const [comboOpen, setComboOpen] = useState(false);
+  // Land ready to type: a fresh page (no preselected lease) opens the tenant
+  // search immediately so staff start typing the name — no mouse, no Tab.
+  const [comboOpen, setComboOpen] = useState(!defaultLeaseId);
   const [selectedLeaseId, setSelectedLeaseId] = useState<number | "">(
     defaultLeaseId ?? "",
   );
@@ -135,10 +139,17 @@ export function PaymentCollector({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [showAddType, setShowAddType] = useState<string | false>(false);
-  const [newTypeName, setNewTypeName] = useState("");
   const [localPresets, setLocalPresets] = useState(billPresets);
-  const [isAddingType, startAddTypeTransition] = useTransition();
+  // The blank line item most recently added auto-opens its type picker.
+  const [autoOpenTypeId, setAutoOpenTypeId] = useState<string | null>(null);
+
+  // Keyboard focus-chaining: each action lands focus on the next field staff
+  // would touch, so the whole form is reachable without the mouse.
+  const addRentBtnRef = useRef<HTMLButtonElement>(null);
+  const amountRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Holds the latest handleSubmit so the document-level ⌘/Ctrl+Enter listener
+  // (bound once) always calls the current closure.
+  const submitRef = useRef<() => void>(() => {});
 
   const selectedLease = useMemo(
     () => leases.find((l) => l.id === selectedLeaseId) ?? null,
@@ -195,11 +206,41 @@ export function PaymentCollector({
     }
   };
 
+  // Focus (and select) a row's amount field on the next frame — by then the
+  // newly added row is committed and its ref is populated.
+  const focusAmount = useCallback((id: string) => {
+    requestAnimationFrame(() => {
+      const el = amountRefs.current[id];
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    });
+  }, []);
+
+  // Create a new bill/payment type, keep the local catalog in sync so every
+  // row sees it, and return it so the picker can select it immediately.
+  const addPreset = useCallback(
+    async (name: string): Promise<PresetOption | null> => {
+      const result = await addBillPreset(name.trim());
+      if (!result) return null;
+      const preset = { id: result.id, label: result.label, type: result.type };
+      setLocalPresets((prev) =>
+        prev.some((p) => p.id === preset.id) ? prev : [...prev, preset],
+      );
+      return preset;
+    },
+    [],
+  );
+
   const addLineItem = useCallback(() => {
+    const id = generateId();
     setLineItems((prev) => [
       ...prev,
-      { id: generateId(), type: "utility", label: "", amount: 0 },
+      { id, type: "utility", label: "", amount: 0 },
     ]);
+    // Blank row: type is unknown, so open its searchable picker first.
+    setAutoOpenTypeId(id);
   }, []);
 
   const hasRentLine = useMemo(
@@ -209,16 +250,20 @@ export function PaymentCollector({
 
   const addRentLine = useCallback(() => {
     if (!selectedLease) return;
+    const id = generateId();
     setLineItems((prev) => [
       ...prev,
       {
-        id: generateId(),
+        id,
         type: "rent",
         label: "월세",
         amount: selectedLease.monthly_rent_krw,
       },
     ]);
-  }, [selectedLease]);
+    // Amount is pre-filled with the rent — land on it (selected) to verify or
+    // overtype, then ⌘/Ctrl+Enter submits.
+    focusAmount(id);
+  }, [selectedLease, focusAmount]);
 
   // Open (unpaid) charges for the selected lease, minus ones already added as
   // line items — offered as one-click "불러오기" buttons that settle on save.
@@ -232,18 +277,35 @@ export function PaymentCollector({
     );
   }, [openChargesByLease, selectedLeaseId, lineItems]);
 
-  const addChargeLine = useCallback((c: ChargeOption) => {
-    setLineItems((prev) => [
-      ...prev,
-      {
-        id: generateId(),
-        type: c.type,
-        label: c.label,
-        amount: c.amount,
-        chargeId: c.id,
-      },
-    ]);
-  }, []);
+  const addChargeLine = useCallback(
+    (c: ChargeOption) => {
+      const id = generateId();
+      setLineItems((prev) => [
+        ...prev,
+        {
+          id,
+          type: c.type,
+          label: c.label,
+          amount: c.amount,
+          chargeId: c.id,
+        },
+      ]);
+      focusAmount(id);
+    },
+    [focusAmount],
+  );
+
+  // Pick a type for a blank row, then land focus on its amount field.
+  const handleTypeSelect = useCallback(
+    (id: string, label: string, type: string) => {
+      setLineItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, label, type } : item)),
+      );
+      setAutoOpenTypeId(null);
+      focusAmount(id);
+    },
+    [focusAmount],
+  );
 
   const removeLineItem = useCallback((id: string) => {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
@@ -329,29 +391,31 @@ export function PaymentCollector({
     });
   };
 
-  // Line-item type options come from the shared bill/payment type catalog.
-  const handleAddType = (lineItemId?: string) => {
-    if (!newTypeName.trim()) return;
-    startAddTypeTransition(async () => {
-      const result = await addBillPreset(newTypeName.trim());
-      if (result) {
-        setLocalPresets((prev) =>
-          prev.some((p) => p.id === result.id)
-            ? prev
-            : [
-                ...prev,
-                { id: result.id, label: result.label, type: result.type },
-              ],
-        );
-        if (lineItemId) {
-          updateLineItem(lineItemId, "label", result.label);
-          updateLineItem(lineItemId, "type", result.type);
-        }
+  // Keep the document-level submit chord pointed at the current closure.
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  });
+
+  // ⌘/Ctrl+Enter submits from any field (works on macOS and Windows). Bound
+  // once; the page stays a <div> with type="button" controls so a stray Enter
+  // while editing amounts never fires an accidental submit.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        submitRef.current();
       }
-      setNewTypeName("");
-      setShowAddType(false);
-    });
-  };
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Arriving from a lease link (lease preselected): the tenant search stays
+  // closed, so land focus on the first add-action instead.
+  useEffect(() => {
+    if (defaultLeaseId) addRentBtnRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-4 pb-8">
@@ -414,7 +478,10 @@ export function PaymentCollector({
                       align="start"
                     >
                       <Command>
-                        <CommandInput placeholder="이름 또는 주소 검색..." />
+                        <CommandInput
+                          placeholder="이름 또는 주소 검색..."
+                          autoFocus
+                        />
                         <CommandList>
                           <CommandEmpty>검색 결과 없음</CommandEmpty>
                           <CommandGroup>
@@ -423,12 +490,17 @@ export function PaymentCollector({
                                 key={lease.id}
                                 value={`${lease.tenant_name} ${lease.property_address}`}
                                 onSelect={() => {
-                                  handleLeaseSelect(
+                                  const next =
                                     lease.id === selectedLeaseId
                                       ? ""
-                                      : lease.id,
-                                  );
+                                      : lease.id;
+                                  handleLeaseSelect(next);
                                   setComboOpen(false);
+                                  // Land on the most common next step.
+                                  if (next !== "")
+                                    requestAnimationFrame(() =>
+                                      addRentBtnRef.current?.focus(),
+                                    );
                                 }}
                                 data-checked={lease.id === selectedLeaseId}
                               >
@@ -497,66 +569,16 @@ export function PaymentCollector({
                       <TableCell>
                         {item.chargeId || item.type === "rent" ? (
                           item.label || "월세"
-                        ) : showAddType === item.id ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={newTypeName}
-                              onChange={(e) => setNewTypeName(e.target.value)}
-                              placeholder="유형 이름"
-                              className="h-7 w-full text-sm"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddType(item.id);
-                                }
-                                if (e.key === "Escape") {
-                                  setShowAddType(false);
-                                  setNewTypeName("");
-                                }
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 shrink-0 px-2 text-xs"
-                              disabled={isAddingType || !newTypeName.trim()}
-                              onClick={() => handleAddType(item.id)}
-                            >
-                              {isAddingType ? "..." : "추가"}
-                            </Button>
-                          </div>
                         ) : (
-                          <select
+                          <TypeCombobox
                             value={item.label}
-                            onChange={(e) => {
-                              const selected = e.target.value;
-                              if (selected === "__new__") {
-                                setShowAddType(item.id);
-                                setNewTypeName("");
-                                return;
-                              }
-                              const preset = localPresets.find(
-                                (p) => p.label === selected,
-                              );
-                              updateLineItem(item.id, "label", selected);
-                              updateLineItem(
-                                item.id,
-                                "type",
-                                preset ? preset.type : "service",
-                              );
-                            }}
-                            className="h-7 w-full rounded-md border border-input bg-transparent px-1.5 text-sm dark:bg-input/30"
-                          >
-                            <option value="">선택...</option>
-                            {localPresets.map((opt) => (
-                              <option key={opt.id} value={opt.label}>
-                                {opt.label}
-                              </option>
-                            ))}
-                            <option value="기타">기타</option>
-                            <option value="__new__">+ 새 유형 추가</option>
-                          </select>
+                            presets={localPresets}
+                            autoOpen={autoOpenTypeId === item.id}
+                            onSelect={(label, type) =>
+                              handleTypeSelect(item.id, label, type)
+                            }
+                            onAddPreset={addPreset}
+                          />
                         )}
                       </TableCell>
                       <TableCell>
@@ -564,6 +586,9 @@ export function PaymentCollector({
                       </TableCell>
                       <TableCell className="text-right">
                         <Input
+                          ref={(el) => {
+                            amountRefs.current[item.id] = el;
+                          }}
                           type="number"
                           min={0}
                           value={item.amount || ""}
@@ -574,6 +599,15 @@ export function PaymentCollector({
                               Number(e.target.value),
                             )
                           }
+                          onKeyDown={(e) => {
+                            // Enter commits this item and opens a fresh row —
+                            // the "keep adding" loop. ⌘/Ctrl+Enter is left for
+                            // the document-level submit handler.
+                            if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
+                              e.preventDefault();
+                              addLineItem();
+                            }
+                          }}
                           className="w-full text-right"
                         />
                       </TableCell>
@@ -620,8 +654,9 @@ export function PaymentCollector({
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
+                  ref={addRentBtnRef}
                   type="button"
                   onClick={addRentLine}
                   disabled={!selectedLease || hasRentLine}
@@ -638,7 +673,19 @@ export function PaymentCollector({
                 >
                   <Plus className="size-3.5" />
                   항목 추가
+                  <kbd className="ml-1 inline-flex h-4 select-none items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">
+                    ⏎
+                  </kbd>
                 </button>
+                {lineItems.length > 0 && (
+                  <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
+                    금액에서
+                    <kbd className="inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
+                      ⏎ Enter
+                    </kbd>
+                    다음 항목 추가
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center justify-between border-t pt-3">
@@ -847,9 +894,14 @@ export function PaymentCollector({
               type="button"
               onClick={handleSubmit}
               disabled={isPending || !selectedLeaseId}
-              className="flex h-10 w-full items-center justify-center rounded-lg bg-primary text-base font-medium text-primary-foreground shadow-xs hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-base font-medium text-primary-foreground shadow-xs hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
             >
               {isPending ? "등록 중..." : "수납 등록"}
+              {!isPending && (
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/80">
+                  ⌘/Ctrl ↵
+                </kbd>
+              )}
             </button>
           </div>
         </div>

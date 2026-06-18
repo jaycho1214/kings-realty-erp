@@ -21,8 +21,10 @@ export interface DailyJobResult {
  * Daily maintenance jobs. Idempotent — safe to run more than once a day.
  *
  * WP B1:
- *  1. Auto-archive moved-out (status=inactive) tenants whose latest lease has
- *     already ended.
+ *  1. Safety net: stamp archived_at on any moved-out (status=inactive) tenant
+ *     that is missing it. Moving a tenant out already archives them; this only
+ *     backfills rows set inactive by import/bulk paths so the retention clock
+ *     starts. (archived_at is the internal 보관→휴지통 clock, not a separate view.)
  *  2. Soft-delete tenants that have been archived for 6+ months (recoverable
  *     trash; permanent purge stays a manual admin action).
  *  3. Generate this month's rent charges and flag overdue ones.
@@ -66,13 +68,6 @@ export async function runDailyJobs(): Promise<DailyJobResult> {
       .where("status", "=", "inactive")
       .where("archived_at", "is", null)
       .where("deleted_at", "is", null)
-      .where("id", "in", (eb) =>
-        eb
-          .selectFrom("lease")
-          .select("tenant_id")
-          .groupBy("tenant_id")
-          .having((hb) => hb(hb.fn.max("end_date"), "<", new Date(today))),
-      )
       .executeTakeFirst();
     result.archivedTenants = Number(archived.numUpdatedRows);
   });

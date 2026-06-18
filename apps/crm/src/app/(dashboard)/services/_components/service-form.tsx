@@ -50,6 +50,8 @@ interface LeaseOption {
   id: number;
   tenant_name: string;
   address: string;
+  /** The property's other address (도로명 when 지번 is primary). */
+  address_sub?: string | null;
 }
 
 interface CategoryOption {
@@ -114,6 +116,7 @@ export function ServiceForm({
     value: String(l.id),
     label: l.tenant_name,
     sublabel: l.address,
+    sublabel2: l.address_sub ?? undefined,
   }));
 
   const addImageFiles = useCallback((files: File[]) => {

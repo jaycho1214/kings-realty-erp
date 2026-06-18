@@ -66,6 +66,11 @@ export async function generateRentChargesForMonth(
         status: "billed",
       })),
     )
+    // The NOT EXISTS pre-check makes this idempotent for sequential calls, but a
+    // concurrent/retried run (e.g. a cron retry) can pass the check and then hit
+    // the unique index. DO NOTHING keeps it a safe no-op instead of aborting the
+    // whole batch with a unique-violation.
+    .onConflict((oc) => oc.doNothing())
     .execute();
 
   return leases.length;
@@ -169,6 +174,10 @@ export async function generateRecurringChargesForMonth(
         memo: d.label,
       })),
     )
+    // Idempotent under concurrency/retries: the unique index on
+    // (recurring_charge_id, billing_month) would otherwise throw and abort the
+    // batch if a racing run inserted the same rows between the check and here.
+    .onConflict((oc) => oc.doNothing())
     .execute();
 
   return rows.length;

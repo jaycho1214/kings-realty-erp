@@ -67,6 +67,9 @@ interface LeaseFormProps {
   properties: {
     id: number;
     address: string;
+    /** The property's other address (e.g. 도로명 when 지번 is primary), shown
+     *  as a muted second line in the combobox and included in its search. */
+    address_sub?: string | null;
     monthly_rent_krw?: string;
     deposit_krw?: string;
   }[];
@@ -169,6 +172,7 @@ export function LeaseForm({
   const propertyOptions = properties.map((p) => ({
     value: String(p.id),
     label: p.address,
+    sublabel: p.address_sub ?? undefined,
   }));
 
   const tenantOptions = tenants.map((t) => ({

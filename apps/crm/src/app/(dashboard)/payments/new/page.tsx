@@ -26,6 +26,7 @@ export default async function NewPaymentPage({
         sql<string>`coalesce(property.address_jibeon, property.address)`.as(
           "property_address",
         ),
+        "property.address_detail",
       ])
       .where("lease.status", "=", "active")
       .orderBy("tenant.name", "asc")
@@ -67,7 +68,10 @@ export default async function NewPaymentPage({
   const serializedLeases = leases.map((l) => ({
     id: l.id,
     tenant_name: l.tenant_name,
-    property_address: l.property_address,
+    // Full address = base (지번/도로명) + the detail (동·호 등) when present.
+    property_address: l.address_detail
+      ? `${l.property_address} ${l.address_detail}`
+      : l.property_address,
     monthly_rent_krw: Number(l.monthly_rent_krw),
   }));
 

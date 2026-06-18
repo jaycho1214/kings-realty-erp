@@ -9,6 +9,8 @@ export interface ComboboxOption {
   value: string;
   label: string;
   sublabel?: string;
+  /** A second muted line under sublabel (e.g. a property's other address). */
+  sublabel2?: string;
 }
 
 interface ComboboxProps {
@@ -51,7 +53,8 @@ export function Combobox({
     return options.filter(
       (o) =>
         o.label.toLowerCase().includes(q) ||
-        o.sublabel?.toLowerCase().includes(q),
+        o.sublabel?.toLowerCase().includes(q) ||
+        o.sublabel2?.toLowerCase().includes(q),
     );
   }, [options, search]);
 
@@ -158,6 +161,11 @@ export function Combobox({
                       <span className="text-xs text-muted-foreground">
                         {option.sublabel}
                       </span>
+                      {option.sublabel2 && (
+                        <span className="text-xs text-muted-foreground">
+                          {option.sublabel2}
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <span className="truncate">{option.label}</span>

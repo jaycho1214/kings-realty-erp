@@ -35,16 +35,20 @@ export async function updateOhaRates(formData: FormData) {
     });
   }
 
-  for (const u of updates) {
-    await db
-      .updateTable("oha_rate")
-      .set({ amount: String(u.amount) })
-      .where("code", "=", u.code)
-      .where("dependent_status", "=", u.dependent_status)
-      .where("region", "=", "Default")
-      .where("effective_to", "is", null)
-      .execute();
-  }
+  // Independent per-row updates — run them concurrently instead of awaiting each
+  // serially (the grouped table is ~20-30 rows = that many round-trips).
+  await Promise.all(
+    updates.map((u) =>
+      db
+        .updateTable("oha_rate")
+        .set({ amount: String(u.amount) })
+        .where("code", "=", u.code)
+        .where("dependent_status", "=", u.dependent_status)
+        .where("region", "=", "Default")
+        .where("effective_to", "is", null)
+        .execute(),
+    ),
+  );
 
   revalidatePath("/settings");
   revalidatePath("/tenants", "layout");
@@ -138,6 +142,25 @@ export async function addUtilityType(formData: FormData) {
       name: name.trim(),
       is_default: false,
     })
+    .execute();
+
+  revalidatePath("/settings");
+}
+
+export async function updateUtilityType(id: number, formData: FormData) {
+  await requireAdmin();
+
+  const db = getDb();
+  const name = (formData.get("name") as string)?.trim();
+
+  if (!name) {
+    throw new Error("유형 이름을 입력해주세요.");
+  }
+
+  await db
+    .updateTable("utility_type")
+    .set({ name })
+    .where("id", "=", id)
     .execute();
 
   revalidatePath("/settings");

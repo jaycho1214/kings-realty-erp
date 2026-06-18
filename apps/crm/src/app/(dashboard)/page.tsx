@@ -51,6 +51,8 @@ export default async function DashboardPage() {
     todayRates,
     monthCharges,
     usdRate,
+    board,
+    session,
   ] = await Promise.all([
     db
       .selectFrom("payment")
@@ -146,10 +148,13 @@ export default async function DashboardPage() {
       .where("tenant.deleted_at", "is", null)
       .execute(),
     getUsdToKrwRate(),
+    // Independent of the queries above — fetch in the same wave instead of as
+    // two extra serial round-trips after it.
+    loadBoardData(),
+    getSession(),
   ]);
 
   // Exchange-rate quick-entry (admin only): today's $100/$20 for the dashboard.
-  const session = await getSession();
   const canSetRate = isAdmin(session?.user?.role);
   const todayStr = seoulDateString();
   const todayRateMap = new Map(
@@ -250,8 +255,6 @@ export default async function DashboardPage() {
   const collectedPts = months
     .map((m, i) => `${px(i).toFixed(0)},${py(m.collected).toFixed(0)}`)
     .join(" ");
-
-  const board = await loadBoardData();
 
   return (
     <div className="flex flex-col gap-4">

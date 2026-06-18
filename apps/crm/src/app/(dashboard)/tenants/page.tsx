@@ -27,8 +27,6 @@ import { isAdmin } from "@/lib/authz";
 
 const PAGE_SIZE = 200;
 
-const LIFECYCLE_VIEWS = new Set(["archived", "deleted"]);
-
 const branchOptions = [
   { value: "all", label: "전체 군종" },
   { value: "army", label: "Army" },
@@ -50,17 +48,22 @@ export default async function TenantsPage({
   }>;
 }) {
   const { q, page, branch, status } = await searchParams;
-  const currentPage = Number(page ?? "1");
+  // Clamp to a valid 1-based page: ?page=0/-1/abc must not produce a negative
+  // SQL OFFSET (Postgres rejects it and 500s the page).
+  const currentPage = Math.max(1, Math.floor(Number(page ?? "1") || 1));
   const offset = (currentPage - 1) * PAGE_SIZE;
   const db = getDb();
 
   const session = await getSession();
   const admin = isAdmin(session?.user?.role);
 
-  // The `status` param doubles as the lifecycle view (archived / deleted).
-  const view = status;
-  const isLifecycleView = !!view && LIFECYCLE_VIEWS.has(view);
-  const statusFilter = !isLifecycleView && view && view !== "all" ? view : null;
+  // No `status` param defaults to the 입주 (active) roster. `all` shows every
+  // non-deleted tenant (입주 + 퇴거); `deleted` is the 휴지통 view. Moved-out
+  // tenants are archived but still live under 퇴거 — archiving is just the
+  // internal retention clock, not a separate view.
+  const view = status ?? "active";
+  const isDeletedView = view === "deleted";
+  const statusFilter = view === "active" || view === "inactive" ? view : null;
 
   let query = db
     .selectFrom("tenant")
@@ -73,39 +76,14 @@ export default async function TenantsPage({
       "tenant.rank",
       "tenant.unit",
       "tenant.status",
-      "tenant.archived_at",
       "tenant.deleted_at",
     ])
-    .where((eb) =>
-      view === "archived"
-        ? eb.and([
-            eb("tenant.archived_at", "is not", null),
-            eb("tenant.deleted_at", "is", null),
-          ])
-        : view === "deleted"
-          ? eb("tenant.deleted_at", "is not", null)
-          : eb.and([
-              eb("tenant.archived_at", "is", null),
-              eb("tenant.deleted_at", "is", null),
-            ]),
-    );
+    .where("tenant.deleted_at", isDeletedView ? "is not" : "is", null);
 
   let countQuery = db
     .selectFrom("tenant")
     .select(({ fn }) => fn.count<number>("id").as("count"))
-    .where((eb) =>
-      view === "archived"
-        ? eb.and([
-            eb("tenant.archived_at", "is not", null),
-            eb("tenant.deleted_at", "is", null),
-          ])
-        : view === "deleted"
-          ? eb("tenant.deleted_at", "is not", null)
-          : eb.and([
-              eb("tenant.archived_at", "is", null),
-              eb("tenant.deleted_at", "is", null),
-            ]),
-    );
+    .where("tenant.deleted_at", isDeletedView ? "is not" : "is", null);
 
   if (q) {
     query = query.where((eb) =>
@@ -165,11 +143,11 @@ export default async function TenantsPage({
         <div className="flex flex-wrap gap-2">
           <FilterTabs
             paramKey="status"
+            defaultValue="active"
             options={[
-              { value: "all", label: "전체" },
               { value: "active", label: "입주" },
+              { value: "all", label: "전체" },
               { value: "inactive", label: "퇴거" },
-              { value: "archived", label: "보관" },
               { value: "deleted", label: "휴지통" },
             ]}
           />
@@ -195,7 +173,7 @@ export default async function TenantsPage({
                 <TableHead>부대</TableHead>
                 <TableHead>전화번호</TableHead>
                 <TableHead>이메일</TableHead>
-                {isLifecycleView && admin && (
+                {isDeletedView && admin && (
                   <TableHead className="text-right">관리</TableHead>
                 )}
               </TableRow>
@@ -214,8 +192,6 @@ export default async function TenantsPage({
                   <TableCell>
                     {tenant.deleted_at ? (
                       <StatusBadge status="inactive" label="삭제됨" />
-                    ) : tenant.archived_at ? (
-                      <StatusBadge status="inactive" label="보관" />
                     ) : (
                       <StatusBadge
                         status={tenant.status}
@@ -244,7 +220,7 @@ export default async function TenantsPage({
                   <TableCell className="text-muted-foreground">
                     {tenant.email ?? "-"}
                   </TableCell>
-                  {isLifecycleView && admin && (
+                  {isDeletedView && admin && (
                     <TableCell>
                       <TenantLifecycleActions
                         tenantId={tenant.id}

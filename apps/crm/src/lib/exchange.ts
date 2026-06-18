@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getDb } from "@kingsrealty/db";
 
 /**
@@ -6,8 +7,11 @@ import { getDb } from "@kingsrealty/db";
  * a $100 bill follows the $20 rate. A charge/bill isn't a specific bill
  * denomination, so it converts at the latest $20 rate — falling back to the
  * latest $100 rate, then any most-recent rate. Returns null if none exist.
+ *
+ * `cache()`-wrapped so the several call sites in one render (dashboard, tenant
+ * detail, ledger) share a single query per request.
  */
-export async function getUsdToKrwRate(): Promise<number | null> {
+export const getUsdToKrwRate = cache(async (): Promise<number | null> => {
   const db = getDb();
   const rows = await db
     .selectFrom("exchange_rate")
@@ -19,7 +23,7 @@ export async function getUsdToKrwRate(): Promise<number | null> {
     rows.find((r) => Number(r.denomination) === denom);
   const pick = latest(20) ?? latest(100) ?? rows[0];
   return pick ? Number(pick.usd_to_krw) : null;
-}
+});
 
 /**
  * KRW value of a charge/amount given its currency, using {@link getUsdToKrwRate}

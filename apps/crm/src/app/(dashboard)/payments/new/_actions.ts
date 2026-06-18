@@ -177,7 +177,9 @@ export async function createBulkPayment(formData: FormData) {
         .executeTakeFirstOrThrow();
 
       // Settle the linked charge (binary — no partial). Guard on lease_id so a
-      // stale/foreign charge id can't be flipped.
+      // stale/foreign charge id can't be flipped, and on paid_by_payment_id IS
+      // NULL so a charge already settled by another payment isn't re-linked —
+      // which would orphan the first payment under a concurrent double-submit.
       if (item.charge_id) {
         await trx
           .updateTable("charge_item")
@@ -188,6 +190,7 @@ export async function createBulkPayment(formData: FormData) {
           })
           .where("id", "=", item.charge_id)
           .where("lease_id", "=", lease_id)
+          .where("paid_by_payment_id", "is", null)
           .execute();
       }
     }

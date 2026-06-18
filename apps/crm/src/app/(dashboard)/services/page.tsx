@@ -54,7 +54,9 @@ export default async function ServicesPage({
   }>;
 }) {
   const { q, page, status, category } = await searchParams;
-  const currentPage = Number(page ?? "1");
+  // Clamp to a valid 1-based page: ?page=0/-1/abc must not produce a negative
+  // SQL OFFSET (Postgres rejects it and 500s the page).
+  const currentPage = Math.max(1, Math.floor(Number(page ?? "1") || 1));
   const offset = (currentPage - 1) * PAGE_SIZE;
   const db = getDb();
 
@@ -144,6 +146,13 @@ export default async function ServicesPage({
         "tenant.name as tenant_name",
         sql<string>`coalesce(property.address_jibeon, property.address)`.as(
           "address",
+        ),
+        // The 도로명 address as the combobox's second line — only when 지번 is
+        // the primary, so it never duplicates the address above.
+        sql<
+          string | null
+        >`case when property.address_jibeon is not null then property.address else null end`.as(
+          "address_sub",
         ),
       ])
       .where("lease.status", "=", "active")

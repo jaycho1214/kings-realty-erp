@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { restoreTenant, purgeTenant } from "../_actions";
 
 /**
- * Admin-only restore / permanent-delete controls shown in the 보관/휴지통 views.
+ * Admin-only restore / permanent-delete controls shown in the 휴지통 view.
  */
 export function TenantLifecycleActions({
   tenantId,
