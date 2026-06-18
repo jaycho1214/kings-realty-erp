@@ -88,6 +88,17 @@ function generateId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+/** Map a lease's outstanding charges into pre-filled, charge-linked line items. */
+function chargesToLineItems(charges: ChargeOption[] | undefined): LineItem[] {
+  return (charges ?? []).map((c) => ({
+    id: generateId(),
+    type: c.type,
+    label: c.label,
+    amount: c.amount,
+    chargeId: c.id,
+  }));
+}
+
 // Default payment date/month are the Asia/Seoul business day, not the viewer's
 // local day — otherwise a CONUS browser (or any client between 00:00–09:00 KST)
 // pre-fills the previous calendar day/month.
@@ -124,7 +135,13 @@ export function PaymentCollector({
     defaultLeaseId ?? "",
   );
   const [billingMonth, setBillingMonth] = useState(currentMonthString());
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  // Pre-fill with everything a preselected lease owes (charge-linked) so saving
+  // settles them; staff delete any line they're not collecting.
+  const [lineItems, setLineItems] = useState<LineItem[]>(() =>
+    defaultLeaseId
+      ? chargesToLineItems(openChargesByLease?.[defaultLeaseId])
+      : [],
+  );
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentDate, setPaymentDate] = useState(todayString());
   const [notes, setNotes] = useState("");
@@ -168,12 +185,20 @@ export function PaymentCollector({
     return r?.usd_to_krw ?? null;
   }, [exchangeRates]);
 
-  // When lease selection changes, clear line items (rent is no longer
-  // auto-added — staff add it on demand via "월세 추가").
-  const handleLeaseSelect = useCallback((leaseId: number | "") => {
-    setSelectedLeaseId(leaseId);
-    setLineItems([]);
-  }, []);
+  // On lease select, auto-load all of that lease's outstanding 미납 charges as
+  // charge-linked line items (so saving settles them); staff delete any they're
+  // not collecting. Clearing the selection empties the list.
+  const handleLeaseSelect = useCallback(
+    (leaseId: number | "") => {
+      setSelectedLeaseId(leaseId);
+      setLineItems(
+        chargesToLineItems(
+          leaseId === "" ? undefined : openChargesByLease?.[leaseId],
+        ),
+      );
+    },
+    [openChargesByLease],
+  );
 
   // Auto-dismiss success message
   useEffect(() => {
