@@ -463,6 +463,8 @@ const CHARGE_STATUSES = new Set([
   "paid",
   "partial",
   "overdue",
+  "waived",
+  "void",
 ]);
 
 /** Add a manual charge (one-time or monthly) for a tenant. */
@@ -559,6 +561,125 @@ export async function setChargeAmount(
     .execute();
   await recomputeChargeStatus([id], seoulDateString());
   revalidatePath(`/tenants/${tenantId}`);
+}
+
+/**
+ * 수납(연결): record a KRW payment for a single outstanding charge and link it,
+ * settling the charge to 수납완료. Runs in a transaction that re-reads the charge
+ * FOR UPDATE and no-ops if it's already linked — so a double-click can't create a
+ * second orphan payment. 외화 charges are routed to /payments/new (FX handling).
+ */
+export async function settleCharge(
+  chargeId: number,
+  tenantId: number,
+  formData: FormData,
+) {
+  const session = await requireUser();
+  const amount = Number(formData.get("amount"));
+  const method = (formData.get("payment_method") as string) || "cash";
+  const date = (formData.get("payment_date") as string) || seoulDateString();
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("금액을 올바르게 입력해주세요.");
+  }
+
+  const db = getDb();
+  await db.transaction().execute(async (trx) => {
+    const charge = await trx
+      .selectFrom("charge_item")
+      .select([
+        "id",
+        "lease_id",
+        "type",
+        "memo",
+        "currency",
+        "billing_month",
+        "paid_by_payment_id",
+      ])
+      .where("id", "=", chargeId)
+      .where("tenant_id", "=", tenantId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!charge) throw new Error("청구 항목을 찾을 수 없습니다.");
+    if (charge.paid_by_payment_id != null) return; // already settled — no-op
+    if (!charge.lease_id) {
+      throw new Error("계약이 연결되지 않은 청구는 수납할 수 없습니다.");
+    }
+    if (charge.currency !== "KRW") {
+      throw new Error("외화 청구는 수납 등록 페이지에서 처리해주세요.");
+    }
+
+    // charge.billing_month is first-of-month; fall back to the payment date's
+    // month for a one-time charge with no billing period.
+    const billingMonth = charge.billing_month
+      ? new Date(charge.billing_month).toISOString().slice(0, 10)
+      : `${date.slice(0, 7)}-01`;
+
+    const inserted = await trx
+      .insertInto("payment")
+      .values({
+        lease_id: charge.lease_id,
+        payment_type: charge.type,
+        label: charge.memo ?? null,
+        billing_month: billingMonth,
+        amount_krw: String(amount),
+        currency_paid: "KRW",
+        amount_paid: String(amount),
+        payment_method: method,
+        payment_date: date,
+        status: "paid",
+        received_by: Number(session.user.id),
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+
+    await trx
+      .updateTable("charge_item")
+      .set({
+        paid_by_payment_id: inserted.id,
+        status: "paid",
+        updated_at: new Date(),
+      })
+      .where("id", "=", chargeId)
+      .where("paid_by_payment_id", "is", null)
+      .execute();
+  });
+
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/payments");
+  revalidatePath("/");
+}
+
+/** 면제: forgive an outstanding charge — not collected, not revenue, drops out
+ *  of 미납. Guarded so an already-settled charge is never overwritten. */
+export async function waiveCharge(chargeId: number, tenantId: number) {
+  await requireUser();
+  const db = getDb();
+  await db
+    .updateTable("charge_item")
+    .set({ status: "waived", updated_at: new Date() })
+    .where("id", "=", chargeId)
+    .where("tenant_id", "=", tenantId)
+    .where("paid_by_payment_id", "is", null)
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/");
+}
+
+/** 정정(무효): mark a duplicate/erroneous charge void. Soft (a row, not a delete)
+ *  so the recurring generator's (recurring_charge_id, billing_month) uniqueness
+ *  keeps it from being recreated for that month. */
+export async function voidCharge(chargeId: number, tenantId: number) {
+  await requireUser();
+  const db = getDb();
+  await db
+    .updateTable("charge_item")
+    .set({ status: "void", updated_at: new Date() })
+    .where("id", "=", chargeId)
+    .where("tenant_id", "=", tenantId)
+    .where("paid_by_payment_id", "is", null)
+    .execute();
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/");
 }
 
 // --- Recurring charges (정기 청구 정의) ---

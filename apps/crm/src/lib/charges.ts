@@ -281,6 +281,7 @@ export async function recomputeChargeStatus(
     .updateTable("charge_item")
     .set({
       status: sql<string>`case
+        when status in ('waived', 'void') then status
         when paid_by_payment_id is not null then 'paid'
         when amount is null then 'unbilled'
         when due_date is not null and due_date < ${today}::date then 'overdue'

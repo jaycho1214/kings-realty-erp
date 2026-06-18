@@ -213,6 +213,8 @@ export default async function DashboardPage() {
     collectedAmt = 0,
     expectedAmt = 0;
   for (const c of monthCharges) {
+    // 면제(waived)·무효(void) are terminal non-collectible — not owed, not 미납.
+    if (c.status === "waived" || c.status === "void") continue;
     const krw = toKrw(Number(c.amount ?? 0), c.currency ?? "KRW", usdRate);
     expectedAmt += krw;
     if (c.status === "paid") {
