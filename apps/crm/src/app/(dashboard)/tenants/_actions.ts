@@ -465,53 +465,6 @@ const CHARGE_STATUSES = new Set([
   "overdue",
 ]);
 
-/** Generate this month's 월세 charge for the tenant's active lease. */
-export async function generateTenantRentCharge(tenantId: number) {
-  await requireUser();
-  const db = getDb();
-
-  const lease = await db
-    .selectFrom("lease")
-    .select(["id", "monthly_rent_krw"])
-    .where("tenant_id", "=", tenantId)
-    .where("status", "in", ["active", "renewed"])
-    .orderBy("start_date", "desc")
-    .executeTakeFirst();
-  if (!lease) throw new Error("유효한 계약이 없습니다.");
-
-  const { year, month } = seoulYMD();
-  const billingMonth = firstOfMonth(year, month);
-
-  const existing = await db
-    .selectFrom("charge_item")
-    .select("id")
-    .where("lease_id", "=", lease.id)
-    .where("type", "=", "rent")
-    .where("billing_month", "=", new Date(billingMonth))
-    .executeTakeFirst();
-  if (existing) {
-    revalidatePath(`/tenants/${tenantId}`);
-    return;
-  }
-
-  await db
-    .insertInto("charge_item")
-    .values({
-      tenant_id: tenantId,
-      lease_id: lease.id,
-      type: "rent",
-      recurrence: "monthly",
-      billing_month: billingMonth,
-      amount: String(lease.monthly_rent_krw),
-      currency: "KRW",
-      due_date: `${billingMonth.slice(0, 8)}10`,
-      status: "billed",
-    })
-    .execute();
-
-  revalidatePath(`/tenants/${tenantId}`);
-}
-
 /** Add a manual charge (one-time or monthly) for a tenant. */
 export async function addCharge(tenantId: number, formData: FormData) {
   const session = await requireUser();

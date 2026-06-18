@@ -45,6 +45,7 @@ export const paymentTypeMap: Record<string, string> = {
   management: "관리비",
   parking: "주차",
   deposit: "보증금",
+  prepayment: "선불금",
   service: "AS비",
 };
 

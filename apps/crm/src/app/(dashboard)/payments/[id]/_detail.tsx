@@ -38,6 +38,7 @@ const paymentTypeMap: Record<
   rent: { label: "월세", variant: "outline" },
   utility: { label: "공과금", variant: "secondary" },
   deposit: { label: "보증금", variant: "outline" },
+  prepayment: { label: "선불금", variant: "outline" },
   service: { label: "AS비", variant: "destructive" },
 };
 

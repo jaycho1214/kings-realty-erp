@@ -44,7 +44,19 @@ const typeMap: Record<
   rent: { label: "월세", variant: "outline" },
   utility: { label: "공과금", variant: "outline" },
   deposit: { label: "보증금", variant: "outline" },
+  prepayment: { label: "선불금", variant: "outline" },
   service: { label: "AS비", variant: "outline" },
+};
+
+// charge_item.type labels (the obligation side — superset of payment types).
+const chargeTypeMap: Record<string, string> = {
+  rent: "월세",
+  utility: "공과금",
+  management: "관리비",
+  parking: "주차",
+  deposit: "보증금",
+  realty_fee: "중개수수료",
+  custom: "기타",
 };
 
 const typeOptions = [
@@ -52,6 +64,7 @@ const typeOptions = [
   { value: "rent", label: "월세" },
   { value: "utility", label: "공과금" },
   { value: "deposit", label: "보증금" },
+  { value: "prepayment", label: "선불금" },
   { value: "service", label: "AS비" },
 ];
 
@@ -76,6 +89,22 @@ type PaymentRow = {
   bill_paid: boolean;
   bill_paid_at: Date | string | null;
   bundle_id: string | null;
+  tenant_id: number;
+  tenant_name: string;
+  property_id: number;
+  property_address: string;
+};
+
+// An unpaid obligation (charge_item) shown under the 미납/연체 tabs.
+type ObligationRow = {
+  id: number;
+  type: string;
+  memo: string | null;
+  amount: string | number;
+  currency: string;
+  billing_month: Date | string | null;
+  due_date: Date | string | null;
+  status: string;
   tenant_id: number;
   tenant_name: string;
   property_id: number;
@@ -164,88 +193,161 @@ export default async function PaymentsPage({
   const activeStatus = status ?? "all";
   const db = getDb();
 
-  // A "display group" is a bundle (rows sharing bundle_id) or a single payment.
-  // Paginate over groups, not raw rows, so a bundle never straddles a page
-  // boundary and the page count matches the number of visible rows.
-  const groupKey = sql<string>`coalesce(payment.bundle_id, 'single-' || payment.id::text)`;
+  // A `payment` row is always a recorded receipt (status='paid'); what's owed but
+  // not yet collected lives in `charge_item` (no linked payment). So the 미납/연체
+  // tabs list outstanding charges, while 전체/납부완료 list receipts. This keeps the
+  // page in agreement with the dashboard's charge-based 미납·연체 counts.
+  const obligationView =
+    activeStatus === "overdue" || activeStatus === "pending";
 
-  let filtered = db
-    .selectFrom("payment")
-    .innerJoin("lease", "lease.id", "payment.lease_id")
-    .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-    .innerJoin("property", "property.id", "lease.property_id")
-    .where("tenant.deleted_at", "is", null);
+  let total = 0;
+  let obligations: ObligationRow[] = [];
+  let displayItems: DisplayItem[] = [];
 
-  if (q) {
-    filtered = filtered.where((eb) =>
-      eb.or([
-        eb("tenant.name", "ilike", `%${q}%`),
-        eb("property.address", "ilike", `%${q}%`),
-        eb("property.address_jibeon", "ilike", `%${q}%`),
-      ]),
-    );
+  if (obligationView) {
+    let charges = db
+      .selectFrom("charge_item")
+      .innerJoin("lease", "lease.id", "charge_item.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .where("tenant.deleted_at", "is", null)
+      .where("charge_item.paid_by_payment_id", "is", null)
+      .where("charge_item.amount", "is not", null);
+
+    // 연체 = overdue only; 미납 = all outstanding (billed + overdue), so it's the
+    // umbrella with 연체 as its subset — mirrors the dashboard's 미납 합계/연체 split.
+    if (activeStatus === "overdue") {
+      charges = charges.where("charge_item.status", "=", "overdue");
+    } else {
+      charges = charges.where("charge_item.status", "in", [
+        "billed",
+        "overdue",
+      ]);
+    }
+    if (q) {
+      charges = charges.where((eb) =>
+        eb.or([
+          eb("tenant.name", "ilike", `%${q}%`),
+          eb("property.address", "ilike", `%${q}%`),
+          eb("property.address_jibeon", "ilike", `%${q}%`),
+        ]),
+      );
+    }
+    if (activeType !== "all") {
+      charges = charges.where("charge_item.type", "=", activeType);
+    }
+
+    const [rows, totalResult] = await Promise.all([
+      charges
+        .select([
+          "charge_item.id",
+          "charge_item.type",
+          "charge_item.memo",
+          "charge_item.amount",
+          "charge_item.currency",
+          "charge_item.billing_month",
+          "charge_item.due_date",
+          "charge_item.status",
+          "tenant.id as tenant_id",
+          "tenant.name as tenant_name",
+          "property.id as property_id",
+          sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+            "property_address",
+          ),
+        ])
+        .orderBy("charge_item.due_date", "asc")
+        .limit(PAGE_SIZE)
+        .offset(offset)
+        .execute(),
+      charges.select(sql<number>`count(*)`.as("count")).executeTakeFirst(),
+    ]);
+
+    obligations = rows as ObligationRow[];
+    total = Number(totalResult?.count ?? 0);
+  } else {
+    // A "display group" is a bundle (rows sharing bundle_id) or a single payment.
+    // Paginate over groups, not raw rows, so a bundle never straddles a page
+    // boundary and the page count matches the number of visible rows.
+    const groupKey = sql<string>`coalesce(payment.bundle_id, 'single-' || payment.id::text)`;
+
+    let filtered = db
+      .selectFrom("payment")
+      .innerJoin("lease", "lease.id", "payment.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .innerJoin("property", "property.id", "lease.property_id")
+      .where("tenant.deleted_at", "is", null);
+
+    if (q) {
+      filtered = filtered.where((eb) =>
+        eb.or([
+          eb("tenant.name", "ilike", `%${q}%`),
+          eb("property.address", "ilike", `%${q}%`),
+          eb("property.address_jibeon", "ilike", `%${q}%`),
+        ]),
+      );
+    }
+    if (activeType !== "all") {
+      filtered = filtered.where("payment.payment_type", "=", activeType);
+    }
+    if (activeStatus !== "all") {
+      filtered = filtered.where("payment.status", "=", activeStatus);
+    }
+
+    const [groupRows, totalResult] = await Promise.all([
+      filtered
+        .select(groupKey.as("gkey"))
+        .groupBy(groupKey)
+        .orderBy(sql`max(payment.created_at)`, "desc")
+        .limit(PAGE_SIZE)
+        .offset(offset)
+        .execute(),
+      filtered
+        .select(sql<number>`count(distinct ${groupKey})`.as("count"))
+        .executeTakeFirst(),
+    ]);
+
+    const keys = groupRows.map((g) => g.gkey);
+    total = Number(totalResult?.count ?? 0);
+
+    const payments =
+      keys.length === 0
+        ? []
+        : await filtered
+            .select([
+              "payment.id",
+              "payment.billing_month",
+              "payment.payment_type",
+              "payment.label",
+              "payment.amount_krw",
+              "payment.amount_paid",
+              "payment.currency_paid",
+              "payment.payment_method",
+              "payment.payment_date",
+              "payment.status",
+              "payment.bill_paid",
+              "payment.bill_paid_at",
+              "payment.bundle_id",
+              "tenant.id as tenant_id",
+              "tenant.name as tenant_name",
+              "property.id as property_id",
+              sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+                "property_address",
+              ),
+            ])
+            .where(groupKey, "in", keys)
+            .orderBy("payment.created_at", "desc")
+            .execute();
+
+    // Preserve the paginated group order exactly (handles created_at ties).
+    const groupOrder = new Map(keys.map((k, i) => [k, i]));
+    displayItems = groupPayments(payments as PaymentRow[]).sort((a, b) => {
+      const ka =
+        a.kind === "bundle" ? a.bundle.bundleId : `single-${a.payment.id}`;
+      const kb =
+        b.kind === "bundle" ? b.bundle.bundleId : `single-${b.payment.id}`;
+      return (groupOrder.get(ka) ?? 0) - (groupOrder.get(kb) ?? 0);
+    });
   }
-  if (activeType !== "all") {
-    filtered = filtered.where("payment.payment_type", "=", activeType);
-  }
-  if (activeStatus !== "all") {
-    filtered = filtered.where("payment.status", "=", activeStatus);
-  }
-
-  const [groupRows, totalResult] = await Promise.all([
-    filtered
-      .select(groupKey.as("gkey"))
-      .groupBy(groupKey)
-      .orderBy(sql`max(payment.created_at)`, "desc")
-      .limit(PAGE_SIZE)
-      .offset(offset)
-      .execute(),
-    filtered
-      .select(sql<number>`count(distinct ${groupKey})`.as("count"))
-      .executeTakeFirst(),
-  ]);
-
-  const keys = groupRows.map((g) => g.gkey);
-  const total = Number(totalResult?.count ?? 0);
-
-  const payments =
-    keys.length === 0
-      ? []
-      : await filtered
-          .select([
-            "payment.id",
-            "payment.billing_month",
-            "payment.payment_type",
-            "payment.label",
-            "payment.amount_krw",
-            "payment.amount_paid",
-            "payment.currency_paid",
-            "payment.payment_method",
-            "payment.payment_date",
-            "payment.status",
-            "payment.bill_paid",
-            "payment.bill_paid_at",
-            "payment.bundle_id",
-            "tenant.id as tenant_id",
-            "tenant.name as tenant_name",
-            "property.id as property_id",
-            sql<string>`coalesce(property.address_jibeon, property.address)`.as(
-              "property_address",
-            ),
-          ])
-          .where(groupKey, "in", keys)
-          .orderBy("payment.created_at", "desc")
-          .execute();
-
-  // Preserve the paginated group order exactly (handles created_at ties).
-  const groupOrder = new Map(keys.map((k, i) => [k, i]));
-  const displayItems = groupPayments(payments as PaymentRow[]).sort((a, b) => {
-    const ka =
-      a.kind === "bundle" ? a.bundle.bundleId : `single-${a.payment.id}`;
-    const kb =
-      b.kind === "bundle" ? b.bundle.bundleId : `single-${b.payment.id}`;
-    return (groupOrder.get(ka) ?? 0) - (groupOrder.get(kb) ?? 0);
-  });
 
   return (
     <div className="space-y-5">
@@ -265,11 +367,19 @@ export default async function PaymentsPage({
       </div>
 
       <DataPanel>
-        {displayItems.length === 0 ? (
+        {(
+          obligationView ? obligations.length === 0 : displayItems.length === 0
+        ) ? (
           <EmptyState
             icon={CreditCard}
-            title="수납 내역이 없습니다"
-            description="검색 조건을 바꾸거나 새 수납을 등록해 보세요."
+            title={
+              obligationView ? "미납 내역이 없습니다" : "수납 내역이 없습니다"
+            }
+            description={
+              obligationView
+                ? "마감이 지났거나 청구된 미수납 건이 없습니다."
+                : "검색 조건을 바꾸거나 새 수납을 등록해 보세요."
+            }
           />
         ) : (
           <Table>
@@ -289,96 +399,100 @@ export default async function PaymentsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayItems.map((item) => {
-                if (item.kind === "single") {
-                  const payment = item.payment;
-                  const baseType = typeMap[payment.payment_type] ?? {
-                    label: payment.payment_type,
-                    variant: "outline" as const,
-                  };
-                  const paymentType = payment.label
-                    ? { ...baseType, label: payment.label }
-                    : baseType;
-                  const paidAmount =
-                    payment.currency_paid === "USD"
-                      ? formatUSD(payment.amount_paid)
-                      : formatKRW(payment.amount_paid);
-                  return (
-                    <TableRow key={payment.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/payments/${payment.id}`}
-                          className="hover:underline"
-                        >
-                          {formatBillingMonth(payment.billing_month)}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/tenants/${payment.tenant_id}`}
-                          className="hover:underline"
-                        >
-                          {payment.tenant_name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/properties/${payment.property_id}`}
-                          className="hover:underline"
-                        >
-                          {payment.property_address}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={paymentType.variant}>
-                          {paymentType.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="tabular text-right">
-                        {formatKRW(payment.amount_krw)}
-                      </TableCell>
-                      <TableCell className="tabular text-right">
-                        {paidAmount}
-                      </TableCell>
-                      <TableCell className="tabular text-muted-foreground">
-                        {currencyPaidLabel(payment.currency_paid)}
-                      </TableCell>
-                      <TableCell>
-                        {methodMap[payment.payment_method] ??
-                          payment.payment_method}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={payment.status}
-                          label={
-                            statusLabelMap[payment.status] ?? payment.status
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <BillPaidToggle
-                            paymentId={payment.id}
-                            paid={payment.bill_paid}
-                          />
-                          {payment.bill_paid && payment.bill_paid_at && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatDateCompact(payment.bill_paid_at)}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="tabular text-muted-foreground">
-                        {formatDateCompact(payment.payment_date)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
+              {obligationView
+                ? obligations.map((o) => (
+                    <ObligationRowView key={`charge-${o.id}`} obligation={o} />
+                  ))
+                : displayItems.map((item) => {
+                    if (item.kind === "single") {
+                      const payment = item.payment;
+                      const baseType = typeMap[payment.payment_type] ?? {
+                        label: payment.payment_type,
+                        variant: "outline" as const,
+                      };
+                      const paymentType = payment.label
+                        ? { ...baseType, label: payment.label }
+                        : baseType;
+                      const paidAmount =
+                        payment.currency_paid === "USD"
+                          ? formatUSD(payment.amount_paid)
+                          : formatKRW(payment.amount_paid);
+                      return (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-medium">
+                            <Link
+                              href={`/payments/${payment.id}`}
+                              className="hover:underline"
+                            >
+                              {formatBillingMonth(payment.billing_month)}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/tenants/${payment.tenant_id}`}
+                              className="hover:underline"
+                            >
+                              {payment.tenant_name}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/properties/${payment.property_id}`}
+                              className="hover:underline"
+                            >
+                              {payment.property_address}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={paymentType.variant}>
+                              {paymentType.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="tabular text-right">
+                            {formatKRW(payment.amount_krw)}
+                          </TableCell>
+                          <TableCell className="tabular text-right">
+                            {paidAmount}
+                          </TableCell>
+                          <TableCell className="tabular text-muted-foreground">
+                            {currencyPaidLabel(payment.currency_paid)}
+                          </TableCell>
+                          <TableCell>
+                            {methodMap[payment.payment_method] ??
+                              payment.payment_method}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={payment.status}
+                              label={
+                                statusLabelMap[payment.status] ?? payment.status
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-start gap-1">
+                              <BillPaidToggle
+                                paymentId={payment.id}
+                                paid={payment.bill_paid}
+                              />
+                              {payment.bill_paid && payment.bill_paid_at && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {formatDateCompact(payment.bill_paid_at)}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="tabular text-muted-foreground">
+                            {formatDateCompact(payment.payment_date)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
 
-                // Bundle row
-                const { bundle } = item;
-                return <BundleRows key={bundle.bundleId} bundle={bundle} />;
-              })}
+                    // Bundle row
+                    const { bundle } = item;
+                    return <BundleRows key={bundle.bundleId} bundle={bundle} />;
+                  })}
             </TableBody>
           </Table>
         )}
@@ -386,6 +500,44 @@ export default async function PaymentsPage({
 
       <Pagination total={total} pageSize={PAGE_SIZE} />
     </div>
+  );
+}
+
+function ObligationRowView({ obligation: o }: { obligation: ObligationRow }) {
+  const typeLabel = chargeTypeMap[o.type] ?? o.type;
+  const owed = o.currency === "USD" ? formatUSD(o.amount) : formatKRW(o.amount);
+  // charge_item has only billed/overdue here; map to the payment badge palette.
+  const badgeStatus = o.status === "overdue" ? "overdue" : "pending";
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {o.billing_month ? formatBillingMonth(o.billing_month) : "—"}
+      </TableCell>
+      <TableCell>
+        <Link href={`/tenants/${o.tenant_id}`} className="hover:underline">
+          {o.tenant_name}
+        </Link>
+      </TableCell>
+      <TableCell>
+        <Link href={`/properties/${o.property_id}`} className="hover:underline">
+          {o.property_address}
+        </Link>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline">{o.memo?.trim() || typeLabel}</Badge>
+      </TableCell>
+      <TableCell className="tabular text-right font-medium">{owed}</TableCell>
+      <TableCell className="text-right text-muted-foreground">—</TableCell>
+      <TableCell className="text-muted-foreground">—</TableCell>
+      <TableCell className="text-muted-foreground">—</TableCell>
+      <TableCell>
+        <StatusBadge status={badgeStatus} label={statusLabelMap[badgeStatus]} />
+      </TableCell>
+      <TableCell className="text-muted-foreground">—</TableCell>
+      <TableCell className="tabular text-muted-foreground">
+        {o.due_date ? formatDateCompact(o.due_date) : "—"}
+      </TableCell>
+    </TableRow>
   );
 }
 

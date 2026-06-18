@@ -67,8 +67,8 @@ interface LineItem {
   id: string;
   type: string;
   label: string;
-  // Free-text 내용 for a 기타 line (the combobox keeps showing "기타"); becomes
-  // the payment's label on submit.
+  // Free-text 내용 for any line — when filled it overrides the type label as the
+  // payment's label on submit. Empty leaves the type label (or "기타") in place.
   memo?: string;
   amount: number;
   chargeId?: number;
@@ -387,9 +387,9 @@ export function PaymentCollector({
 
     lineItems.forEach((item, i) => {
       fd.set(`items[${i}].type`, item.type);
-      // For a 기타 line the description lives in 내용 (memo); fall back to "기타".
-      const sentLabel =
-        item.label === "기타" ? item.memo?.trim() || "기타" : item.label;
+      // 내용 (memo) overrides the type label when filled; otherwise the type's
+      // own label carries through (a bare 기타/blank line falls back to "기타").
+      const sentLabel = item.memo?.trim() || item.label || "기타";
       fd.set(`items[${i}].label`, sentLabel);
       fd.set(`items[${i}].amount_krw`, String(item.amount));
       if (item.chargeId) fd.set(`items[${i}].charge_id`, String(item.chargeId));
@@ -625,7 +625,9 @@ export function PaymentCollector({
                       <TableCell>
                         {item.type === "rent" ? (
                           "월 임대료"
-                        ) : item.label === "기타" ? (
+                        ) : (
+                          // 내용 stays editable for every type — the type label
+                          // is only a placeholder default, never fixed text.
                           <Input
                             ref={(el) => {
                               memoRefs.current[item.id] = el;
@@ -646,11 +648,13 @@ export function PaymentCollector({
                                 focusAmount(item.id);
                               }
                             }}
-                            placeholder="내용 입력"
+                            placeholder={
+                              item.label && item.label !== "기타"
+                                ? item.label
+                                : "내용 입력"
+                            }
                             className="h-7 text-sm"
                           />
-                        ) : (
-                          item.label || "-"
                         )}
                       </TableCell>
                       <TableCell className="text-right">

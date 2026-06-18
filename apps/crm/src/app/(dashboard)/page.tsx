@@ -337,12 +337,25 @@ export default async function DashboardPage() {
                 {formatKRW(unpaidAmt)}
               </div>
               <div className="mt-1.5 text-[12px] text-muted-foreground">
-                <span className="tabular font-medium text-foreground">
-                  {unpaidCount}건
-                </span>{" "}
-                미납
+                <Link
+                  href="/payments?status=pending"
+                  className="hover:text-foreground"
+                >
+                  <span className="tabular font-medium text-foreground">
+                    {unpaidCount}건
+                  </span>{" "}
+                  미납
+                </Link>
                 {overdueOpen > 0 && (
-                  <span className="text-danger"> · 연체 {overdueOpen}건</span>
+                  <>
+                    {" · "}
+                    <Link
+                      href="/payments?status=overdue"
+                      className="text-danger hover:underline"
+                    >
+                      연체 {overdueOpen}건
+                    </Link>
+                  </>
                 )}
               </div>
             </CardContent>
@@ -435,7 +448,7 @@ export default async function DashboardPage() {
 
       {/* Secondary panels */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Panel title="미납 세입자" href="/payments">
+        <Panel title="미납 세입자" href="/payments?status=pending">
           {arrearsTenants.length === 0 ? (
             <Empty>미납 없음</Empty>
           ) : (

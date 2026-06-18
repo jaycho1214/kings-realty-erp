@@ -18,6 +18,7 @@ const paymentTypeOptions = [
   { value: "management", label: "관리비" },
   { value: "parking", label: "주차" },
   { value: "deposit", label: "보증금" },
+  { value: "prepayment", label: "선불금" },
   { value: "service", label: "AS비" },
 ];
 

@@ -52,9 +52,7 @@ async function resolveLinkLabels(
         ])
         .where("id", "in", ids.property)
         .execute()
-        .then((rs) =>
-          rs.forEach((r) => map.set(`property:${r.id}`, r.label)),
-        ),
+        .then((rs) => rs.forEach((r) => map.set(`property:${r.id}`, r.label))),
     );
   if (ids.landlord.length)
     jobs.push(
@@ -148,7 +146,8 @@ export async function loadBoardData(): Promise<BoardData> {
     list.push({
       type,
       id: r.entity_id,
-      label: labelMap.get(`${type}:${r.entity_id}`) ?? `${type} #${r.entity_id}`,
+      label:
+        labelMap.get(`${type}:${r.entity_id}`) ?? `${type} #${r.entity_id}`,
     });
     byLinks.set(r.task_id, list);
   }
@@ -265,6 +264,7 @@ export async function loadBoardData(): Promise<BoardData> {
     management: "관리비",
     parking: "주차",
     deposit: "보증금",
+    prepayment: "선불금",
     realty_fee: "중개수수료",
   };
 
@@ -333,7 +333,12 @@ export async function loadBoardData(): Promise<BoardData> {
     dismissalRows.map((r) => [r.dedup_key, d(r.dismissed_until)]),
   );
 
-  const suggestions = filterSuggestions(candidates, activeKeys, dismissals, today);
+  const suggestions = filterSuggestions(
+    candidates,
+    activeKeys,
+    dismissals,
+    today,
+  );
 
   return { tasks, suggestions, staff, currentUserId };
 }

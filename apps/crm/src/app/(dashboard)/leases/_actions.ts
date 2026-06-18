@@ -14,6 +14,11 @@ import { logAudit } from "@/lib/audit";
 import { seoulDateString } from "@/lib/date";
 import { encryptRrn } from "@/lib/rrn";
 import { parseLeaseIntake } from "@/lib/lease-intake";
+import { syncTenantRentDef } from "@/lib/charges";
+
+/** A lease bills 월세 only while it's a live tenancy. */
+const RENT_ACTIVE = (status: string) =>
+  status === "active" || status === "renewed";
 
 /** Parse the contract-specific (임대인측·realty fee·갱신) fields shared by
  *  create/update. Empty numeric fields become null. */
@@ -87,6 +92,19 @@ export async function createLease(formData: FormData) {
       .set({ status: "active", updated_at: new Date() })
       .where("id", "=", tenant_id)
       .execute();
+
+    // 월세를 정기 청구로 자동 등록 — 매달 full 월세가 자동 생성된다. 첫 달의 선불금/
+    // 일할분은 수납 시점에 별도 처리(여기선 다루지 않음).
+    if (Number(monthly_rent_krw) > 0) {
+      await syncTenantRentDef(trx, {
+        tenantId: tenant_id,
+        monthlyRentKrw: monthly_rent_krw,
+        startDate: start_date,
+        endDate: end_date,
+        active: RENT_ACTIVE(status),
+        createdBy: Number(session.user.id),
+      });
+    }
   });
 
   revalidatePath("/leases");
@@ -233,6 +251,18 @@ export async function createLeaseIntake(formData: FormData) {
       .set({ status: "active", updated_at: new Date() })
       .where("id", "=", tenantId)
       .execute();
+
+    // 월세 → 정기 청구 자동 등록 (createLease 와 동일).
+    if (Number(plan.terms.monthlyRentKrw) > 0) {
+      await syncTenantRentDef(trx, {
+        tenantId,
+        monthlyRentKrw: String(plan.terms.monthlyRentKrw),
+        startDate: new Date(plan.terms.startDate),
+        endDate: new Date(plan.terms.endDate),
+        active: true,
+        createdBy: userId,
+      });
+    }
   });
 
   revalidatePath("/tenants");
@@ -283,6 +313,18 @@ export async function updateLease(id: number, formData: FormData) {
     })
     .where("id", "=", id)
     .execute();
+
+  // Keep the 월세 정기 청구 in step with the edited rent/term/status. Amount changes
+  // apply to FUTURE generated charges only (already-billed months keep history).
+  if (Number(monthly_rent_krw) > 0) {
+    await syncTenantRentDef(db, {
+      tenantId: tenant_id,
+      monthlyRentKrw: monthly_rent_krw,
+      startDate: start_date,
+      endDate: end_date,
+      active: RENT_ACTIVE(status),
+    });
+  }
 
   revalidatePath("/leases");
   revalidatePath(`/leases/${id}`);

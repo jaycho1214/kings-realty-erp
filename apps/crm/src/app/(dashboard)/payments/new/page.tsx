@@ -94,6 +94,7 @@ export default async function NewPaymentPage({
     management: "관리비",
     parking: "주차",
     deposit: "보증금",
+    prepayment: "선불금",
     realty_fee: "중개수수료",
   };
 

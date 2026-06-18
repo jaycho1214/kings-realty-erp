@@ -27,7 +27,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { formatKRW } from "@/lib/utils";
 import {
   addCharge,
-  generateTenantRentCharge,
+  generateTenantRecurringCharges,
   setChargeAmount,
   deleteCharge,
 } from "../_actions";
@@ -141,11 +141,11 @@ export function TenantCharges({
             className="gap-1.5"
             disabled={pending}
             onClick={() =>
-              startTransition(() => generateTenantRentCharge(tenantId))
+              startTransition(() => generateTenantRecurringCharges(tenantId))
             }
           >
             <FileText className="size-4" />
-            이번 달 월세 청구
+            이번 달 청구 생성
           </Button>
         )}
         <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>

@@ -39,6 +39,7 @@ const KNOWN_PAYMENT_TYPES = new Set([
   "service",
   "management",
   "parking",
+  "prepayment", // 선불금 — its own category (matches the charge model)
 ]);
 
 export async function createBulkPayment(formData: FormData) {

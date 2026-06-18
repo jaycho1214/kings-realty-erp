@@ -1,8 +1,8 @@
 import { getDb } from "@kingsrealty/db";
 import { seoulDateString, seoulYMD, firstOfMonth } from "@/lib/date";
 import {
-  generateRentChargesForMonth,
   generateRecurringChargesForMonth,
+  reconcileCharges,
   markOverdueCharges,
 } from "@/lib/charges";
 import { generateContractExpiryNotifications } from "@/lib/notifications";
@@ -10,8 +10,8 @@ import { generateContractExpiryNotifications } from "@/lib/notifications";
 export interface DailyJobResult {
   archivedTenants: number;
   softDeletedTenants: number;
-  rentChargesCreated: number;
   recurringChargesCreated: number;
+  chargesReconciled: number;
   chargesMarkedOverdue: number;
   expiryNotifications: number;
   errors: string[];
@@ -27,7 +27,8 @@ export interface DailyJobResult {
  *     starts. (archived_at is the internal 보관→휴지통 clock, not a separate view.)
  *  2. Soft-delete tenants that have been archived for 6+ months (recoverable
  *     trash; permanent purge stays a manual admin action).
- *  3. Generate this month's rent charges and flag overdue ones.
+ *  3. Generate this month's 정기 청구 (월세 포함), reconcile charges against
+ *     already-recorded payments, then flag the rest overdue.
  *  4. Contract-expiry (D-60/30/7) notifications.
  *
  * Each step is isolated in its own try/catch: a transient failure in one job
@@ -45,8 +46,8 @@ export async function runDailyJobs(): Promise<DailyJobResult> {
   const result: DailyJobResult = {
     archivedTenants: 0,
     softDeletedTenants: 0,
-    rentChargesCreated: 0,
     recurringChargesCreated: 0,
+    chargesReconciled: 0,
     chargesMarkedOverdue: 0,
     expiryNotifications: 0,
     errors: [],
@@ -83,18 +84,20 @@ export async function runDailyJobs(): Promise<DailyJobResult> {
     result.softDeletedTenants = Number(deleted.numUpdatedRows);
   });
 
-  await run("generateRentCharges", async () => {
-    const { year, month } = seoulYMD();
-    result.rentChargesCreated = await generateRentChargesForMonth(
-      firstOfMonth(year, month),
-    );
-  });
-
+  // 월세 포함 모든 정기 청구를 한 경로로 생성 — 월세는 계약 등록 시 recurring_charge
+  // 로 자동 등록된다(별도 lease 기반 생성 경로는 폐지).
   await run("generateRecurringCharges", async () => {
     const { year, month } = seoulYMD();
     result.recurringChargesCreated = await generateRecurringChargesForMonth(
       firstOfMonth(year, month),
     );
+  });
+
+  // Settle charges covered by payments that weren't linked at collection time
+  // (imports, bypassed picker) BEFORE flagging overdue — otherwise a fully-paid
+  // but unlinked charge would be marked 연체.
+  await run("reconcileCharges", async () => {
+    result.chargesReconciled = await reconcileCharges();
   });
 
   await run("markOverdue", async () => {
