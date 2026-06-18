@@ -5,10 +5,9 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> =
-  T extends ColumnType<infer S, infer I, infer U>
-    ? ColumnType<S, I | undefined, U>
-    : ColumnType<T, T | undefined, T>;
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
 
 export type Numeric = ColumnType<string, number | string, number | string>;
 
@@ -195,8 +194,33 @@ export interface Inspection {
   participants: string | null;
   property_id: number;
   signature: string | null;
+  status: Generated<string>;
   summary: string | null;
   type: string;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface InspectionItem {
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  label_en: string | null;
+  label_ko: string;
+  section_id: number;
+  sort_order: Generated<number>;
+  subgroup_en: string | null;
+  subgroup_ko: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface InspectionSection {
+  created_at: Generated<Timestamp>;
+  id: Generated<number>;
+  is_builtin: Generated<boolean>;
+  key: string;
+  label_en: string | null;
+  label_ko: string;
+  repeatable: Generated<boolean>;
+  sort_order: Generated<number>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -610,6 +634,8 @@ export interface DB {
   exchange_rate: ExchangeRate;
   exchange_vendor: ExchangeVendor;
   inspection: Inspection;
+  inspection_item: InspectionItem;
+  inspection_section: InspectionSection;
   landlord: Landlord;
   landlord_family_member: LandlordFamilyMember;
   lease: Lease;
