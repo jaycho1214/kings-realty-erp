@@ -29,6 +29,7 @@ function parsePresetForm(formData: FormData) {
     throw new Error("금액을 올바르게 입력해주세요.");
   }
   const currency = formData.get("default_currency") === "USD" ? "USD" : "KRW";
+  const variant = (formData.get("variant") as string)?.trim() || "outline";
   return {
     label,
     type,
@@ -36,6 +37,7 @@ function parsePresetForm(formData: FormData) {
     default_due_day,
     default_amount: default_amount == null ? null : String(default_amount),
     default_currency: currency,
+    variant,
   };
 }
 
@@ -62,11 +64,15 @@ export async function updateBillPreset(id: number, formData: FormData) {
   await requireAdmin();
   const db = getDb();
   const fields = parsePresetForm(formData);
-  await db
-    .updateTable("bill_preset")
-    .set(fields)
+  const row = await db
+    .selectFrom("bill_preset")
+    .select(["is_builtin", "type"])
     .where("id", "=", id)
-    .execute();
+    .executeTakeFirst();
+  // Builtins keep their stable type key (code writes it directly); label/amount/
+  // color stay editable.
+  const patch = row?.is_builtin ? { ...fields, type: row.type } : fields;
+  await db.updateTable("bill_preset").set(patch).where("id", "=", id).execute();
   revalidatePath("/settings");
   revalidatePath("/payments/new");
 }
@@ -74,6 +80,12 @@ export async function updateBillPreset(id: number, formData: FormData) {
 export async function deleteBillPreset(id: number) {
   await requireAdmin();
   const db = getDb();
+  const row = await db
+    .selectFrom("bill_preset")
+    .select("is_builtin")
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (row?.is_builtin) return; // structural type — not deletable
   await db.deleteFrom("bill_preset").where("id", "=", id).execute();
   revalidatePath("/settings");
   revalidatePath("/payments/new");

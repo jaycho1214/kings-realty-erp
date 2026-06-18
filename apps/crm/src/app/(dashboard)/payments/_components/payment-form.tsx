@@ -8,19 +8,10 @@ import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { seoulDateString } from "@/lib/date";
 import { createPayment, updatePayment } from "../_actions";
+import { useChargeTypes } from "@/components/charge-types-provider";
 
 const selectClassName =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
-
-const paymentTypeOptions = [
-  { value: "rent", label: "월세" },
-  { value: "utility", label: "공과금" },
-  { value: "management", label: "관리비" },
-  { value: "parking", label: "주차" },
-  { value: "deposit", label: "보증금" },
-  { value: "prepayment", label: "선불금" },
-  { value: "service", label: "AS비" },
-];
 
 const paymentMethodOptions = [
   { value: "cash", label: "현금" },
@@ -62,8 +53,8 @@ interface PaymentFormProps {
    */
   action?: (formData: FormData) => void | Promise<void>;
   submitLabel?: string;
-  /** Bill/payment type catalog — drives the 유형 options so newly-added types
-   *  (from the collector or settings) show up here too. */
+  /** @deprecated 유형 options now come from the shared charge-type catalog
+   *  (ChargeTypeProvider); accepted for back-compat but no longer used. */
   billPresets?: { id: number; label: string; type: string }[];
 }
 
@@ -74,24 +65,21 @@ export function PaymentForm({
   variant = "card",
   action,
   submitLabel,
-  billPresets,
 }: PaymentFormProps) {
   const formAction =
     action ?? (paymentId ? updatePayment.bind(null, paymentId) : createPayment);
 
-  // Built-in (lease-derived) types always present; the rest come from the
-  // shared bill_preset catalog. Dedupe, and keep the row's current type even if
-  // it's no longer in the catalog so editing never silently changes it.
-  const builtinTypes = [
-    { value: "rent", label: "월세" },
-    { value: "deposit", label: "보증금" },
-    { value: "service", label: "AS비" },
-  ];
-  const typeOptions: { value: string; label: string }[] = [];
+  // 유형 options come from the shared DB catalog (ChargeTypeProvider). Keep the
+  // row's current type even if it's no longer in the catalog so editing never
+  // silently changes it.
+  const { map: typeCatalog } = useChargeTypes();
+  const finalTypeOptions: { value: string; label: string }[] = [];
   const seenTypes = new Set<string>();
   for (const o of [
-    ...builtinTypes,
-    ...(billPresets ?? []).map((p) => ({ value: p.type, label: p.label })),
+    ...Object.entries(typeCatalog).map(([value, v]) => ({
+      value,
+      label: v.label,
+    })),
     ...(defaultValues?.payment_type
       ? [
           {
@@ -103,10 +91,8 @@ export function PaymentForm({
   ]) {
     if (seenTypes.has(o.value)) continue;
     seenTypes.add(o.value);
-    typeOptions.push(o);
+    finalTypeOptions.push(o);
   }
-  // No catalog passed → fall back to the full static list.
-  const finalTypeOptions = billPresets ? typeOptions : paymentTypeOptions;
 
   const content = (
     <form action={formAction}>

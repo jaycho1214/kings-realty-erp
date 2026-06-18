@@ -25,10 +25,12 @@
 ### Task 1: Migration + regenerate types
 
 **Files:**
+
 - Create: `packages/db/src/migrations/024_payment_type_catalog.ts`
 - Regenerate: `packages/db/src/types.ts` (via codegen, do not hand-edit)
 
 **Interfaces:**
+
 - Produces: `bill_preset` columns `variant varchar NOT NULL DEFAULT 'outline'`, `is_builtin boolean NOT NULL DEFAULT false`; unique index `uq_bill_preset_type`; seeded builtin rows `rent`/`deposit`/`service`; `인터넷` re-typed `utility`→`internet`. The regenerated `BillPreset` type gains `variant: Generated<string>` and `is_builtin: Generated<boolean>`.
 
 - [ ] **Step 1: Create branch**
@@ -78,13 +80,16 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     insert into bill_preset (label, type, default_amount, default_currency, default_due_day, is_variable, sort_order, variant, is_builtin)
     select v.label, v.type, null, 'KRW', 10, false,
            coalesce((select max(sort_order) from bill_preset), 0) + v.ord, 'outline', true
-    from (values ('월세','rent',1), ('보증금','deposit',2), ('기타','service',3)) as v(label, type, ord)
+    from (values
+      ('월세','rent',1), ('보증금','deposit',2), ('기타','service',3),
+      ('중개수수료','realty_fee',4), ('기타','custom',5)
+    ) as v(label, type, ord)
     where not exists (select 1 from bill_preset b where b.type = v.type)
   `.execute(db);
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await sql`delete from bill_preset where is_builtin = true and type in ('rent','deposit','service')`.execute(
+  await sql`delete from bill_preset where is_builtin = true and type in ('rent','deposit','service','realty_fee','custom')`.execute(
     db,
   );
   await db.schema.dropIndex("uq_bill_preset_type").ifExists().execute();
@@ -102,10 +107,12 @@ export async function down(db: Kysely<unknown>): Promise<void> {
 - [ ] **Step 3: Run the migration + regenerate types**
 
 Run (requires `packages/db/.env` with a reachable `DATABASE_URL`):
+
 ```bash
 cd /Users/jay/Codes/kingsrealty
 pnpm --filter @kingsrealty/db db:up
 ```
+
 Expected: migration `024_payment_type_catalog` applies; `packages/db/src/types.ts` `BillPreset` now includes `variant` and `is_builtin`.
 
 - [ ] **Step 4: Verify schema + types**
@@ -114,6 +121,7 @@ Expected: migration `024_payment_type_catalog` applies; `packages/db/src/types.t
 cd /Users/jay/Codes/kingsrealty
 grep -n "is_builtin\|variant" packages/db/src/types.ts | head
 ```
+
 Expected: `variant: Generated<string>;` and `is_builtin: Generated<boolean>;` under `BillPreset`.
 
 - [ ] **Step 5: Commit**
@@ -128,12 +136,14 @@ git commit -m "feat(db): bill_preset as single payment-type catalog (variant, is
 ### Task 2: Type resolver library (pure + server)
 
 **Files:**
+
 - Create: `apps/crm/src/lib/charge-types.ts` (client-safe: types + pure resolver)
 - Create: `apps/crm/src/lib/charge-types.server.ts` (server-only: DB read)
 - Test: `apps/crm/src/lib/charge-types.test.ts`
 - Modify: `apps/crm/package.json` (add test file to the `test` script)
 
 **Interfaces:**
+
 - Produces:
   - `type BadgeVariant = "default" | "secondary" | "destructive" | "outline"`
   - `interface CatalogEntry { label: string; variant: BadgeVariant }`
@@ -170,10 +180,12 @@ test("unknown type falls back to the raw key with outline", () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 node --import tsx --test src/lib/charge-types.test.ts
 ```
+
 Expected: FAIL — cannot find module `./charge-types`.
 
 - [ ] **Step 3: Write the pure module**
@@ -212,7 +224,9 @@ const VARIANTS: BadgeVariant[] = [
 
 /** Coerce a stored variant string to a valid Badge variant (default outline). */
 export function asVariant(v: string | null | undefined): BadgeVariant {
-  return v && (VARIANTS as string[]).includes(v) ? (v as BadgeVariant) : "outline";
+  return v && (VARIANTS as string[]).includes(v)
+    ? (v as BadgeVariant)
+    : "outline";
 }
 
 /** Resolve a stored type key to its display label + badge color. Falls back to
@@ -225,10 +239,12 @@ export function resolveChargeType(map: CatalogMap, type: string): CatalogEntry {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 node --import tsx --test src/lib/charge-types.test.ts
 ```
+
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Write the server reader**
@@ -275,10 +291,12 @@ In `apps/crm/package.json`, append `src/lib/charge-types.test.ts` to the existin
 - [ ] **Step 7: Typecheck + run tests**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit && npm test
 ```
+
 Expected: tsc clean; all tests PASS.
 
 - [ ] **Step 8: Commit**
@@ -293,10 +311,12 @@ git commit -m "feat(payments): add charge-type catalog resolver (pure + cached s
 ### Task 3: Client context provider + layout wiring
 
 **Files:**
+
 - Create: `apps/crm/src/components/charge-types-provider.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/layout.tsx`
 
 **Interfaces:**
+
 - Consumes: `getChargeTypeCatalog` (Task 2), `CatalogMap`, `resolveChargeType` (Task 2).
 - Produces: `<ChargeTypeProvider value={CatalogMap}>`, `useChargeTypes(): { map: CatalogMap; resolve(type: string): CatalogEntry }`.
 
@@ -343,6 +363,7 @@ export function useChargeTypes(): {
 - [ ] **Step 2: Wire the provider into the dashboard layout**
 
 In `apps/crm/src/app/(dashboard)/layout.tsx`:
+
 - Add imports at top:
 
 ```tsx
@@ -353,24 +374,24 @@ import { ChargeTypeProvider } from "@/components/charge-types-provider";
 - After the existing `Promise.all([...])` data fetch, add:
 
 ```tsx
-  const chargeTypes = await getChargeTypeCatalog();
+const chargeTypes = await getChargeTypeCatalog();
 ```
 
 - In the returned JSX, wrap the existing `{children}` (inside `<AppShell ...>`) with the provider:
 
 ```tsx
-        <ChargeTypeProvider value={chargeTypes.map}>
-          {children}
-        </ChargeTypeProvider>
+<ChargeTypeProvider value={chargeTypes.map}>{children}</ChargeTypeProvider>
 ```
 
 - [ ] **Step 3: Typecheck**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit
 ```
+
 Expected: clean.
 
 - [ ] **Step 4: Commit**
@@ -385,11 +406,13 @@ git commit -m "feat(payments): provide charge-type catalog to client components 
 ### Task 4: Write side — drop the cap, catalog-aware preset CRUD, delete dead code
 
 **Files:**
+
 - Modify: `apps/crm/src/app/(dashboard)/payments/new/_actions.ts` (remove `KNOWN_PAYMENT_TYPES` cap; update `addBillPreset`; delete `addPaymentUtilityType`)
 - Modify: `apps/crm/src/app/(dashboard)/settings/_preset-actions.ts` (carry `variant`; protect builtins)
 - Modify: `apps/crm/src/app/(dashboard)/payments/new/page.tsx` (collector dropdown excludes builtins)
 
 **Interfaces:**
+
 - Consumes: `bill_preset.variant`, `bill_preset.is_builtin` (Task 1).
 - Produces: payments store `item.type` verbatim; settings preset CRUD reads/writes `variant` and refuses to delete/retype builtins.
 
@@ -398,9 +421,9 @@ git commit -m "feat(payments): provide charge-type catalog to client components 
 In `apps/crm/src/app/(dashboard)/payments/new/_actions.ts`, delete the `KNOWN_PAYMENT_TYPES` set (lines ~34-43) and replace the per-item normalization:
 
 ```ts
-      // Store the picked catalog type verbatim — the catalog (bill_preset) is the
-      // source of truth, so any type filters/labels correctly without a code cap.
-      const paymentType = item.type;
+// Store the picked catalog type verbatim — the catalog (bill_preset) is the
+// source of truth, so any type filters/labels correctly without a code cap.
+const paymentType = item.type;
 ```
 
 (remove the old `const paymentType = KNOWN_PAYMENT_TYPES.has(item.type) ? item.type : "service";`)
@@ -410,39 +433,39 @@ In `apps/crm/src/app/(dashboard)/payments/new/_actions.ts`, delete the `KNOWN_PA
 In the same file, update `addBillPreset` so the dedupe is by `type` and the insert sets `variant`/`is_builtin`:
 
 ```ts
-  const trimmed = label.trim();
-  if (!trimmed) return null;
+const trimmed = label.trim();
+if (!trimmed) return null;
 
-  const db = getDb();
-  // Catalog is one-row-per-type; ad-hoc additions use the label as the type key.
-  const existing = await db
-    .selectFrom("bill_preset")
-    .select(["id", "label", "type"])
-    .where("type", "=", trimmed)
-    .executeTakeFirst();
-  if (existing) return existing;
+const db = getDb();
+// Catalog is one-row-per-type; ad-hoc additions use the label as the type key.
+const existing = await db
+  .selectFrom("bill_preset")
+  .select(["id", "label", "type"])
+  .where("type", "=", trimmed)
+  .executeTakeFirst();
+if (existing) return existing;
 
-  const maxOrder = await db
-    .selectFrom("bill_preset")
-    .select(({ fn }) => fn.max("sort_order").as("m"))
-    .executeTakeFirst();
+const maxOrder = await db
+  .selectFrom("bill_preset")
+  .select(({ fn }) => fn.max("sort_order").as("m"))
+  .executeTakeFirst();
 
-  const result = await db
-    .insertInto("bill_preset")
-    .values({
-      label: trimmed,
-      type: trimmed,
-      is_variable: false,
-      variant: "outline",
-      is_builtin: false,
-      sort_order: Number(maxOrder?.m ?? 0) + 1,
-    })
-    .returning(["id", "label", "type"])
-    .executeTakeFirst();
+const result = await db
+  .insertInto("bill_preset")
+  .values({
+    label: trimmed,
+    type: trimmed,
+    is_variable: false,
+    variant: "outline",
+    is_builtin: false,
+    sort_order: Number(maxOrder?.m ?? 0) + 1,
+  })
+  .returning(["id", "label", "type"])
+  .executeTakeFirst();
 
-  revalidatePath("/settings");
-  revalidatePath("/payments/new");
-  return result ?? null;
+revalidatePath("/settings");
+revalidatePath("/payments/new");
+return result ?? null;
 ```
 
 - [ ] **Step 3: Delete the dead addPaymentUtilityType**
@@ -452,20 +475,24 @@ In the same file, delete the entire `export async function addPaymentUtilityType
 - [ ] **Step 4: Verify no references to deleted symbols**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty
 grep -rn "addPaymentUtilityType\|KNOWN_PAYMENT_TYPES" apps/crm/src
 ```
+
 Expected: no matches.
 
 - [ ] **Step 5: Carry variant + protect builtins in settings preset CRUD**
 
 In `apps/crm/src/app/(dashboard)/settings/_preset-actions.ts`:
+
 - In `parsePresetForm`, add variant parsing before the `return`:
 
 ```ts
-  const variant = (formData.get("variant") as string)?.trim() || "outline";
+const variant = (formData.get("variant") as string)?.trim() || "outline";
 ```
+
 and include `variant` in the returned object.
 
 - In `updateBillPreset`, guard builtins (keep label/amount/variant editable, block type change):
@@ -520,10 +547,12 @@ In `apps/crm/src/app/(dashboard)/payments/new/page.tsx`, the `bill_preset` query
 - [ ] **Step 7: Typecheck**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit
 ```
+
 Expected: clean.
 
 - [ ] **Step 8: Commit**
@@ -538,10 +567,12 @@ git commit -m "feat(payments): store type verbatim, catalog-aware preset CRUD, d
 ### Task 5: Settings UI — color + builtin protection
 
 **Files:**
+
 - Modify: `apps/crm/src/app/(dashboard)/settings/_components/bill-presets.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/settings/data/page.tsx` (select `variant`, `is_builtin`)
 
 **Interfaces:**
+
 - Consumes: `variant`/`is_builtin` on preset rows; `updateBillPreset`/`deleteBillPreset` (Task 4).
 - Produces: settings rows with a color picker; builtin rows show a 기본 badge and no delete.
 
@@ -552,6 +583,7 @@ In `apps/crm/src/app/(dashboard)/settings/data/page.tsx`, the `bill_preset` sele
 - [ ] **Step 2: Extend the BillPresets component**
 
 In `apps/crm/src/app/(dashboard)/settings/_components/bill-presets.tsx`:
+
 - Extend the `BillPresetRow` interface:
 
 ```ts
@@ -571,54 +603,56 @@ interface BillPresetRow {
 - Add a color `<select name="variant">` inside `PresetFields` (after the 변동 checkbox):
 
 ```tsx
-      <select
-        name="variant"
-        defaultValue={preset?.variant ?? "outline"}
-        className={selectClassName}
-        aria-label="색상"
-      >
-        <option value="outline">기본</option>
-        <option value="secondary">회색</option>
-        <option value="destructive">빨강</option>
-        <option value="default">강조</option>
-      </select>
+<select
+  name="variant"
+  defaultValue={preset?.variant ?? "outline"}
+  className={selectClassName}
+  aria-label="색상"
+>
+  <option value="outline">기본</option>
+  <option value="secondary">회색</option>
+  <option value="destructive">빨강</option>
+  <option value="default">강조</option>
+</select>
 ```
 
 - In the row render, show a 기본(builtin) marker next to the label and hide the delete button when `p.is_builtin`:
 
 ```tsx
-                <TableCell className="font-medium">
-                  {p.label}
-                  {p.is_builtin && (
-                    <Badge variant="outline" className="ml-2">
-                      기본
-                    </Badge>
-                  )}
-                  {p.is_variable && (
-                    <Badge variant="outline" className="ml-2">
-                      변동
-                    </Badge>
-                  )}
-                </TableCell>
+<TableCell className="font-medium">
+  {p.label}
+  {p.is_builtin && (
+    <Badge variant="outline" className="ml-2">
+      기본
+    </Badge>
+  )}
+  {p.is_variable && (
+    <Badge variant="outline" className="ml-2">
+      변동
+    </Badge>
+  )}
+</TableCell>
 ```
 
 and wrap the delete `<form>` so it only renders for non-builtins:
 
 ```tsx
-                    {!p.is_builtin && (
-                      <form action={deleteAction}>
-                        {/* existing delete Button */}
-                      </form>
-                    )}
+{
+  !p.is_builtin && (
+    <form action={deleteAction}>{/* existing delete Button */}</form>
+  );
+}
 ```
 
 - [ ] **Step 3: Typecheck**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit
 ```
+
 Expected: clean.
 
 - [ ] **Step 4: Commit**
@@ -633,6 +667,7 @@ git commit -m "feat(settings): manage payment-type color and protect builtin typ
 ### Task 6: Convert server display sites to the resolver
 
 **Files (all server components/libs):**
+
 - Modify: `apps/crm/src/app/(dashboard)/payments/page.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/payments/[id]/_detail.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/payments/bundle/[bundleId]/_detail.tsx`
@@ -641,49 +676,54 @@ git commit -m "feat(settings): manage payment-type color and protect builtin typ
 - Modify: `apps/crm/src/app/(dashboard)/landlords/[id]/_detail.tsx`
 
 **Interfaces:**
+
 - Consumes: `getChargeTypeCatalog`, `resolveChargeType` (Task 2).
 
 - [ ] **Step 1: payments/page.tsx — catalog-driven map + filter chips**
 
 In `apps/crm/src/app/(dashboard)/payments/page.tsx`:
+
 - Add imports:
 
 ```ts
 import { getChargeTypeCatalog } from "@/lib/charge-types.server";
 import { resolveChargeType } from "@/lib/charge-types";
 ```
-- Delete the hardcoded `typeMap` (lines ~37-48) and `typeOptions` (lines ~50-56).
+
+- Delete the hardcoded `typeMap`, `chargeTypeMap`, and `typeOptions` (the
+  reconcile refactor added `chargeTypeMap` for `charge_item.type` rows — the one
+  catalog serves both payment and charge rows; resolve each via
+  `resolveChargeType(catalog.map, t)` / `catalog.map[t]`).
 - In the component body, fetch the catalog and build filter options:
 
 ```ts
-  const catalog = await getChargeTypeCatalog();
-  const typeOptions = [
-    { value: "all", label: "전체" },
-    ...catalog.list.map((c) => ({ value: c.type, label: c.label })),
-  ];
+const catalog = await getChargeTypeCatalog();
+const typeOptions = [
+  { value: "all", label: "전체" },
+  ...catalog.list.map((c) => ({ value: c.type, label: c.label })),
+];
 ```
+
 - Replace each `typeMap[payment.payment_type] ?? {...}` (lines ~297 and ~454) with:
 
 ```ts
-                  const baseType = resolveChargeType(
-                    catalog.map,
-                    payment.payment_type,
-                  );
+const baseType = resolveChargeType(catalog.map, payment.payment_type);
 ```
+
 (the `payment.label ? { ...baseType, label: payment.label } : baseType` line stays.)
 
-- [ ] **Step 2: payments/[id]/_detail.tsx**
+- [ ] **Step 2: payments/[id]/\_detail.tsx**
 
 - Add `import { getChargeTypeCatalog } from "@/lib/charge-types.server";` and `import { resolveChargeType } from "@/lib/charge-types";`.
 - Delete the local `paymentTypeMap` (lines ~31-42).
 - Fetch the catalog in the component and replace the usage (line ~183):
 
 ```ts
-  const catalog = await getChargeTypeCatalog();
-  const paymentType = resolveChargeType(catalog.map, payment.payment_type);
+const catalog = await getChargeTypeCatalog();
+const paymentType = resolveChargeType(catalog.map, payment.payment_type);
 ```
 
-- [ ] **Step 3: payments/bundle/[bundleId]/_detail.tsx**
+- [ ] **Step 3: payments/bundle/[bundleId]/\_detail.tsx**
 
 - Add the same two imports.
 - Delete the local `paymentTypeMap` (lines ~31-42).
@@ -698,27 +738,28 @@ import { resolveChargeType } from "@/lib/charge-types";
 - Build it from the catalog:
 
 ```ts
-  const catalog = await getChargeTypeCatalog();
-  const typeKo: Record<string, string> = Object.fromEntries(
-    catalog.list.map((c) => [c.type, c.label]),
-  );
+const catalog = await getChargeTypeCatalog();
+const typeKo: Record<string, string> = Object.fromEntries(
+  catalog.list.map((c) => [c.type, c.label]),
+);
 ```
 
 - [ ] **Step 5: lib/tasks/queries.ts — chargeTypeLabel from catalog**
 
 In `apps/crm/src/lib/tasks/queries.ts`:
+
 - Add `import { getChargeTypeCatalog } from "@/lib/charge-types.server";`.
 - Delete the local `chargeTypeLabel` map (lines ~262-269).
 - Inside `loadBoardData`, build it:
 
 ```ts
-  const catalog = await getChargeTypeCatalog();
-  const chargeTypeLabel: Record<string, string> = Object.fromEntries(
-    catalog.list.map((c) => [c.type, c.label]),
-  );
+const catalog = await getChargeTypeCatalog();
+const chargeTypeLabel: Record<string, string> = Object.fromEntries(
+  catalog.list.map((c) => [c.type, c.label]),
+);
 ```
 
-- [ ] **Step 6: landlords/[id]/_detail.tsx**
+- [ ] **Step 6: landlords/[id]/\_detail.tsx**
 
 - Remove `paymentTypeMap` from the `@/lib/labels` import (line ~23).
 - Add `import { getChargeTypeCatalog } from "@/lib/charge-types.server";` and `import { resolveChargeType } from "@/lib/charge-types";`.
@@ -728,10 +769,12 @@ In `apps/crm/src/lib/tasks/queries.ts`:
 - [ ] **Step 7: Typecheck**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit
 ```
+
 Expected: clean. (If `landlords/[id]/_detail.tsx` is a client component, defer it to Task 7 and use `useChargeTypes` instead — verify with `head -1`.)
 
 - [ ] **Step 8: Commit**
@@ -746,13 +789,16 @@ git commit -m "refactor(payments): server display sites read type catalog from D
 ### Task 7: Convert client display sites + delete labels.paymentTypeMap
 
 **Files (client components):**
+
 - Modify: `apps/crm/src/app/(dashboard)/tenants/_components/tenant-charges.tsx`
+- Modify: `apps/crm/src/app/(dashboard)/tenants/_components/tenant-recurring-charges.tsx` (replace its hardcoded type options array with the catalog via `useChargeTypes`)
 - Modify: `apps/crm/src/app/(dashboard)/tenants/_components/tenant-payments.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/properties/_components/property-payments.tsx`
 - Modify: `apps/crm/src/app/(dashboard)/payments/_components/payment-form.tsx`
 - Modify: `apps/crm/src/lib/labels.ts` (remove `paymentTypeMap`)
 
 **Interfaces:**
+
 - Consumes: `useChargeTypes` (Task 3).
 
 - [ ] **Step 1: tenant-charges.tsx**
@@ -777,28 +823,30 @@ git commit -m "refactor(payments): server display sites read type catalog from D
 - [ ] **Step 4: payment-form.tsx — options from catalog**
 
 In `apps/crm/src/app/(dashboard)/payments/_components/payment-form.tsx`:
+
 - Add `import { useChargeTypes } from "@/components/charge-types-provider";`.
 - Delete the static `paymentTypeOptions` (lines ~15-22) and the `builtinTypes` array (lines ~84-88).
 - Build the options from the catalog inside the component:
 
 ```tsx
-  const { map: typeCatalog } = useChargeTypes();
-  const seenTypes = new Set<string>();
-  const typeOptions: { value: string; label: string }[] = [];
-  for (const o of [
-    ...Object.entries(typeCatalog).map(([value, v]) => ({
-      value,
-      label: v.label,
-    })),
-    ...(defaultValues?.payment_type
-      ? [{ value: defaultValues.payment_type, label: defaultValues.payment_type }]
-      : []),
-  ]) {
-    if (seenTypes.has(o.value)) continue;
-    seenTypes.add(o.value);
-    typeOptions.push(o);
-  }
+const { map: typeCatalog } = useChargeTypes();
+const seenTypes = new Set<string>();
+const typeOptions: { value: string; label: string }[] = [];
+for (const o of [
+  ...Object.entries(typeCatalog).map(([value, v]) => ({
+    value,
+    label: v.label,
+  })),
+  ...(defaultValues?.payment_type
+    ? [{ value: defaultValues.payment_type, label: defaultValues.payment_type }]
+    : []),
+]) {
+  if (seenTypes.has(o.value)) continue;
+  seenTypes.add(o.value);
+  typeOptions.push(o);
+}
 ```
+
 - Replace the `finalTypeOptions`/`billPresets`-based option list so the `<select>` maps over `typeOptions`. The `billPresets` prop becomes unused here — remove it from `PaymentFormProps` and from every call site (`payments/[id]/_detail.tsx`, `tenants/_components/tenant-payments.tsx`, `properties/_components/property-payments.tsx`, `tenants/[id]/_detail.tsx`, `properties/[id]/_detail.tsx`) where it is passed to `PaymentForm` only. (Leave `billPresets` flowing to the collector — that still uses it.)
 
 - [ ] **Step 5: Remove paymentTypeMap from labels.ts**
@@ -808,19 +856,23 @@ In `apps/crm/src/lib/labels.ts`, delete the `paymentTypeMap` export (lines ~41-4
 - [ ] **Step 6: Verify no references remain**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty
 grep -rn "paymentTypeMap" apps/crm/src
 ```
+
 Expected: no matches.
 
 - [ ] **Step 7: Typecheck**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit
 ```
+
 Expected: clean.
 
 - [ ] **Step 8: Commit**
@@ -839,15 +891,18 @@ git commit -m "refactor(payments): client display sites read type catalog via co
 - [ ] **Step 1: Confirm zero hardcoded type maps remain**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty
 grep -rn "월세\".*outline\|paymentTypeMap\|chargeTypeLabel\|KNOWN_PAYMENT_TYPES\|typeKo" apps/crm/src
 ```
+
 Expected: no matches (the only label/variant source is the DB catalog + resolver).
 
 - [ ] **Step 2: Typecheck, lint, format, test, build**
 
 Run:
+
 ```bash
 cd /Users/jay/Codes/kingsrealty/apps/crm
 npx tsc --noEmit && npx eslint src && npm test
@@ -855,11 +910,13 @@ cd /Users/jay/Codes/kingsrealty
 npx prettier --check "apps/crm/src/**/*.{ts,tsx}" "packages/db/src/migrations/024_payment_type_catalog.ts"
 pnpm --filter crm build
 ```
+
 Expected: all clean / PASS / build succeeds.
 
 - [ ] **Step 3: Manual verification (dev server)**
 
 Run `pnpm --filter crm dev`, then:
+
 - `/payments` — filter chips list every catalog type incl. 선불금; rows show correct labels/badges.
 - `/payments/new` — "+ 새 유형 훅업" → register → the payment shows a 훅업 badge AND `/payments` gains a 훅업 filter chip (no code change).
 - `/settings` (데이터) — rename/recolor a type → reflected on `/payments`; 월세/보증금/기타 show 기본 and have no delete button.
@@ -874,6 +931,7 @@ git commit -m "chore(payments): formatting + verification for DB-driven types"
 ## Self-Review
 
 **Spec coverage:**
+
 - bill_preset single source (variant, is_builtin, unique type) → Task 1 ✅
 - drop KNOWN_PAYMENT_TYPES cap → Task 4 ✅
 - resolver replaces all maps → Tasks 2, 6, 7 ✅

@@ -11,7 +11,7 @@ chips by **hardcoded maps duplicated across ~8 files**. Meanwhile staff add
 The two don't meet: a DB-added type can never become its own category, because
 `createBulkPayment` collapses any unknown type to `"service"` and keeps the typed
 name only in `payment.label`. So new types show with a generic badge, no filter
-chip, and any genuinely new *category* requires a code change.
+chip, and any genuinely new _category_ requires a code change.
 
 Goal: **remove the hardcoded maps entirely** — labels, colors, and filter chips
 all come from the DB — and do it **without adding a table** (consolidate, don't
@@ -35,17 +35,17 @@ A payment's "type" is split across two `payment` columns:
 
 Mapped the 6 billing/type tables. Each backs a live feature:
 
-| table | role | verdict |
-|---|---|---|
-| `payment` | money received | keep |
-| `charge_item` | what the **tenant owes** (미납 board, collector 불러오기) | keep |
-| `utility_bill` | what the **office owes a utility company** (대납: bearer/payee/paid_to_company) | keep — still inserted live from lease UI, drives utility-due calendar |
-| `recurring_charge` | per-tenant recurring definition → cron → `charge_item` | keep |
-| `bill_preset` | quick-pick catalog | **repurpose as single source of truth** |
-| `utility_type` | utility **kinds** (전기/가스/수도) for `utility_bill` | keep — `utility_bill.utility_type_id` NOT NULL FK + calendar + settings |
+| table              | role                                                                            | verdict                                                                 |
+| ------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `payment`          | money received                                                                  | keep                                                                    |
+| `charge_item`      | what the **tenant owes** (미납 board, collector 불러오기)                       | keep                                                                    |
+| `utility_bill`     | what the **office owes a utility company** (대납: bearer/payee/paid_to_company) | keep — still inserted live from lease UI, drives utility-due calendar   |
+| `recurring_charge` | per-tenant recurring definition → cron → `charge_item`                          | keep                                                                    |
+| `bill_preset`      | quick-pick catalog                                                              | **repurpose as single source of truth**                                 |
+| `utility_type`     | utility **kinds** (전기/가스/수도) for `utility_bill`                           | keep — `utility_bill.utility_type_id` NOT NULL FK + calendar + settings |
 
 - `charge_item` did **not** supersede `utility_bill` (tenant-owes vs office-owes; the 대납 fields were never absorbed).
-- `utility_type` is **not** redundant with `bill_preset` (different granularity: a utility *kind* vs a payment *category*; merging would conflate them).
+- `utility_type` is **not** redundant with `bill_preset` (different granularity: a utility _kind_ vs a payment _category_; merging would conflate them).
 - The only genuinely dead artifact is **code**: `addPaymentUtilityType`
   (`payments/new/_actions.ts:276`) has zero callers — delete it.
 
@@ -66,20 +66,35 @@ own filterable type ("what you add is what you filter by").
 
 Seeds after migration:
 
-| label | type | is_builtin | source |
-|---|---|---|---|
-| 월세 | `rent` | ✅ | new (code writes `rent` via 월세 추가 + rent charge gen) |
-| 보증금 | `deposit` | ✅ | new (deposit settlement) |
-| 기타 | `service` | ✅ | new (기타 line) |
-| 관리비 | `management` | ❌ | existing seed |
-| 주차 | `parking` | ❌ | existing seed |
-| 공과금 | `utility` | ❌ | existing seed |
-| 인터넷 | `internet` | ❌ | existing seed, **re-typed** from `utility`→`internet` to satisfy the unique invariant |
-| 선불금 | `prepayment` | ❌ | from migration 023 |
+| label      | type         | is_builtin | source                                                                                |
+| ---------- | ------------ | ---------- | ------------------------------------------------------------------------------------- |
+| 월세       | `rent`       | ✅         | new (code writes `rent` via 월세 추가 + rent charge gen)                              |
+| 보증금     | `deposit`    | ✅         | new (deposit settlement)                                                              |
+| 기타       | `service`    | ✅         | new (기타 line)                                                                       |
+| 관리비     | `management` | ❌         | existing seed                                                                         |
+| 주차       | `parking`    | ❌         | existing seed                                                                         |
+| 공과금     | `utility`    | ❌         | existing seed                                                                         |
+| 인터넷     | `internet`   | ❌         | existing seed, **re-typed** from `utility`→`internet` to satisfy the unique invariant |
+| 선불금     | `prepayment` | ❌         | from migration 023                                                                    |
+| 중개수수료 | `realty_fee` | ✅         | charge-side key                                                                       |
+| 기타       | `custom`     | ✅         | recurring-charge default key                                                          |
 
-Only `rent`/`deposit`/`service` are builtin — those are the keys live code paths
-write directly. `management/parking/utility/internet/prepayment` are
+`rent`/`deposit`/`service`/`realty_fee`/`custom` are builtin — keys live code paths
+write directly (rent/deposit/service on the payment side; `realty_fee`/`custom` on
+the charge/recurring side). `management/parking/utility/internet/prepayment` are
 catalog-driven and deletable.
+
+### Catalog also covers `charge_item.type`
+
+The reconcile refactor (commit `32ce95e`) made `payments/page.tsx` render
+obligations via a second hardcoded `chargeTypeMap`, and added
+`tenant-recurring-charges.tsx` with its own options array. `charge_item.type`
+shares the same key space as `payment_type` plus `realty_fee`/`custom`, so the one
+catalog serves both; both new hardcoded sites are converted to the resolver too.
+`lib/charges.ts` normalizes `prepayment → rent` when reconciling arrears (선불금 =
+prepaid rent) — business logic, left untouched. `custom` (recurring 기타) and
+`service` (payment 기타/AS비) stay as two separate keys; unifying them is a broader
+migration, out of scope.
 
 ### 2. Write side — drop the cap
 
@@ -148,7 +163,7 @@ and delete/type-edit disabled for `is_builtin` rows. No new settings screen.
   predate the `internet` type) and display under the 공과금 chip. No backfill by
   default; a one-line `update payment set payment_type='internet' where payment_type='utility' and label='인터넷'`
   is available if wanted later — explicitly out of scope here.
-- `utility_type` is *conceptually* adjacent to the catalog but stays separate;
+- `utility_type` is _conceptually_ adjacent to the catalog but stays separate;
   folding it in would conflate utility-kinds with payment-categories and touch the
   대납/calendar features — out of scope.
 

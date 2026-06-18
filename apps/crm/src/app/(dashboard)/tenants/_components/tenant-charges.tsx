@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { SubmitButton } from "@/components/submit-button";
 import { formatKRW } from "@/lib/utils";
+import { useChargeTypes } from "@/components/charge-types-provider";
 import {
   addCharge,
   generateTenantRecurringCharges,
@@ -52,16 +53,6 @@ const statusMeta: Record<
   billed: { label: "청구됨", tone: "warning" },
   paid: { label: "수납완료", tone: "success" },
   overdue: { label: "미납", tone: "danger" },
-};
-
-const typeLabel: Record<string, string> = {
-  rent: "월세",
-  deposit: "보증금",
-  prepayment: "선불금",
-  realty_fee: "중개수수료",
-  management: "관리비",
-  parking: "주차",
-  utility: "공과금",
 };
 
 const selectClassName =
@@ -125,6 +116,7 @@ export function TenantCharges({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const { resolve } = useChargeTypes();
 
   async function handleAdd(formData: FormData) {
     await addCharge(tenantId, formData);
@@ -182,7 +174,7 @@ export function TenantCharges({
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">
-                      {c.memo ?? typeLabel[c.type] ?? c.type}
+                      {c.memo ?? resolve(c.type).label}
                       {c.recurrence === "monthly" && (
                         <span className="ml-1.5 text-[11px] text-muted-foreground">
                           정기

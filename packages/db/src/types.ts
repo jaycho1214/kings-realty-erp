@@ -5,9 +5,10 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+  T extends ColumnType<infer S, infer I, infer U>
+    ? ColumnType<S, I | undefined, U>
+    : ColumnType<T, T | undefined, T>;
 
 export type Numeric = ColumnType<string, number | string, number | string>;
 
@@ -67,10 +68,12 @@ export interface BillPreset {
   default_currency: Generated<string>;
   default_due_day: Generated<number>;
   id: Generated<number>;
+  is_builtin: Generated<boolean>;
   is_variable: Generated<boolean>;
   label: string;
   sort_order: Generated<number>;
   type: Generated<string>;
+  variant: Generated<string>;
 }
 
 export interface CalendarEvent {

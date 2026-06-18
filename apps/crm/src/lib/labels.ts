@@ -38,17 +38,6 @@ export const paymentStatusMap: Record<string, string> = {
   overdue: "연체",
 };
 
-/** 수납 항목 유형 (label only) */
-export const paymentTypeMap: Record<string, string> = {
-  rent: "월세",
-  utility: "공과금",
-  management: "관리비",
-  parking: "주차",
-  deposit: "보증금",
-  prepayment: "선불금",
-  service: "AS비",
-};
-
 /** 결제 수단 */
 export const methodMap: Record<string, string> = {
   cash: "현금",

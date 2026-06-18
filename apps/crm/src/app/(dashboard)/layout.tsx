@@ -3,6 +3,8 @@ import { getDb } from "@kingsrealty/db";
 import { getSession } from "@/lib/session";
 import { isApprovedUser } from "@/lib/authz";
 import { AppShell } from "@/components/layout/app-shell";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
+import { ChargeTypeProvider } from "@/components/charge-types-provider";
 
 export default async function DashboardLayout({
   children,
@@ -76,5 +78,13 @@ export default async function DashboardLayout({
     notifications: Number(notifications?.c ?? 0),
   };
 
-  return <AppShell counts={counts}>{children}</AppShell>;
+  const chargeTypes = await getChargeTypeCatalog();
+
+  return (
+    <AppShell counts={counts}>
+      <ChargeTypeProvider value={chargeTypes.map}>
+        {children}
+      </ChargeTypeProvider>
+    </AppShell>
+  );
 }

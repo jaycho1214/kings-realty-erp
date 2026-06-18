@@ -31,17 +31,6 @@ function allocateProportional(total: number, weights: number[]): number[] {
   return cents.map((c) => c / 100);
 }
 
-/** Payment-type categories stored verbatim; others normalize to "service". */
-const KNOWN_PAYMENT_TYPES = new Set([
-  "rent",
-  "utility",
-  "deposit",
-  "service",
-  "management",
-  "parking",
-  "prepayment", // 선불금 — its own category (matches the charge model)
-]);
-
 export async function createBulkPayment(formData: FormData) {
   const session = await getSession();
   if (!session?.user?.id || !isStaffOrAdmin(session.user.role)) {
@@ -178,17 +167,13 @@ export async function createBulkPayment(formData: FormData) {
   await db.transaction().execute(async (trx) => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      // Keep the line's own type when it's a known category (so 관리비/주차 etc.
-      // carry through from a charge); fall back to "service" for ad-hoc lines.
-      const paymentType = KNOWN_PAYMENT_TYPES.has(item.type)
-        ? item.type
-        : "service";
-
+      // Store the picked catalog type verbatim — bill_preset is the source of
+      // truth, so any type filters/labels correctly without a code-level cap.
       const inserted = await trx
         .insertInto("payment")
         .values({
           lease_id,
-          payment_type: paymentType,
+          payment_type: item.type,
           label: item.label?.trim() || null, // specific line item (전기요금/수도요금/관리비…)
           billing_month,
           amount_krw: String(item.amount_krw),
@@ -231,10 +216,10 @@ export async function createBulkPayment(formData: FormData) {
 }
 
 /**
- * Add a bill/payment type to the shared `bill_preset` catalog from the payment
- * collector (inline "+ 새 유형"). Dedupes by label. `type` is the stable key
- * stored on payments/charges; for ad-hoc additions we use the label itself so
- * it displays correctly without a hard catalog link.
+ * Add a payment/charge type to the shared `bill_preset` catalog from the payment
+ * collector (inline "+ 새 유형"). One row per `type` (the stable key stored on
+ * payments/charges); ad-hoc additions use the label as the type so a new type is
+ * immediately filterable and labelled with no code change.
  */
 export async function addBillPreset(label: string) {
   const session = await getSession();
@@ -248,7 +233,7 @@ export async function addBillPreset(label: string) {
   const existing = await db
     .selectFrom("bill_preset")
     .select(["id", "label", "type"])
-    .where("label", "=", trimmed)
+    .where("type", "=", trimmed)
     .executeTakeFirst();
   if (existing) return existing;
 
@@ -261,8 +246,10 @@ export async function addBillPreset(label: string) {
     .insertInto("bill_preset")
     .values({
       label: trimmed,
-      type: trimmed, // ad-hoc key = label (no canonical category)
+      type: trimmed, // ad-hoc key = label (its own filterable category)
       is_variable: false,
+      variant: "outline",
+      is_builtin: false,
       sort_order: Number(maxOrder?.m ?? 0) + 1,
     })
     .returning(["id", "label", "type"])
@@ -270,35 +257,5 @@ export async function addBillPreset(label: string) {
 
   revalidatePath("/settings");
   revalidatePath("/payments/new");
-  return result ?? null;
-}
-
-export async function addPaymentUtilityType(name: string) {
-  const session = await getSession();
-  if (!session?.user?.id || !isStaffOrAdmin(session.user.role)) {
-    return null;
-  }
-
-  if (!name.trim()) return null;
-
-  const db = getDb();
-
-  // utility_type.name is UNIQUE — return the existing row instead of throwing
-  const existing = await db
-    .selectFrom("utility_type")
-    .select(["id", "name"])
-    .where("name", "=", name.trim())
-    .executeTakeFirst();
-  if (existing) return existing;
-
-  const result = await db
-    .insertInto("utility_type")
-    .values({ name: name.trim(), is_default: false })
-    .returning(["id", "name"])
-    .executeTakeFirst();
-
-  revalidatePath("/settings");
-  revalidatePath("/payments");
-
   return result ?? null;
 }

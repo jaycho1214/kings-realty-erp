@@ -33,7 +33,8 @@ import {
   formatBillingMonth,
   formatDate,
 } from "@/lib/utils";
-import { paymentStatusMap, paymentTypeMap } from "@/lib/labels";
+import { paymentStatusMap } from "@/lib/labels";
+import { useChargeTypes } from "@/components/charge-types-provider";
 import { PaymentForm } from "../../payments/_components/payment-form";
 import { updatePropertyPayment } from "../../payments/_actions";
 
@@ -171,6 +172,7 @@ export function PropertyPayments({
 }) {
   const displayItems = groupPayments(payments);
   const [editing, setEditing] = useState<PropertyPaymentRow | null>(null);
+  const { resolve } = useChargeTypes();
 
   if (displayItems.length === 0) {
     return (
@@ -228,7 +230,7 @@ export function PropertyPayments({
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {paymentTypeMap[p.payment_type] ?? p.payment_type}
+                          {resolve(p.payment_type).label}
                         </Badge>
                       </TableCell>
                       <TableCell className="tabular text-right">
@@ -283,6 +285,7 @@ function BundleRows({
   bundle: Bundle;
   onEdit: (p: PropertyPaymentRow) => void;
 }) {
+  const { resolve } = useChargeTypes();
   return (
     <>
       {/* Bundle header — one 수납 paid together (aggregate, not directly editable) */}
@@ -342,7 +345,7 @@ function BundleRows({
             <TableCell />
             <TableCell>
               <Badge variant="outline" className="text-[10px]">
-                {paymentTypeMap[p.payment_type] ?? p.payment_type}
+                {resolve(p.payment_type).label}
               </Badge>
             </TableCell>
             <TableCell className="tabular text-right text-xs">

@@ -1,5 +1,6 @@
 import { getDb, sql } from "@kingsrealty/db";
 import { seoulDateString } from "@/lib/date";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
 import { PaymentCollector } from "./_components/payment-collector";
 
 export default async function NewPaymentPage({
@@ -46,6 +47,9 @@ export default async function NewPaymentPage({
     db
       .selectFrom("bill_preset")
       .select(["id", "label", "type"])
+      // Builtins (월세/보증금/기타/중개수수료/custom) have dedicated entry paths —
+      // keep them out of the line-item type dropdown.
+      .where("is_builtin", "=", false)
       .orderBy("sort_order", "asc")
       .execute(),
     // Unpaid, amount-known charges on active leases — the collector offers
@@ -88,15 +92,10 @@ export default async function NewPaymentPage({
     usd_to_krw: Number(r.usd_to_krw),
   }));
 
-  const typeKo: Record<string, string> = {
-    rent: "월세",
-    utility: "공과금",
-    management: "관리비",
-    parking: "주차",
-    deposit: "보증금",
-    prepayment: "선불금",
-    realty_fee: "중개수수료",
-  };
+  const catalog = await getChargeTypeCatalog();
+  const typeKo: Record<string, string> = Object.fromEntries(
+    catalog.list.map((c) => [c.type, c.label]),
+  );
 
   const openChargesByLease: Record<
     number,

@@ -29,6 +29,8 @@ interface BillPresetRow {
   default_currency: string;
   default_due_day: number;
   is_variable: boolean;
+  variant: string;
+  is_builtin: boolean;
 }
 
 const selectClassName =
@@ -78,6 +80,17 @@ function PresetFields({ preset }: { preset?: BillPresetRow }) {
         />
         변동
       </label>
+      <select
+        name="variant"
+        defaultValue={preset?.variant ?? "outline"}
+        className={selectClassName}
+        aria-label="색상"
+      >
+        <option value="outline">기본</option>
+        <option value="secondary">회색</option>
+        <option value="destructive">빨강</option>
+        <option value="default">강조</option>
+      </select>
     </>
   );
 }
@@ -139,6 +152,11 @@ export function BillPresets({ presets }: { presets: BillPresetRow[] }) {
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
                   {p.label}
+                  {p.is_builtin && (
+                    <Badge variant="outline" className="ml-2">
+                      기본
+                    </Badge>
+                  )}
                   {p.is_variable && (
                     <Badge variant="outline" className="ml-2">
                       변동
@@ -167,17 +185,19 @@ export function BillPresets({ presets }: { presets: BillPresetRow[] }) {
                     >
                       <Pencil className="size-4" />
                     </Button>
-                    <form action={deleteAction}>
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-danger"
-                        aria-label="삭제"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </form>
+                    {!p.is_builtin && (
+                      <form action={deleteAction}>
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-danger"
+                          aria-label="삭제"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </form>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

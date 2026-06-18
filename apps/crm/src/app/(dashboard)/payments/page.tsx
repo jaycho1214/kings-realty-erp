@@ -23,6 +23,8 @@ import {
   formatBillingMonth,
 } from "@/lib/utils";
 import { currencyPaidLabel, methodMap } from "@/lib/labels";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
+import { resolveChargeType, type CatalogMap } from "@/lib/charge-types";
 import { Package, CreditCard } from "lucide-react";
 import { BillPaidToggle } from "./_components/bill-paid-toggle";
 
@@ -33,40 +35,6 @@ const statusLabelMap: Record<string, string> = {
   pending: "미납",
   overdue: "연체",
 };
-
-const typeMap: Record<
-  string,
-  {
-    label: string;
-    variant?: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  rent: { label: "월세", variant: "outline" },
-  utility: { label: "공과금", variant: "outline" },
-  deposit: { label: "보증금", variant: "outline" },
-  prepayment: { label: "선불금", variant: "outline" },
-  service: { label: "AS비", variant: "outline" },
-};
-
-// charge_item.type labels (the obligation side — superset of payment types).
-const chargeTypeMap: Record<string, string> = {
-  rent: "월세",
-  utility: "공과금",
-  management: "관리비",
-  parking: "주차",
-  deposit: "보증금",
-  realty_fee: "중개수수료",
-  custom: "기타",
-};
-
-const typeOptions = [
-  { value: "all", label: "전체" },
-  { value: "rent", label: "월세" },
-  { value: "utility", label: "공과금" },
-  { value: "deposit", label: "보증금" },
-  { value: "prepayment", label: "선불금" },
-  { value: "service", label: "AS비" },
-];
 
 const statusOptions = [
   { value: "all", label: "전체 상태" },
@@ -182,16 +150,15 @@ export default async function PaymentsPage({
   searchParams: Promise<{
     q?: string;
     page?: string;
-    type?: string;
     status?: string;
   }>;
 }) {
-  const { q, page, type, status } = await searchParams;
+  const { q, page, status } = await searchParams;
   const currentPage = Math.max(1, Math.floor(Number(page) || 1));
   const offset = (currentPage - 1) * PAGE_SIZE;
-  const activeType = type ?? "all";
   const activeStatus = status ?? "all";
   const db = getDb();
+  const catalog = await getChargeTypeCatalog();
 
   // A `payment` row is always a recorded receipt (status='paid'); what's owed but
   // not yet collected lives in `charge_item` (no linked payment). So the 미납/연체
@@ -233,10 +200,6 @@ export default async function PaymentsPage({
         ]),
       );
     }
-    if (activeType !== "all") {
-      charges = charges.where("charge_item.type", "=", activeType);
-    }
-
     const [rows, totalResult] = await Promise.all([
       charges
         .select([
@@ -285,9 +248,6 @@ export default async function PaymentsPage({
           eb("property.address_jibeon", "ilike", `%${q}%`),
         ]),
       );
-    }
-    if (activeType !== "all") {
-      filtered = filtered.where("payment.payment_type", "=", activeType);
     }
     if (activeStatus !== "all") {
       filtered = filtered.where("payment.status", "=", activeStatus);
@@ -361,7 +321,6 @@ export default async function PaymentsPage({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <SearchInput placeholder="세입자 또는 주소 검색..." />
         <div className="flex flex-wrap gap-2">
-          <FilterTabs paramKey="type" options={typeOptions} />
           <FilterTabs paramKey="status" options={statusOptions} />
         </div>
       </div>
@@ -401,15 +360,19 @@ export default async function PaymentsPage({
             <TableBody>
               {obligationView
                 ? obligations.map((o) => (
-                    <ObligationRowView key={`charge-${o.id}`} obligation={o} />
+                    <ObligationRowView
+                      key={`charge-${o.id}`}
+                      obligation={o}
+                      catalogMap={catalog.map}
+                    />
                   ))
                 : displayItems.map((item) => {
                     if (item.kind === "single") {
                       const payment = item.payment;
-                      const baseType = typeMap[payment.payment_type] ?? {
-                        label: payment.payment_type,
-                        variant: "outline" as const,
-                      };
+                      const baseType = resolveChargeType(
+                        catalog.map,
+                        payment.payment_type,
+                      );
                       const paymentType = payment.label
                         ? { ...baseType, label: payment.label }
                         : baseType;
@@ -491,7 +454,13 @@ export default async function PaymentsPage({
 
                     // Bundle row
                     const { bundle } = item;
-                    return <BundleRows key={bundle.bundleId} bundle={bundle} />;
+                    return (
+                      <BundleRows
+                        key={bundle.bundleId}
+                        bundle={bundle}
+                        catalogMap={catalog.map}
+                      />
+                    );
                   })}
             </TableBody>
           </Table>
@@ -503,8 +472,14 @@ export default async function PaymentsPage({
   );
 }
 
-function ObligationRowView({ obligation: o }: { obligation: ObligationRow }) {
-  const typeLabel = chargeTypeMap[o.type] ?? o.type;
+function ObligationRowView({
+  obligation: o,
+  catalogMap,
+}: {
+  obligation: ObligationRow;
+  catalogMap: CatalogMap;
+}) {
+  const typeLabel = resolveChargeType(catalogMap, o.type).label;
   const owed = o.currency === "USD" ? formatUSD(o.amount) : formatKRW(o.amount);
   // charge_item has only billed/overdue here; map to the payment badge palette.
   const badgeStatus = o.status === "overdue" ? "overdue" : "pending";
@@ -541,7 +516,13 @@ function ObligationRowView({ obligation: o }: { obligation: ObligationRow }) {
   );
 }
 
-function BundleRows({ bundle }: { bundle: BundleGroup }) {
+function BundleRows({
+  bundle,
+  catalogMap,
+}: {
+  bundle: BundleGroup;
+  catalogMap: CatalogMap;
+}) {
   return (
     <>
       {/* Bundle header row */}
@@ -603,10 +584,7 @@ function BundleRows({ bundle }: { bundle: BundleGroup }) {
       </TableRow>
       {/* Individual items within bundle */}
       {bundle.payments.map((payment) => {
-        const baseType = typeMap[payment.payment_type] ?? {
-          label: payment.payment_type,
-          variant: "outline" as const,
-        };
+        const baseType = resolveChargeType(catalogMap, payment.payment_type);
         const paymentType = payment.label
           ? { ...baseType, label: payment.label }
           : baseType;

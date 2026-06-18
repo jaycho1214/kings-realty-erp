@@ -49,6 +49,8 @@ interface BillPresetRow {
   default_currency: string;
   default_due_day: number;
   is_variable: boolean;
+  variant: string;
+  is_builtin: boolean;
 }
 
 interface DataSettingsProps {

@@ -35,6 +35,8 @@ export default async function DataSettingsPage() {
         "default_currency",
         "default_due_day",
         "is_variable",
+        "variant",
+        "is_builtin",
       ])
       .orderBy("sort_order", "asc")
       .execute(),

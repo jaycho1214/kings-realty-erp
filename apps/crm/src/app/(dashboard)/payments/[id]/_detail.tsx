@@ -27,20 +27,8 @@ import { PaymentForm } from "../_components/payment-form";
 import { deletePayment } from "../_actions";
 import { BillPaidToggle } from "../_components/bill-paid-toggle";
 import { DocumentList } from "@/components/document-list";
-
-const paymentTypeMap: Record<
-  string,
-  {
-    label: string;
-    variant?: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  rent: { label: "월세", variant: "outline" },
-  utility: { label: "공과금", variant: "secondary" },
-  deposit: { label: "보증금", variant: "outline" },
-  prepayment: { label: "선불금", variant: "outline" },
-  service: { label: "AS비", variant: "destructive" },
-};
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
+import { resolveChargeType } from "@/lib/charge-types";
 
 const statusMap: Record<string, string> = {
   paid: "납부완료",
@@ -180,7 +168,8 @@ export default async function PaymentDetailPage({
   ]);
 
   const deleteAction = deletePayment.bind(null, numId);
-  const paymentType = paymentTypeMap[payment.payment_type];
+  const catalog = await getChargeTypeCatalog();
+  const paymentType = resolveChargeType(catalog.map, payment.payment_type);
   const method = methodMap[payment.payment_method] ?? payment.payment_method;
   const paidAmount =
     payment.currency_paid === "USD"

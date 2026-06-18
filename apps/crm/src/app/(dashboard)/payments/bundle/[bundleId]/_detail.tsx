@@ -26,21 +26,9 @@ import {
   formatBillingMonth,
 } from "@/lib/utils";
 import { currencyPaidLabel, methodMap } from "@/lib/labels";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
+import { resolveChargeType } from "@/lib/charge-types";
 import { BillPaidToggle } from "../../_components/bill-paid-toggle";
-
-const paymentTypeMap: Record<
-  string,
-  {
-    label: string;
-    variant?: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  rent: { label: "월세", variant: "outline" },
-  utility: { label: "공과금", variant: "secondary" },
-  deposit: { label: "보증금", variant: "outline" },
-  prepayment: { label: "선불금", variant: "outline" },
-  service: { label: "AS비", variant: "destructive" },
-};
 
 const statusMap: Record<string, string> = {
   paid: "납부완료",
@@ -56,6 +44,7 @@ export default async function BundleDetailPage({
   const { bundleId, tab } = await params;
   const activeTab = tab?.[0] ?? "";
   const db = getDb();
+  const catalog = await getChargeTypeCatalog();
 
   const payments = await db
     .selectFrom("payment")
@@ -188,10 +177,10 @@ export default async function BundleDetailPage({
         </TableHeader>
         <TableBody>
           {payments.map((payment) => {
-            const baseType = paymentTypeMap[payment.payment_type] ?? {
-              label: payment.payment_type,
-              variant: "outline" as const,
-            };
+            const baseType = resolveChargeType(
+              catalog.map,
+              payment.payment_type,
+            );
             const typeInfo = payment.label
               ? { ...baseType, label: payment.label }
               : baseType;
@@ -261,7 +250,7 @@ export default async function BundleDetailPage({
             label={statusMap[first.status] ?? first.status}
           />
           {types.map((t) => {
-            const typeInfo = paymentTypeMap[t];
+            const typeInfo = catalog.map[t];
             return typeInfo ? (
               <Badge key={t} variant={typeInfo.variant}>
                 {typeInfo.label}

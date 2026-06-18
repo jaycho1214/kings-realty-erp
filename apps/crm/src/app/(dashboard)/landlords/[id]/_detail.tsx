@@ -20,7 +20,9 @@ import {
   type Fact,
 } from "@/components/detail";
 import { formatKRW, formatDate } from "@/lib/utils";
-import { sexMap, paymentStatusMap, paymentTypeMap } from "@/lib/labels";
+import { sexMap, paymentStatusMap } from "@/lib/labels";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
+import { resolveChargeType } from "@/lib/charge-types";
 import { seoulYMD, firstOfMonth, seoulDateString } from "@/lib/date";
 import { getSession } from "@/lib/session";
 import { canViewSensitive } from "@/lib/authz";
@@ -53,6 +55,7 @@ export default async function LandlordDetailPage({
   const activeTab = tab?.[0] ?? "";
   const numId = Number(id);
   const db = getDb();
+  const catalog = await getChargeTypeCatalog();
 
   const { year, month } = seoulYMD();
   const monthStart = firstOfMonth(year, month);
@@ -412,8 +415,10 @@ export default async function LandlordDetailPage({
                         {payment.property_address}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {paymentTypeMap[payment.payment_type] ??
-                          payment.payment_type}
+                        {
+                          resolveChargeType(catalog.map, payment.payment_type)
+                            .label
+                        }
                       </TableCell>
                       <TableCell className="tabular text-right">
                         {formatKRW(payment.amount_krw)}

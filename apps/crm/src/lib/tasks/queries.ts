@@ -1,6 +1,7 @@
 import { getDb, sql } from "@kingsrealty/db";
 import { getSession } from "@/lib/session";
 import { seoulDateString, daysUntil } from "@/lib/date";
+import { getChargeTypeCatalog } from "@/lib/charge-types.server";
 import { filterSuggestions } from "./suggestions";
 import type {
   BoardData,
@@ -258,15 +259,10 @@ export async function loadBoardData(): Promise<BoardData> {
     svcAssigneeMap.set(a.service_request_id, list);
   }
 
-  const chargeTypeLabel: Record<string, string> = {
-    rent: "월세",
-    utility: "공과금",
-    management: "관리비",
-    parking: "주차",
-    deposit: "보증금",
-    prepayment: "선불금",
-    realty_fee: "중개수수료",
-  };
+  const { map: chargeTypeCatalog } = await getChargeTypeCatalog();
+  const chargeTypeLabel: Record<string, string> = Object.fromEntries(
+    Object.entries(chargeTypeCatalog).map(([type, v]) => [type, v.label]),
+  );
 
   const candidates: SuggestedTask[] = [];
 
