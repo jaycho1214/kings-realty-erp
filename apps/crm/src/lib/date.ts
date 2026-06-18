@@ -73,3 +73,25 @@ export function seoulWeekEnd(from: string = seoulDateString()): string {
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
   return addDays(from, (7 - dow) % 7);
 }
+
+/**
+ * Add whole months to a "YYYY-MM-DD" date, clamping the day to the target
+ * month's last day so an out-of-range day never rolls into the next month
+ * (e.g. 2026-01-31 + 1 month → 2026-02-28, not 2026-03-03).
+ */
+export function addMonths(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().split("T")[0];
+}
+
+/** Whole calendar months between two "YYYY-MM-DD" dates (end − start). */
+export function monthsBetween(startStr: string, endStr: string): number {
+  const [sy, sm] = startStr.split("-").map(Number);
+  const [ey, em] = endStr.split("-").map(Number);
+  return (ey - sy) * 12 + (em - sm);
+}
