@@ -81,10 +81,11 @@ export function parseLeaseIntake(
   };
 
   // --- Property (parsed first; decides whether a landlord plan is needed) ---
+  // Mode is inferred, not declared: a picked suggestion sends *_id (→ existing);
+  // free text sends only the name/address (→ new).
   let property: PropertyPlan;
-  if (str("property_mode") === "existing") {
-    const propertyId = posInt("property_id");
-    if (!propertyId) throw new Error("매물을 선택해주세요.");
+  const propertyId = posInt("property_id");
+  if (propertyId) {
     property = { mode: "existing", propertyId };
   } else {
     const address = str("property_address");
@@ -104,9 +105,8 @@ export function parseLeaseIntake(
   // --- Landlord (only when creating a new property) ---
   let landlord: LandlordPlan | null = null;
   if (property.mode === "new") {
-    if (str("landlord_mode") === "existing") {
-      const landlordId = posInt("landlord_id");
-      if (!landlordId) throw new Error("임대인을 선택해주세요.");
+    const landlordId = posInt("landlord_id");
+    if (landlordId) {
       landlord = { mode: "existing", landlordId };
     } else {
       const name = str("landlord_name");
@@ -140,9 +140,8 @@ export function parseLeaseIntake(
 
   // --- Tenant ---
   let tenant: TenantPlan;
-  if (str("tenant_mode") === "existing") {
-    const tenantId = posInt("tenant_id");
-    if (!tenantId) throw new Error("세입자를 선택해주세요.");
+  const tenantId = posInt("tenant_id");
+  if (tenantId) {
     tenant = { mode: "existing", tenantId };
   } else {
     const name = str("tenant_name");

@@ -55,37 +55,37 @@ for the case where the tenant already exists.
 
 One tall, scrollable `CreateDialog` (`wide`, `closeOnSuccess`) with four sections
 matching the agreement. The body is a single `<form action={createLeaseIntake}>`.
-Mode toggles ("기존 선택" vs "신규") are client state that flips which inputs are
-mounted; a hidden input carries the chosen mode so the server knows which branch
-to take.
+There is **no existing-vs-new toggle**. Each entity is a single
+**autocomplete-create field** (`AutocompleteCreate`): you type the 성명/주소;
+matching existing records drop down; picking one records its `*_id` (existing),
+leaving free text records just the name/address (new). Mode is **inferred
+downstream** from whether an `*_id` was sent — no `*_mode` field. The "new
+record" fields below each picker mount only while nothing is picked.
 
-### 1. 임대인 (Lessor) — one record, 1…N people
+### 1. 매물 (Property)
 
-- **Mode = existing:** `Combobox` over existing landlords → `landlord_id`. When
-  chosen, the property section's landlord is implied (see §2).
-- **Mode = new** (primary lessor → `landlord` row):
-  - 성명\* (`name`), 핸드폰\* (`phone`), 이메일 (`email`), 주소 (`address`),
-    KID#/주민번호 (`rrn`, admin/accounting only)
-  - **"+ 공동 임대인 (가족) 추가"** repeater → indexed fields
-    `lessor[i].name*`, `lessor[i].relationship` (배우자/자녀/…),
-    `lessor[i].phone`, `lessor[i].rrn` (admin/accounting only). Each becomes a
-    `landlord_family_member` row under the same landlord.
+- **Autocomplete** over properties (by address) → `property_id` when picked,
+  else free text → `property_address`. Picking an existing property carries its
+  `landlord_id`, so the 임대인 section is hidden; free text reveals 평수
+  (`size_pyeong`) + 종류 (`property_type`: apartment/house/officetel/villa,
+  default `apartment`) and the 임대인 section.
 
-### 2. 매물 (Property)
+### 2. 임대인 (Lessor) — one record, 1…N people (only when property is new)
 
-- **Mode = existing:** `Combobox` over properties (search by address) →
-  `property_id`. The property already carries its `landlord_id`, so when an
-  existing property is chosen the 임대인 section is hidden/ignored.
-- **Mode = new:** 임대물건 주소\* (`address`), 평수 (`size_pyeong`), 종류
-  (`property_type` select: apartment/house/officetel/villa, default
-  `apartment`). `landlord_id` comes from §1 (existing or just-created).
-  `monthly_rent_krw` / `deposit_krw` default from the lease terms (§4).
+- **Autocomplete** over landlords (by name) → `landlord_id` when picked, else
+  free text → `landlord_name`. Free text reveals 핸드폰\* (`landlord_phone`),
+  이메일 (`landlord_email`), 주소 (`landlord_address`), KID#/주민번호
+  (`landlord_rrn`, admin/accounting only), and the
+  **"+ 공동 임대인 (가족) 추가"** repeater → indexed `lessor[i].name*`,
+  `lessor[i].relationship`, `lessor[i].phone`, `lessor[i].rrn` (admin/accounting
+  only). Each repeater row becomes a `landlord_family_member` row.
 
 ### 3. 임차인 (Lessee) — one person
 
-- **Mode = existing:** `Combobox` over tenants → `tenant_id`.
-- **Mode = new:** 성명\* (`name`), 핸드폰\* (`phone`), Rank/Grade (`rank`),
-  DODID (`military_id`), 소속/Unit (`unit`), 이메일 (`email`),
+- **Autocomplete** over tenants (by name) → `tenant_id` when picked, else free
+  text → `tenant_name`. Free text reveals 핸드폰\* (`tenant_phone`), **Rank/Grade
+  (autocomplete** over E/W/O grades, free text allowed → `tenant_rank`), DODID
+  (`tenant_military_id`), 소속/Unit (`tenant_unit`), 이메일 (`tenant_email`),
   기지 (`base_location_id` select, default **USAG Humphreys** = first base by
   `sort_order`).
 
@@ -180,6 +180,8 @@ Since we now store co-lessor RRNs, surface them so they aren't write-only:
   `apps/crm` `test` script).
 - `apps/crm/src/app/(dashboard)/leases/_components/lease-intake-dialog.tsx` —
   new client component (the four-section form + mode toggles + repeater).
+- `apps/crm/src/components/autocomplete-create.tsx` — reusable autocomplete
+  field (text + optional hidden id) backing every picker and the rank field.
 - `apps/crm/src/app/(dashboard)/tenants/page.tsx` — header button + load
   landlords/properties/tenants/base_locations + `canViewRrn` for the dialog.
 - `apps/crm/src/lib/date.ts` (+ `date.test.ts`) — add pure `addMonths` /
@@ -191,10 +193,11 @@ Since we now store co-lessor RRNs, surface them so they aren't write-only:
 ## Edge cases
 
 - **Existing property + new landlord:** contradiction — an existing property
-  already has a landlord. When property mode=existing, the 임대인 section is
-  hidden and its inputs ignored.
-- **Duplicate detection:** v1 does **not** auto-dedup. Staff pick "기존" when the
-  person already exists. (Fuzzy matching on name/phone is a possible later add.)
+  already has a landlord. When a property suggestion is picked the 임대인 section
+  is unmounted, so its inputs aren't submitted.
+- **Duplicate detection:** v1 does **not** auto-dedup. The autocomplete surfaces
+  matches so staff pick an existing record instead of retyping; typing a brand
+  new name simply creates one. (Fuzzy matching is a possible later add.)
 - **Non-privileged staff:** RRN inputs are absent; the rest of intake works.
   RRNs can be added later by an admin on the landlord detail page.
 - **Co-lessor with blank name:** skipped (matches the tenant family-member

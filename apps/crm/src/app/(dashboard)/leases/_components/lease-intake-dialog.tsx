@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { PhoneInput } from "@/components/phone-input";
-import { Combobox } from "@/components/combobox";
+import { AutocompleteCreate } from "@/components/autocomplete-create";
 import { Plus, Trash2 } from "lucide-react";
 import { addMonths, monthsBetween, seoulDateString } from "@/lib/date";
 import { createLeaseIntake } from "../_actions";
@@ -30,43 +30,20 @@ const RELATIONSHIPS = [
   { value: "other", label: "기타" },
 ];
 
+// Standard pay grades (Enlisted / Warrant / Officer) — autocomplete suggestions
+// for Rank/Grade; free text is still accepted for anything off-list.
+const RANK_OPTIONS = [
+  ...["E-1", "E-2", "E-3", "E-4", "E-5", "E-6", "E-7", "E-8", "E-9"],
+  ...["W-1", "W-2", "W-3", "W-4", "W-5"],
+  ...["O-1", "O-2", "O-3", "O-4", "O-5", "O-6", "O-7", "O-8", "O-9", "O-10"],
+].map((r) => ({ id: r, label: r }));
+
 interface IntakeProps {
   landlords: { id: number; name: string }[];
   properties: { id: number; address: string; landlord_id: number }[];
   tenants: { id: number; name: string; rank: string | null }[];
   baseLocations: { id: number; name: string; name_ko: string | null }[];
   canViewRrn: boolean;
-}
-
-type Mode = "new" | "existing";
-
-function SectionToggle({
-  mode,
-  onChange,
-  existingLabel,
-  newLabel,
-}: {
-  mode: Mode;
-  onChange: (m: Mode) => void;
-  existingLabel: string;
-  newLabel: string;
-}) {
-  return (
-    <div className="inline-flex rounded-lg border border-input p-0.5 text-sm">
-      {(["existing", "new"] as Mode[]).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          className={`rounded-md px-2.5 py-1 ${
-            mode === m ? "bg-muted font-medium" : "text-muted-foreground"
-          }`}
-        >
-          {m === "existing" ? existingLabel : newLabel}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function LeaseIntakeForm({
@@ -78,9 +55,11 @@ export function LeaseIntakeForm({
 }: IntakeProps) {
   const today = seoulDateString();
 
-  const [propertyMode, setPropertyMode] = useState<Mode>("new");
-  const [landlordMode, setLandlordMode] = useState<Mode>("new");
-  const [tenantMode, setTenantMode] = useState<Mode>("new");
+  // A non-null picked id means an existing record was chosen → its "new record"
+  // fields stay hidden. null means free text → reveal them.
+  const [propertyPickedId, setPropertyPickedId] = useState<string | null>(null);
+  const [landlordPickedId, setLandlordPickedId] = useState<string | null>(null);
+  const [tenantPickedId, setTenantPickedId] = useState<string | null>(null);
 
   const [coLessors, setCoLessors] = useState<number[]>([]);
   const [coSeq, setCoSeq] = useState(0);
@@ -96,55 +75,96 @@ export function LeaseIntakeForm({
   };
 
   const landlordOptions = landlords.map((l) => ({
-    value: String(l.id),
+    id: String(l.id),
     label: l.name,
   }));
   const propertyOptions = properties.map((p) => ({
-    value: String(p.id),
+    id: String(p.id),
     label: p.address,
   }));
   const tenantOptions = tenants.map((t) => ({
-    value: String(t.id),
-    label: `${t.name}${t.rank ? ` (${t.rank})` : ""}`,
+    id: String(t.id),
+    label: t.name,
+    sublabel: t.rank ?? undefined,
   }));
+
+  const newProperty = propertyPickedId === null;
+  const newLandlord = landlordPickedId === null;
+  const newTenant = tenantPickedId === null;
 
   return (
     <form action={createLeaseIntake}>
-      <input type="hidden" name="property_mode" value={propertyMode} />
-      <input type="hidden" name="landlord_mode" value={landlordMode} />
-      <input type="hidden" name="tenant_mode" value={tenantMode} />
-
       <FieldGroup>
-        {/* ── 임대인 ── (only when creating a new property) */}
-        {propertyMode === "new" && (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">임대인 (Lessor)</h3>
-              <SectionToggle
-                mode={landlordMode}
-                onChange={setLandlordMode}
-                existingLabel="기존 선택"
-                newLabel="신규"
-              />
+        {/* ── 매물 ── */}
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">매물 (Property)</h3>
+          <Field>
+            <Label>
+              임대물건 주소 <span className="text-danger">*</span>
+            </Label>
+            <AutocompleteCreate
+              textName="property_address"
+              idName="property_id"
+              options={propertyOptions}
+              onPicked={setPropertyPickedId}
+              required
+              placeholder="주소 검색 또는 새 주소 입력"
+              newHint="새 매물 등록"
+            />
+          </Field>
+          {newProperty && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <Label htmlFor="property_size_pyeong">평수</Label>
+                <Input
+                  id="property_size_pyeong"
+                  name="property_size_pyeong"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                />
+              </Field>
+              <Field>
+                <Label htmlFor="property_type">종류</Label>
+                <select
+                  id="property_type"
+                  name="property_type"
+                  defaultValue="apartment"
+                  className={selectClassName}
+                >
+                  {PROPERTY_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
+          )}
+        </section>
 
-            {landlordMode === "existing" ? (
-              <Combobox
-                name="landlord_id"
+        {/* ── 임대인 ── (only when the property is new; an existing property
+            already carries its landlord) */}
+        {newProperty && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">임대인 (Lessor)</h3>
+            <Field>
+              <Label>
+                성명 <span className="text-danger">*</span>
+              </Label>
+              <AutocompleteCreate
+                textName="landlord_name"
+                idName="landlord_id"
                 options={landlordOptions}
-                placeholder="임대인 선택"
-                searchPlaceholder="이름으로 검색..."
-                emptyText="임대인을 찾을 수 없습니다"
+                onPicked={setLandlordPickedId}
+                required
+                placeholder="임대인 성명 검색 또는 입력"
+                newHint="새 임대인 등록"
               />
-            ) : (
+            </Field>
+            {newLandlord && (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <Label htmlFor="landlord_name">
-                      성명 <span className="text-danger">*</span>
-                    </Label>
-                    <Input id="landlord_name" name="landlord_name" required />
-                  </Field>
                   <Field>
                     <Label htmlFor="landlord_phone">
                       핸드폰 <span className="text-danger">*</span>
@@ -244,89 +264,25 @@ export function LeaseIntakeForm({
           </section>
         )}
 
-        {/* ── 매물 ── */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">매물 (Property)</h3>
-            <SectionToggle
-              mode={propertyMode}
-              onChange={setPropertyMode}
-              existingLabel="기존 선택"
-              newLabel="신규"
-            />
-          </div>
-          {propertyMode === "existing" ? (
-            <Combobox
-              name="property_id"
-              options={propertyOptions}
-              placeholder="매물 선택"
-              searchPlaceholder="주소로 검색..."
-              emptyText="매물을 찾을 수 없습니다"
-            />
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field className="sm:col-span-2">
-                <Label htmlFor="property_address">
-                  임대물건 주소 <span className="text-danger">*</span>
-                </Label>
-                <Input id="property_address" name="property_address" required />
-              </Field>
-              <Field>
-                <Label htmlFor="property_size_pyeong">평수</Label>
-                <Input
-                  id="property_size_pyeong"
-                  name="property_size_pyeong"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                />
-              </Field>
-              <Field>
-                <Label htmlFor="property_type">종류</Label>
-                <select
-                  id="property_type"
-                  name="property_type"
-                  defaultValue="apartment"
-                  className={selectClassName}
-                >
-                  {PROPERTY_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-          )}
-        </section>
-
         {/* ── 임차인 ── */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">임차인 (Lessee)</h3>
-            <SectionToggle
-              mode={tenantMode}
-              onChange={setTenantMode}
-              existingLabel="기존 선택"
-              newLabel="신규"
-            />
-          </div>
-          {tenantMode === "existing" ? (
-            <Combobox
-              name="tenant_id"
+          <h3 className="text-sm font-semibold">임차인 (Lessee)</h3>
+          <Field>
+            <Label>
+              성명 <span className="text-danger">*</span>
+            </Label>
+            <AutocompleteCreate
+              textName="tenant_name"
+              idName="tenant_id"
               options={tenantOptions}
-              placeholder="세입자 선택"
-              searchPlaceholder="이름으로 검색..."
-              emptyText="세입자를 찾을 수 없습니다"
+              onPicked={setTenantPickedId}
+              required
+              placeholder="세입자 성명 검색 또는 입력"
+              newHint="새 세입자 등록"
             />
-          ) : (
+          </Field>
+          {newTenant && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <Label htmlFor="tenant_name">
-                  성명 <span className="text-danger">*</span>
-                </Label>
-                <Input id="tenant_name" name="tenant_name" required />
-              </Field>
               <Field>
                 <Label htmlFor="tenant_phone">
                   핸드폰 <span className="text-danger">*</span>
@@ -334,8 +290,12 @@ export function LeaseIntakeForm({
                 <PhoneInput name="tenant_phone" required />
               </Field>
               <Field>
-                <Label htmlFor="tenant_rank">Rank/Grade</Label>
-                <Input id="tenant_rank" name="tenant_rank" />
+                <Label>Rank/Grade</Label>
+                <AutocompleteCreate
+                  textName="tenant_rank"
+                  options={RANK_OPTIONS}
+                  placeholder="E-5, O-3 …"
+                />
               </Field>
               <Field>
                 <Label htmlFor="tenant_military_id">DODID</Label>
