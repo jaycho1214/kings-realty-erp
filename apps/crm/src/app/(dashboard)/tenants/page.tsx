@@ -103,16 +103,18 @@ export default async function TenantsPage({
     .where("tenant.deleted_at", isDeletedView ? "is not" : "is", null);
 
   if (q) {
+    // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
+    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
     query = query.where((eb) =>
       eb.or([
-        eb("tenant.name", "ilike", `%${q}%`),
-        eb("tenant.phone", "ilike", `%${q}%`),
+        eb("tenant.name", "ilike", `%${escaped}%`),
+        eb("tenant.phone", "ilike", `%${escaped}%`),
       ]),
     );
     countQuery = countQuery.where((eb) =>
       eb.or([
-        eb("tenant.name", "ilike", `%${q}%`),
-        eb("tenant.phone", "ilike", `%${q}%`),
+        eb("tenant.name", "ilike", `%${escaped}%`),
+        eb("tenant.phone", "ilike", `%${escaped}%`),
       ]),
     );
   }

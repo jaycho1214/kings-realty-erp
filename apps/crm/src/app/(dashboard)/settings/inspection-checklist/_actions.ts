@@ -57,6 +57,16 @@ export async function updateSection(id: number, formData: FormData) {
 export async function deleteSection(id: number) {
   await requireAdmin();
   const db = getDb();
+  // Built-in (seeded) section groups are structural — protect them from
+  // deletion. Their labels can still be edited via updateSection.
+  const section = await db
+    .selectFrom("inspection_section")
+    .select("is_builtin")
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (section?.is_builtin) {
+    throw new Error("기본 점검 항목 그룹은 삭제할 수 없습니다.");
+  }
   // inspection_item has ON DELETE CASCADE, so child rows go with it.
   await db.deleteFrom("inspection_section").where("id", "=", id).execute();
   revalidatePath(PATH);

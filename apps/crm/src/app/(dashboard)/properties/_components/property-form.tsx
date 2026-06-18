@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +37,7 @@ interface PropertyFormProps {
 export function PropertyForm({
   propertyId,
   landlords,
+  variant = "card",
   defaultValues,
 }: PropertyFormProps) {
   const action = propertyId
@@ -46,7 +48,7 @@ export function PropertyForm({
   // unselected address has no 지번). Seeded true when editing an existing address.
   const [hasAddress, setHasAddress] = useState(!!defaultValues?.address);
 
-  return (
+  const content = (
     <form action={action}>
       <FieldGroup>
         {/* Row 1-2: 주소 검색 (Postcodify) */}
@@ -254,5 +256,13 @@ export function PropertyForm({
         </div>
       </FieldGroup>
     </form>
+  );
+
+  if (variant === "plain") return content;
+
+  return (
+    <Card>
+      <CardContent className="pt-6">{content}</CardContent>
+    </Card>
   );
 }

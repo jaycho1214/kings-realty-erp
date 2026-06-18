@@ -4,7 +4,6 @@ import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  requireUser,
   requirePermission,
   requireSensitiveAccess,
   canViewSensitive,
@@ -61,7 +60,7 @@ export async function createLandlord(formData: FormData) {
 }
 
 export async function updateLandlord(id: number, formData: FormData) {
-  const session = await requireUser();
+  const session = await requirePermission("landlord", "update");
 
   const db = getDb();
 
@@ -193,7 +192,7 @@ export async function addLandlordFamilyMember(
   landlordId: number,
   formData: FormData,
 ) {
-  const session = await requireUser();
+  const session = await requirePermission("landlord", "update");
 
   const db = getDb();
 
@@ -232,7 +231,7 @@ export async function deleteLandlordFamilyMember(
   id: number,
   landlordId: number,
 ) {
-  await requireUser();
+  await requirePermission("landlord", "update");
 
   const db = getDb();
 

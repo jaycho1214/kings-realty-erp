@@ -57,10 +57,12 @@ export default async function LandlordsPage({
     ]);
 
   if (q) {
+    // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
+    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
     query = query.where((eb) =>
       eb.or([
-        eb("landlord.name", "ilike", `%${q}%`),
-        eb("landlord.phone", "ilike", `%${q}%`),
+        eb("landlord.name", "ilike", `%${escaped}%`),
+        eb("landlord.phone", "ilike", `%${escaped}%`),
       ]),
     );
   }
@@ -70,10 +72,11 @@ export default async function LandlordsPage({
     .select(({ fn }) => fn.count<number>("id").as("count"));
 
   if (q) {
+    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
     countQuery = countQuery.where((eb) =>
       eb.or([
-        eb("landlord.name", "ilike", `%${q}%`),
-        eb("landlord.phone", "ilike", `%${q}%`),
+        eb("landlord.name", "ilike", `%${escaped}%`),
+        eb("landlord.phone", "ilike", `%${escaped}%`),
       ]),
     );
   }

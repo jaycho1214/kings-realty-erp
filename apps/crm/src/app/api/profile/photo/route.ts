@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put, del } from "@vercel/blob";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { isStaffOrAdmin } from "@/lib/authz";
 import { randomUUID } from "crypto";
 import path from "path";
 
@@ -14,8 +15,8 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 function isOwnAvatarBlob(url: string | null | undefined): url is string {
   return Boolean(
     url &&
-      url.includes(".blob.vercel-storage.com") &&
-      url.includes("/avatars/"),
+    url.includes(".blob.vercel-storage.com") &&
+    url.includes("/avatars/"),
   );
 }
 
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isStaffOrAdmin(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const formData = await request.formData();
@@ -74,6 +78,9 @@ export async function DELETE() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isStaffOrAdmin(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const current = session.user.image;
   if (isOwnAvatarBlob(current)) {
