@@ -27,6 +27,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
+import { useIsMac } from "@/hooks/use-is-mac";
 
 interface SearchResults {
   tenants: Array<{
@@ -78,6 +79,7 @@ export function CommandMenu() {
     React.useState<SearchResults | null>(null);
   const [isSearching, setIsSearching] = React.useState(false);
   const router = useRouter();
+  const isMac = useIsMac();
 
   const handleOpenChange = React.useCallback((next: boolean) => {
     setOpen(next);
@@ -145,7 +147,7 @@ export function CommandMenu() {
         <Search />
         <span className="flex-1 text-left">검색...</span>
         <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
-          ⌘K
+          {isMac ? "⌘K" : "Ctrl K"}
         </kbd>
       </Button>
       <CommandDialog
