@@ -116,7 +116,10 @@ export async function markOverdueCharges(today: string): Promise<number> {
     .where("status", "=", "billed")
     .where("paid_by_payment_id", "is", null)
     .where("due_date", "is not", null)
-    .where("due_date", "<", new Date(today))
+    // Compare date-to-date (today is a Seoul "YYYY-MM-DD"). `new Date(today)`
+    // would be UTC-midnight and drift against the date column off a UTC server;
+    // `::date` keeps it a pure date compare, matching recomputeChargeStatus.
+    .where("due_date", "<", sql<Date>`${today}::date`)
     .executeTakeFirst();
   return Number(res.numUpdatedRows);
 }
@@ -221,8 +224,10 @@ export async function generateRecurringChargesForMonth(
  * (`paid_by_payment_id`). But payments recorded WITHOUT that link — imported
  * rows, or collection that bypassed the charge picker — leave the charge
  * stranded as 미납/연체 forever even though the money was received. This matches
- * a charge to the payments for the same (lease, billing_month, type) and, when
- * they fully cover its amount, settles it.
+ * a charge to the recorded (status = 'paid') payments for the same (lease,
+ * billing_month, type) and, when they fully cover its amount, settles it.
+ * Pending/overdue payment rows are money NOT yet collected, so they are
+ * excluded — otherwise an expected-but-unpaid payment would settle the charge.
  *
  * Binary settlement (matches the charge model — see migration 016): only a
  * FULLY-covered charge flips to paid; a partial payment leaves it outstanding.
@@ -249,6 +254,7 @@ export async function reconcileCharges(): Promise<number> {
              sum(p.amount_krw) as paid_krw,
              max(p.id) as payment_id
       from payment p
+      where p.status = 'paid'
       group by p.lease_id, p.billing_month,
                case when p.payment_type = 'prepayment' then 'rent'
                     else p.payment_type end

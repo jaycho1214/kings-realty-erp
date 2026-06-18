@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { getDb } from "@kingsrealty/db";
 import { auth } from "@/lib/auth";
 import { isStaffOrAdmin } from "@/lib/authz";
+import { escapeLike } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,10 +21,7 @@ export async function GET(req: NextRequest) {
     });
 
   const db = getDb();
-  // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
-  // instead of acting as a wildcard that returns unrelated rows.
-  const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
-  const searchTerm = `%${escaped}%`;
+  const searchTerm = `%${escapeLike(q)}%`;
 
   const [tenants, properties, landlords] = await Promise.all([
     db

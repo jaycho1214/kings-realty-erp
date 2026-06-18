@@ -8,7 +8,7 @@ import { FilterTabs } from "@/components/filter-tabs";
 import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, escapeLike } from "@/lib/utils";
 import { seoulYMD } from "@/lib/date";
 import { branchMap } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
@@ -103,8 +103,7 @@ export default async function TenantsPage({
     .where("tenant.deleted_at", isDeletedView ? "is not" : "is", null);
 
   if (q) {
-    // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
-    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const escaped = escapeLike(q);
     query = query.where((eb) =>
       eb.or([
         eb("tenant.name", "ilike", `%${escaped}%`),

@@ -7,7 +7,7 @@ import { CreateDialog } from "@/components/create-dialog";
 import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, escapeLike } from "@/lib/utils";
 import { getSession } from "@/lib/session";
 import { canViewSensitive } from "@/lib/authz";
 import {
@@ -56,27 +56,24 @@ export default async function LandlordsPage({
       "landlord.bank_name",
     ]);
 
-  if (q) {
-    // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
-    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
-    query = query.where((eb) =>
-      eb.or([
-        eb("landlord.name", "ilike", `%${escaped}%`),
-        eb("landlord.phone", "ilike", `%${escaped}%`),
-      ]),
-    );
-  }
-
   let countQuery = db
     .selectFrom("landlord")
     .select(({ fn }) => fn.count<number>("id").as("count"));
 
+  // One block filters both queries so the escape + predicate can never drift
+  // between the rows and the count.
   if (q) {
-    const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const like = `%${escapeLike(q)}%`;
+    query = query.where((eb) =>
+      eb.or([
+        eb("landlord.name", "ilike", like),
+        eb("landlord.phone", "ilike", like),
+      ]),
+    );
     countQuery = countQuery.where((eb) =>
       eb.or([
-        eb("landlord.name", "ilike", `%${escaped}%`),
-        eb("landlord.phone", "ilike", `%${escaped}%`),
+        eb("landlord.name", "ilike", like),
+        eb("landlord.phone", "ilike", like),
       ]),
     );
   }

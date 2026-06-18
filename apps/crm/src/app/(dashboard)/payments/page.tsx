@@ -21,6 +21,7 @@ import {
   formatUSD,
   formatDateCompact,
   formatBillingMonth,
+  escapeLike,
 } from "@/lib/utils";
 import { currencyPaidLabel, methodMap } from "@/lib/labels";
 import { getChargeTypeCatalog } from "@/lib/charge-types.server";
@@ -192,11 +193,12 @@ export default async function PaymentsPage({
       ]);
     }
     if (q) {
+      const like = `%${escapeLike(q)}%`;
       charges = charges.where((eb) =>
         eb.or([
-          eb("tenant.name", "ilike", `%${q}%`),
-          eb("property.address", "ilike", `%${q}%`),
-          eb("property.address_jibeon", "ilike", `%${q}%`),
+          eb("tenant.name", "ilike", like),
+          eb("property.address", "ilike", like),
+          eb("property.address_jibeon", "ilike", like),
         ]),
       );
     }
@@ -241,11 +243,12 @@ export default async function PaymentsPage({
       .where("tenant.deleted_at", "is", null);
 
     if (q) {
+      const like = `%${escapeLike(q)}%`;
       filtered = filtered.where((eb) =>
         eb.or([
-          eb("tenant.name", "ilike", `%${q}%`),
-          eb("property.address", "ilike", `%${q}%`),
-          eb("property.address_jibeon", "ilike", `%${q}%`),
+          eb("tenant.name", "ilike", like),
+          eb("property.address", "ilike", like),
+          eb("property.address_jibeon", "ilike", like),
         ]),
       );
     }

@@ -4,6 +4,7 @@ import { getDb, sql, type DB, type Transaction } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireUser, isAdmin } from "@/lib/authz";
 import { seoulDateString, seoulWeekEnd } from "@/lib/date";
+import { escapeLike } from "@/lib/utils";
 import { loadBoardData } from "@/lib/tasks/queries";
 import type {
   BoardData,
@@ -248,7 +249,7 @@ export async function searchLinkTargets(q: string): Promise<TaskLinkView[]> {
   const term = q.trim();
   if (!term) return [];
   const db = getDb();
-  const like = `%${term}%`;
+  const like = `%${escapeLike(term)}%`;
 
   const [tenants, properties, landlords, leases, services, appliances] =
     await Promise.all([
@@ -301,7 +302,8 @@ export async function searchLinkTargets(q: string): Promise<TaskLinkView[]> {
     ]);
 
   const out: TaskLinkView[] = [];
-  for (const r of tenants) out.push({ type: "tenant", id: r.id, label: r.name });
+  for (const r of tenants)
+    out.push({ type: "tenant", id: r.id, label: r.name });
   for (const r of properties)
     out.push({ type: "property", id: r.id, label: r.label });
   for (const r of landlords)

@@ -2,10 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@kingsrealty/db";
 import { getSession } from "@/lib/session";
 import { isStaffOrAdmin } from "@/lib/authz";
+import { formatKRW, formatDateCompact } from "@/lib/utils";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs/promises";
 import path from "path";
+
+// The 3.3 MB Korean font never changes between requests — read it from disk
+// once per server instance instead of on every PDF generation.
+let fontBytesPromise: Promise<Buffer> | null = null;
+function loadFontBytes(): Promise<Buffer> {
+  if (!fontBytesPromise) {
+    fontBytesPromise = fs.readFile(
+      path.join(process.cwd(), "src", "templates", "NanumGothic.ttf"),
+    );
+  }
+  return fontBytesPromise;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -54,9 +67,7 @@ export async function GET(
   // The official HQ IMHM 1057EK-R fillable template is not bundled with the app,
   // so the document is generated directly with pdf-lib. NanumGothic carries both
   // Korean and Latin glyphs, so it is used for the whole document.
-  const fontBytes = await fs.readFile(
-    path.join(process.cwd(), "src", "templates", "NanumGothic.ttf"),
-  );
+  const fontBytes = await loadFontBytes();
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
@@ -68,12 +79,6 @@ export async function GET(
   const termMonths =
     (endDate.getFullYear() - startDate.getFullYear()) * 12 +
     (endDate.getMonth() - startDate.getMonth());
-  const fmtDate = (d: Date) =>
-    `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
-      d.getDate(),
-    ).padStart(2, "0")}`;
-  const fmtKRW = (v: string | number) =>
-    `₩${Number(v).toLocaleString("ko-KR")}`;
   const dash = (v: string | number | null | undefined) =>
     v === null || v === undefined || v === "" ? "-" : String(v);
 
@@ -193,11 +198,11 @@ export async function GET(
 
   // --- 계약 조건 (Terms) ---
   sectionTitle("계약 조건 (Terms)");
-  row("시작일 / Begin", fmtDate(startDate));
-  row("종료일 / Expire", fmtDate(endDate));
+  row("시작일 / Begin", formatDateCompact(startDate));
+  row("종료일 / Expire", formatDateCompact(endDate));
   row("계약 기간 / Term", `${termMonths}개월`);
-  row("월 임대료 / Monthly Rent", fmtKRW(lease.monthly_rent_krw));
-  row("보증금 / Deposit", fmtKRW(lease.deposit_krw));
+  row("월 임대료 / Monthly Rent", formatKRW(lease.monthly_rent_krw));
+  row("보증금 / Deposit", formatKRW(lease.deposit_krw));
   y -= 18;
 
   // --- signatures ---

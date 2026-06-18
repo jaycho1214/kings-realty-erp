@@ -9,7 +9,7 @@ import { FilterTabs } from "@/components/filter-tabs";
 import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
-import { formatKRW } from "@/lib/utils";
+import { formatKRW, escapeLike } from "@/lib/utils";
 import {
   Table,
   TableHeader,
@@ -92,8 +92,7 @@ export default async function PropertiesPage({
     ]);
 
   if (search) {
-    // Escape ILIKE wildcards (\, %, _) so a query of "%" or "_" matches literally
-    const escaped = search.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const escaped = escapeLike(search);
     query = query.where((eb) =>
       eb.or([
         eb("property.address", "ilike", `%${escaped}%`),

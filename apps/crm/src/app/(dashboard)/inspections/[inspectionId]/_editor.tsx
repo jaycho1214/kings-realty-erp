@@ -136,6 +136,10 @@ export function InspectionEditor(props: {
       return;
     }
     const t = setTimeout(() => {
+      // Re-check at fire time: a timer armed by an edit just before 완료 must not
+      // race the finalize write (this guard runs when the effect runs, not when
+      // the timeout fires, so finalizing.current could have flipped meanwhile).
+      if (finalized || finalizing.current) return;
       setSaveState("saving");
       persist()
         .then(stampSaved)
@@ -298,9 +302,7 @@ export function InspectionEditor(props: {
                         <button
                           type="button"
                           onClick={() =>
-                            setExpanded((prev) =>
-                              new Set(prev).add(item.id),
-                            )
+                            setExpanded((prev) => new Set(prev).add(item.id))
                           }
                           className="text-xs text-muted-foreground/60 underline-offset-2 hover:text-foreground hover:underline"
                         >
@@ -313,7 +315,9 @@ export function InspectionEditor(props: {
                             key={s}
                             type="button"
                             disabled={finalized}
-                            onClick={() => patchItem(sIdx, item.id, { status: s })}
+                            onClick={() =>
+                              patchItem(sIdx, item.id, { status: s })
+                            }
                             className={cn(
                               "rounded-md border px-2 py-0.5 text-xs transition-colors disabled:opacity-60",
                               item.status === s
@@ -343,7 +347,9 @@ export function InspectionEditor(props: {
                           size="sm"
                           alert={needsPhoto}
                           onAdd={(p) => addItemPhoto(sIdx, item.id, p)}
-                          onRemove={(pid) => removeItemPhoto(sIdx, item.id, pid)}
+                          onRemove={(pid) =>
+                            removeItemPhoto(sIdx, item.id, pid)
+                          }
                         />
                       </div>
                     )}
@@ -432,10 +438,14 @@ export function InspectionEditor(props: {
               점검 {checked}/{total}
             </span>
             {issueCount > 0 && (
-              <span className="tabular-nums text-warning">이상 {issueCount}</span>
+              <span className="tabular-nums text-warning">
+                이상 {issueCount}
+              </span>
             )}
             {damageCount > 0 && (
-              <span className="tabular-nums text-danger">파손 {damageCount}</span>
+              <span className="tabular-nums text-danger">
+                파손 {damageCount}
+              </span>
             )}
             <span className="text-muted-foreground/70">
               {saveState === "saving"

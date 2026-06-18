@@ -9,6 +9,7 @@ import { FilterTabs } from "@/components/filter-tabs";
 import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
+import { escapeLike } from "@/lib/utils";
 import {
   Table,
   TableHeader,
@@ -83,7 +84,7 @@ export default async function AppliancesPage({
     ]);
 
   if (search) {
-    const escaped = search.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const escaped = escapeLike(search);
     query = query.where((eb) =>
       eb.or([
         eb("appliance.name", "ilike", `%${escaped}%`),

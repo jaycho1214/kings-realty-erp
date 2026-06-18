@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronsUpDown, Check, X, Link2 } from "lucide-react";
 import {
   Dialog,
@@ -81,6 +81,16 @@ export function TaskDialog({
   const [pending, start] = useTransition();
   const [, startSearch] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeq = useRef(0);
+
+  // The dialog is force-remounted via `key` on every open, so clear any pending
+  // debounce timer on unmount — otherwise a late search fires on a dead instance.
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   const selected = staff.filter((u) => ids.includes(u.id));
   const toggle = (id: number) =>
@@ -102,11 +112,14 @@ export function TaskDialog({
       return;
     }
     timer.current = setTimeout(() => {
+      const seq = ++searchSeq.current;
       startSearch(async () => {
         try {
-          setLinkResults(await searchLinkTargets(q));
+          const results = await searchLinkTargets(q);
+          // Drop a slow earlier response that resolves after a newer query.
+          if (seq === searchSeq.current) setLinkResults(results);
         } catch {
-          setLinkResults([]);
+          if (seq === searchSeq.current) setLinkResults([]);
         }
       });
     }, 250);

@@ -9,6 +9,7 @@ import { FilterTabs } from "@/components/filter-tabs";
 import { PageHeader } from "@/components/page-header";
 import { DataPanel } from "@/components/data-panel";
 import { EmptyState } from "@/components/empty-state";
+import { escapeLike } from "@/lib/utils";
 import {
   Table,
   TableHeader,
@@ -81,11 +82,12 @@ export default async function ServicesPage({
     ])
     .where("tenant.deleted_at", "is", null);
 
-  if (q) {
+  const like = q ? `%${escapeLike(q)}%` : null;
+  if (like) {
     query = query.where((eb) =>
       eb.or([
-        eb("service_request.title", "ilike", `%${q}%`),
-        eb("tenant.name", "ilike", `%${q}%`),
+        eb("service_request.title", "ilike", like),
+        eb("tenant.name", "ilike", like),
       ]),
     );
   }
@@ -105,11 +107,11 @@ export default async function ServicesPage({
     .select(({ fn }) => fn.count<number>("service_request.id").as("count"))
     .where("tenant.deleted_at", "is", null);
 
-  if (q) {
+  if (like) {
     countQuery = countQuery.where((eb) =>
       eb.or([
-        eb("service_request.title", "ilike", `%${q}%`),
-        eb("tenant.name", "ilike", `%${q}%`),
+        eb("service_request.title", "ilike", like),
+        eb("tenant.name", "ilike", like),
       ]),
     );
   }

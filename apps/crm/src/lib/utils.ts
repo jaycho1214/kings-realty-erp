@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Escape Postgres LIKE/ILIKE wildcards (`\`, `%`, `_`) in user input so a query
+ * of "%" or "_" matches literally instead of acting as a wildcard that returns
+ * unrelated rows. Wrap the result yourself for a contains search:
+ * `` `%${escapeLike(q)}%` ``.
+ */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export function formatKRW(amount: number | string): string {
   const num = typeof amount === "string" ? Number(amount) : amount;
   if (!Number.isFinite(num)) return "₩0";

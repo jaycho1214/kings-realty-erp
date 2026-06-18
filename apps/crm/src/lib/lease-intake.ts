@@ -192,11 +192,16 @@ export function parseLeaseIntake(
   }
   const monthlyRentKrw = str("monthly_rent_krw");
   const depositKrw = str("deposit_krw");
-  if (!monthlyRentKrw || !Number.isFinite(Number(monthlyRentKrw))) {
-    throw new Error("월세를 숫자로 입력해주세요.");
+  // Reject blank, non-numeric, and out-of-range values: rent must be > 0 (a 0 or
+  // negative monthly rent is never valid and would seed a bogus recurring charge),
+  // deposit must be >= 0. `Number.isFinite` alone wrongly accepts "0"/"-5000".
+  const rentNum = Number(monthlyRentKrw);
+  if (!monthlyRentKrw || !Number.isFinite(rentNum) || rentNum <= 0) {
+    throw new Error("월세를 0보다 큰 숫자로 입력해주세요.");
   }
-  if (!depositKrw || !Number.isFinite(Number(depositKrw))) {
-    throw new Error("보증금을 숫자로 입력해주세요.");
+  const depositNum = Number(depositKrw);
+  if (!depositKrw || !Number.isFinite(depositNum) || depositNum < 0) {
+    throw new Error("보증금을 0 이상의 숫자로 입력해주세요.");
   }
 
   return {
