@@ -18,7 +18,6 @@ import { UtilityBills } from "./_components/utility-bills";
 import { LeaseChecklist } from "./_components/lease-checklist";
 import { deleteLease } from "../_actions";
 import { DownloadLeaseButton } from "./_components/download-lease-button";
-import { Inspections } from "./_components/inspections";
 import { DepositSettlement } from "./_components/deposit-settlement";
 import { getSession } from "@/lib/session";
 import { canViewSensitive } from "@/lib/authz";
@@ -80,7 +79,6 @@ export default async function LeaseDetailPage({
     depositPaid,
     propertyStatus,
     realtyFeeRows,
-    inspections,
     depositSettlement,
     settlementSession,
   ] = await Promise.all([
@@ -166,19 +164,6 @@ export default async function LeaseDetailPage({
     db
       .selectFrom("realty_fee_default")
       .select(["currency", "amount"])
-      .execute(),
-    db
-      .selectFrom("inspection")
-      .select([
-        "id",
-        "type",
-        "inspected_at",
-        "participants",
-        "checklist",
-        "summary",
-      ])
-      .where("lease_id", "=", numId)
-      .orderBy("inspected_at", "desc")
       .execute(),
     db
       .selectFrom("deposit_settlement")
@@ -421,24 +406,6 @@ export default async function LeaseDetailPage({
               leaseId={numId}
               bills={utilityBills}
               utilityTypes={utilityTypes}
-            />
-          ),
-        },
-        {
-          key: "inspections",
-          label: "입주/퇴거 점검",
-          count: inspections.length,
-          content: (
-            <Inspections
-              leaseId={numId}
-              propertyId={lease.property_id}
-              inspections={inspections.map((i) => ({
-                ...i,
-                inspected_at:
-                  i.inspected_at instanceof Date
-                    ? i.inspected_at.toISOString()
-                    : String(i.inspected_at),
-              }))}
             />
           ),
         },

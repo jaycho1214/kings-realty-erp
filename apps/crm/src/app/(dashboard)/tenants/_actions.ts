@@ -1,6 +1,7 @@
 "use server";
 
 import { getDb } from "@kingsrealty/db";
+import { del } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -14,6 +15,7 @@ import {
   generateRecurringChargesForMonth,
   recomputeChargeStatus,
 } from "@/lib/charges";
+import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
 
 export async function createTenant(formData: FormData) {
   const session = await requirePermission("tenant", "create");
@@ -869,4 +871,196 @@ export async function deleteBaseLocation(id: number) {
 
   revalidatePath("/tenants");
   revalidatePath("/settings");
+}
+
+// --- 입주/퇴거 점검 (Inspections) ---
+
+export async function createInspectionDraft(
+  tenantId: number,
+  leaseId: number,
+  propertyId: number,
+  formData: FormData,
+) {
+  const session = await requireUser();
+  const db = getDb();
+
+  const type = formData.get("type") === "move_out" ? "move_out" : "move_in";
+  const dateRaw = formData.get("inspected_at") as string | null;
+  const inspected_at = dateRaw ? new Date(dateRaw) : new Date();
+
+  const [sections, items, property] = await Promise.all([
+    db
+      .selectFrom("inspection_section")
+      .select(["id", "key", "label_ko", "label_en", "repeatable", "sort_order"])
+      .orderBy("sort_order", "asc")
+      .execute(),
+    db
+      .selectFrom("inspection_item")
+      .select([
+        "id",
+        "section_id",
+        "subgroup_ko",
+        "subgroup_en",
+        "label_ko",
+        "label_en",
+        "sort_order",
+      ])
+      .orderBy("sort_order", "asc")
+      .execute(),
+    db
+      .selectFrom("property")
+      .select(["rooms", "bathrooms"])
+      .where("id", "=", propertyId)
+      .executeTakeFirst(),
+  ]);
+
+  const snapshot = buildInspectionSnapshot(sections, items, {
+    rooms: property?.rooms ?? null,
+    bathrooms: property?.bathrooms ?? null,
+  });
+
+  const inserted = await db
+    .insertInto("inspection")
+    .values({
+      lease_id: leaseId,
+      property_id: propertyId,
+      type,
+      inspected_at,
+      status: "draft",
+      checklist: JSON.stringify(snapshot),
+      created_by: Number(session.user.id),
+    })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+
+  revalidatePath(`/tenants/${tenantId}`);
+  redirect(`/inspections/${inserted.id}`);
+}
+
+export async function saveInspection(
+  id: number,
+  tenantId: number,
+  payload: { checklist: string; signature: string; summary: string | null },
+) {
+  await requireUser();
+  const db = getDb();
+  await db
+    .updateTable("inspection")
+    .set({
+      checklist: payload.checklist,
+      signature: payload.signature,
+      summary: payload.summary,
+      updated_at: new Date(),
+    })
+    .where("id", "=", id)
+    .execute();
+  revalidatePath(`/inspections/${id}`);
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+export async function finalizeInspection(id: number, tenantId: number) {
+  await requireUser();
+  const db = getDb();
+
+  const insp = await db
+    .selectFrom("inspection")
+    .select(["type", "property_id", "inspected_at"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (!insp) throw new Error("점검 기록을 찾을 수 없습니다.");
+
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("inspection")
+      .set({ status: "finalized", updated_at: new Date() })
+      .where("id", "=", id)
+      .execute();
+
+    if (insp.type === "move_in") {
+      await trx
+        .updateTable("property")
+        .set({ status: "occupied", updated_at: new Date() })
+        .where("id", "=", insp.property_id)
+        .execute();
+    } else {
+      const moveoutDate = seoulDateString(
+        insp.inspected_at instanceof Date
+          ? insp.inspected_at
+          : new Date(insp.inspected_at),
+      );
+      await trx
+        .updateTable("property")
+        .set({
+          status: "move_out",
+          moveout_date: moveoutDate,
+          updated_at: new Date(),
+        })
+        .where("id", "=", insp.property_id)
+        .execute();
+    }
+  });
+
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath(`/inspections/${id}`);
+  revalidatePath("/properties");
+  revalidatePath(`/properties/${insp.property_id}`);
+}
+
+async function deleteInspectionBlobs(
+  db: ReturnType<typeof getDb>,
+  inspectionId: number,
+) {
+  const docs = await db
+    .selectFrom("document")
+    .select(["id", "file_url"])
+    .where("entity_type", "=", "inspection")
+    .where("entity_id", "=", inspectionId)
+    .execute();
+  for (const d of docs) {
+    try {
+      await del(d.file_url);
+    } catch (err) {
+      console.error("inspection blob delete failed", d.id, err);
+    }
+  }
+  if (docs.length > 0) {
+    await db
+      .deleteFrom("document")
+      .where("entity_type", "=", "inspection")
+      .where("entity_id", "=", inspectionId)
+      .execute();
+  }
+}
+
+export async function deleteInspection(id: number, tenantId: number) {
+  await requireUser();
+  const db = getDb();
+  await deleteInspectionBlobs(db, id);
+  await db.deleteFrom("inspection").where("id", "=", id).execute();
+  revalidatePath(`/tenants/${tenantId}`);
+}
+
+export async function deleteInspectionPhoto(
+  documentId: number,
+  inspectionId: number,
+  tenantId: number,
+) {
+  await requireUser();
+  const db = getDb();
+  const doc = await db
+    .selectFrom("document")
+    .select(["file_url"])
+    .where("id", "=", documentId)
+    .where("entity_type", "=", "inspection")
+    .executeTakeFirst();
+  if (doc) {
+    try {
+      await del(doc.file_url);
+    } catch (err) {
+      console.error("inspection photo blob delete failed", documentId, err);
+    }
+    await db.deleteFrom("document").where("id", "=", documentId).execute();
+  }
+  revalidatePath(`/inspections/${inspectionId}`);
+  revalidatePath(`/tenants/${tenantId}`);
 }

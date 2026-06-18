@@ -45,7 +45,7 @@ import { deleteTenant } from "../_actions";
 import { TenantStatusButton } from "../_components/tenant-status-button";
 import { LeaseForm } from "../../leases/_components/lease-form";
 import { OhaAllowancePopover } from "../_components/oha-allowance-popover";
-import { Inspections } from "../../leases/[id]/_components/inspections";
+import { Inspections } from "../_components/inspections";
 
 export default async function TenantDetailPage({
   params,
@@ -361,38 +361,16 @@ export default async function TenantDetailPage({
 
   // Inspections (입주/퇴거 점검) belong to a lease; bind the tab to the tenant's
   // most-recent lease (covers both move-in on a current lease and move-out on a
-  // just-ended one). Staff names feed the "우리 직원" participant autocomplete.
+  // just-ended one).
   const inspectionLease = leases[0] ?? null;
-  const [inspections, staffUsers] = await Promise.all([
-    inspectionLease
-      ? db
-          .selectFrom("inspection")
-          .select([
-            "id",
-            "type",
-            "inspected_at",
-            "participants",
-            "checklist",
-            "summary",
-          ])
-          .where("lease_id", "=", inspectionLease.id)
-          .orderBy("inspected_at", "desc")
-          .execute()
-      : Promise.resolve([]),
-    db.selectFrom("user").select(["name"]).orderBy("name", "asc").execute(),
-  ]);
-  const staffOptions = staffUsers
-    .map((u) => u.name)
-    .filter((n): n is string => Boolean(n));
-
-  // 임차인 자동완성 후보: 세입자 본인 + 동행 가능한 가족 구성원 이름 (중복 제거).
-  const tenantOptions = Array.from(
-    new Set(
-      [tenant.name, ...familyMembers.map((m) => m.name)].filter(
-        (n): n is string => Boolean(n),
-      ),
-    ),
-  );
+  const inspections = inspectionLease
+    ? await db
+        .selectFrom("inspection")
+        .select(["id", "type", "status", "inspected_at", "checklist", "summary"])
+        .where("lease_id", "=", inspectionLease.id)
+        .orderBy("inspected_at", "desc")
+        .execute()
+    : [];
 
   const baseLocation = tenant.base_location_id
     ? baseLocations.find((b) => b.id === tenant.base_location_id)
@@ -765,26 +743,23 @@ export default async function TenantDetailPage({
           key: "inspections",
           label: "입주/퇴거 점검",
           count: inspections.length,
-          content: inspectionLease ? (
+          content: (
             <Inspections
-              leaseId={inspectionLease.id}
-              propertyId={inspectionLease.property_id}
-              staffOptions={staffOptions}
-              tenantOptions={tenantOptions}
+              tenantId={numId}
+              leaseId={inspectionLease?.id ?? null}
+              propertyId={inspectionLease?.property_id ?? null}
               inspections={inspections.map((i) => ({
-                ...i,
+                id: i.id,
+                type: i.type,
+                status: i.status,
+                summary: i.summary,
+                checklist: i.checklist,
                 inspected_at:
                   i.inspected_at instanceof Date
                     ? i.inspected_at.toISOString()
                     : String(i.inspected_at),
               }))}
             />
-          ) : (
-            <DataPanel>
-              <p className="px-3.5 py-8 text-center text-sm text-muted-foreground">
-                계약을 먼저 등록한 뒤 입주/퇴거 점검을 기록할 수 있습니다.
-              </p>
-            </DataPanel>
           ),
         },
         {
