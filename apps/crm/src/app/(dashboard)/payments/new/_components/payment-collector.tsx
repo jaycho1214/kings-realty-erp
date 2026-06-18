@@ -46,6 +46,8 @@ interface Lease {
   id: number;
   tenant_name: string;
   property_address: string;
+  /** 도로명 address shown as a muted second line under the 지번 address. */
+  property_address_sub?: string | null;
   monthly_rent_krw: number;
 }
 
@@ -488,7 +490,7 @@ export function PaymentCollector({
                             {leases.map((lease) => (
                               <CommandItem
                                 key={lease.id}
-                                value={`${lease.tenant_name} ${lease.property_address}`}
+                                value={`${lease.tenant_name} ${lease.property_address} ${lease.property_address_sub ?? ""}`}
                                 onSelect={() => {
                                   const next =
                                     lease.id === selectedLeaseId
@@ -511,6 +513,11 @@ export function PaymentCollector({
                                   <span className="text-xs text-muted-foreground">
                                     {lease.property_address}
                                   </span>
+                                  {lease.property_address_sub && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {lease.property_address_sub}
+                                    </span>
+                                  )}
                                 </div>
                               </CommandItem>
                             ))}

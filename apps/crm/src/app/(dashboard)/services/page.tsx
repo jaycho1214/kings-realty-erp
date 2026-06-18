@@ -144,7 +144,7 @@ export default async function ServicesPage({
       .select([
         "lease.id",
         "tenant.name as tenant_name",
-        sql<string>`coalesce(property.address_jibeon, property.address)`.as(
+        sql<string>`coalesce(property.address_jibeon, property.address) || coalesce(' ' || nullif(btrim(property.address_detail), ''), '')`.as(
           "address",
         ),
         // The 도로명 address as the combobox's second line — only when 지번 is

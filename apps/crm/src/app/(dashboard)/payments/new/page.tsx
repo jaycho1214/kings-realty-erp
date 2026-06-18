@@ -27,6 +27,12 @@ export default async function NewPaymentPage({
           "property_address",
         ),
         "property.address_detail",
+        // 도로명 as the second line — only when 지번 is the primary above.
+        sql<
+          string | null
+        >`case when property.address_jibeon is not null then property.address else null end`.as(
+          "property_address_sub",
+        ),
       ])
       .where("lease.status", "=", "active")
       .orderBy("tenant.name", "asc")
@@ -72,6 +78,7 @@ export default async function NewPaymentPage({
     property_address: l.address_detail
       ? `${l.property_address} ${l.address_detail}`
       : l.property_address,
+    property_address_sub: l.property_address_sub,
     monthly_rent_krw: Number(l.monthly_rent_krw),
   }));
 
