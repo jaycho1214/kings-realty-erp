@@ -72,8 +72,12 @@ const navItems: { title: string; href: string; icon: LucideIcon }[] = [
   { title: "설정", href: "/settings", icon: Settings },
 ];
 
-export function CommandMenu() {
-  const [open, setOpen] = React.useState(false);
+interface CommandMenuProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [searchResults, setSearchResults] =
     React.useState<SearchResults | null>(null);
@@ -81,25 +85,19 @@ export function CommandMenu() {
   const router = useRouter();
   const isMac = useIsMac();
 
-  const handleOpenChange = React.useCallback((next: boolean) => {
-    setOpen(next);
-    if (!next) {
-      setSearchQuery("");
-      setSearchResults(null);
-      setIsSearching(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        handleOpenChange(!open);
+  // The ⌘K / Ctrl+K listener lives in the topbar (always mounted) rather than
+  // here, so the shortcut works before this lazy-loaded chunk finishes loading.
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      onOpenChange(next);
+      if (!next) {
+        setSearchQuery("");
+        setSearchResults(null);
+        setIsSearching(false);
       }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, handleOpenChange]);
+    },
+    [onOpenChange],
+  );
 
   React.useEffect(() => {
     if (!searchQuery) return;
@@ -141,7 +139,7 @@ export function CommandMenu() {
     <>
       <Button
         variant="outline"
-        onClick={() => setOpen(true)}
+        onClick={() => onOpenChange(true)}
         className="w-56 justify-start gap-2 text-muted-foreground"
       >
         <Search />

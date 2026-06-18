@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, Bell, ChevronDown, LogOut, Pencil } from "lucide-react";
 
 const CommandMenu = dynamic(
@@ -35,6 +35,28 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const router = useRouter();
   const { data: session } = useSession();
   const [editOpen, setEditOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  // ⌘K / Ctrl+K toggles the command palette. Bound here in the always-mounted
+  // topbar (not inside the lazy-loaded CommandMenu) so the listener is attached
+  // immediately on every page. On Windows, Ctrl+K is Chrome's "search the web"
+  // accelerator — capturing it and calling preventDefault before the menu chunk
+  // loads is what stops the browser from hijacking the shortcut. The !altKey
+  // guard avoids clashing with AltGr (Ctrl+Alt) combos on international layouts.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        (e.key === "k" || e.key === "K" || e.code === "KeyK")
+      ) {
+        e.preventDefault();
+        setCommandOpen((prev) => !prev);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const name = session?.user?.name ?? "사용자";
   const email = session?.user?.email ?? "";
@@ -79,7 +101,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden md:block">
-          <CommandMenu />
+          <CommandMenu open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
 
         <Button
