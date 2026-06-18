@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +42,10 @@ export function PropertyForm({
     ? updateProperty.bind(null, propertyId)
     : createProperty;
 
+  // Require a Postcodify selection so both 지번 and 도로명 are saved (a typed-but-
+  // unselected address has no 지번). Seeded true when editing an existing address.
+  const [hasAddress, setHasAddress] = useState(!!defaultValues?.address);
+
   return (
     <form action={action}>
       <FieldGroup>
@@ -56,6 +61,7 @@ export function PropertyForm({
                 }
               : undefined
           }
+          onSelect={(d) => setHasAddress(!!d)}
         />
 
         {/* Row 3: 유형, 면적, 방, 화장실 */}
@@ -238,8 +244,13 @@ export function PropertyForm({
           />
         </Field>
 
-        <div className="flex justify-end">
-          <SubmitButton />
+        <div className="flex items-center justify-end gap-3">
+          {!hasAddress && (
+            <span className="text-xs text-muted-foreground">
+              주소를 검색해 선택해주세요
+            </span>
+          )}
+          <SubmitButton disabled={!hasAddress} />
         </div>
       </FieldGroup>
     </form>

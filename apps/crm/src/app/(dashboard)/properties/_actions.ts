@@ -33,6 +33,12 @@ export async function createProperty(formData: FormData) {
   const management_phone = (formData.get("management_phone") as string) || null;
   const moveout_date = (formData.get("moveout_date") as string) || null;
 
+  // Require a Postcodify-selected address: both 지번 and 도로명 must be present so
+  // every new property is stored normalized (a typed-but-unselected address has
+  // neither). The form also blocks submit, this is the server-side backstop.
+  if (!address?.trim() || !address_jibeon?.trim()) {
+    throw new Error("주소를 검색하여 선택해주세요. (지번·도로명 주소가 함께 저장됩니다)");
+  }
   if (Number.isNaN(monthly_rent_krw) || Number.isNaN(deposit_krw)) {
     throw new Error("임대료와 보증금을 숫자로 입력해주세요.");
   }
@@ -95,6 +101,12 @@ export async function updateProperty(id: number, formData: FormData) {
   const management_phone = (formData.get("management_phone") as string) || null;
   const moveout_date = (formData.get("moveout_date") as string) || null;
 
+  // A 도로명 address must always be present. 지번 isn't hard-required here so the
+  // few still-un-normalized legacy rows stay editable; selecting a new address
+  // repopulates both via Postcodify.
+  if (!address?.trim()) {
+    throw new Error("주소를 검색하여 선택해주세요.");
+  }
   if (Number.isNaN(monthly_rent_krw) || Number.isNaN(deposit_krw)) {
     throw new Error("임대료와 보증금을 숫자로 입력해주세요.");
   }

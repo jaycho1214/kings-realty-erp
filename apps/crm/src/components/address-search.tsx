@@ -23,7 +23,7 @@ interface AddressSearchProps {
     address_detail: string | null;
     address_en: string | null;
   };
-  onSelect?: (data: AddressData) => void;
+  onSelect?: (data: AddressData | null) => void;
 }
 
 export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
@@ -182,7 +182,10 @@ export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
               variant="ghost"
               size="sm"
               className="h-6 text-xs"
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                setSelected(null);
+                onSelect?.(null);
+              }}
             >
               변경
             </Button>
