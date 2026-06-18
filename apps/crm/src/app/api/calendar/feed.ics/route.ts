@@ -3,12 +3,15 @@ import ical, { ICalCalendarMethod, ICalEventStatus } from "ical-generator";
 import { getDb } from "@kingsrealty/db";
 import { getCalendarEventsRange } from "@/lib/calendar-events";
 import { categoryConfig } from "@/lib/calendar-config";
+import { isApprovedUser } from "@/lib/authz";
 import { seoulYMD, firstOfMonth } from "@/lib/date";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
 
-  if (!token) {
+  // A blank/short token must never match. The feed is a bearer-secret URL, so
+  // guard against an empty query param matching a stray empty/short DB value.
+  if (!token || token.length < 16) {
     return NextResponse.json({ error: "Token required" }, { status: 401 });
   }
 
@@ -16,11 +19,21 @@ export async function GET(request: NextRequest) {
   const db = getDb();
   const user = await db
     .selectFrom("user")
-    .select(["id", "name"])
+    .select(["id", "name", "role", "banned", "banExpires"])
     .where("calendar_token", "=", token)
     .executeTakeFirst();
 
   if (!user) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  }
+
+  // The token outlives a single session, so re-check the owner's authorization
+  // on every request: a banned/deactivated or still-pending user's token must
+  // stop working immediately (revoking access actually cuts off the feed).
+  const banActive =
+    user.banned === true &&
+    (user.banExpires == null || new Date(user.banExpires) > new Date());
+  if (banActive || !isApprovedUser(user.role)) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
