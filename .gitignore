@@ -34,3 +34,4 @@ skills-lock.json
 
 # npm lockfile (using pnpm)
 package-lock.json
+.gstack/

@@ -153,6 +153,7 @@ export function Inspections({
                   <Button
                     variant="outline"
                     size="sm"
+                    nativeButton={false}
                     render={<Link href={`/inspections/${insp.id}`} />}
                   >
                     {insp.status === "draft" ? "이어서 작성" : "열기"}

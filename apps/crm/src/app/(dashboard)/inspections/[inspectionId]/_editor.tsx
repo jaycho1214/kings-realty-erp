@@ -214,6 +214,7 @@ export function InspectionEditor(props: {
             <Button
               variant="ghost"
               size="sm"
+              nativeButton={false}
               render={<Link href={listHref} />}
             >
               <ArrowLeft className="size-4" /> 목록
