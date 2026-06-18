@@ -8,9 +8,12 @@ import {
   requireAdmin,
   requireSensitiveAccess,
   requirePermission,
+  canViewSensitive,
 } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { seoulDateString } from "@/lib/date";
+import { encryptRrn } from "@/lib/rrn";
+import { parseLeaseIntake } from "@/lib/lease-intake";
 
 /** Parse the contract-specific (임대인측·realty fee·갱신) fields shared by
  *  create/update. Empty numeric fields become null. */
@@ -94,6 +97,146 @@ export async function createLease(formData: FormData) {
   revalidatePath(`/properties/${property_id}`);
   // Tenant-centric: return to the tenant the lease belongs to.
   redirect(`/tenants/${tenant_id}`);
+}
+
+/**
+ * 계약서 일괄 등록: 임대인(+공동 임대인) · 매물 · 임차인 · 계약을 한 트랜잭션으로
+ * 생성한다. 각 섹션은 기존 레코드 재사용 또는 신규 생성 중 하나다. 신규 매물일
+ * 때만 임대인을 생성/선택하며, 기존 매물이면 매물의 임대인을 그대로 쓴다.
+ */
+export async function createLeaseIntake(formData: FormData) {
+  const session = await requirePermission("lease", "create");
+  const canViewRrn = canViewSensitive(session.user.role);
+  const plan = parseLeaseIntake(formData, { canViewRrn });
+
+  // Permission for every entity this call will actually insert.
+  if (plan.tenant.mode === "new") await requirePermission("tenant", "create");
+  if (plan.property.mode === "new") {
+    await requirePermission("property", "create");
+    if (plan.landlord!.mode === "new") {
+      await requirePermission("landlord", "create");
+    }
+  }
+
+  const db = getDb();
+  const userId = Number(session.user.id);
+  let tenantId = 0;
+  let propertyId = 0;
+
+  await db.transaction().execute(async (trx) => {
+    // 1. 임대인 (+ 공동 임대인) — only when creating a new property
+    let landlordId = 0;
+    if (plan.property.mode === "new") {
+      const L = plan.landlord!;
+      if (L.mode === "existing") {
+        landlordId = L.landlordId;
+      } else {
+        const ins = await trx
+          .insertInto("landlord")
+          .values({
+            name: L.name,
+            phone: L.phone,
+            email: L.email,
+            address: L.address,
+            rrn_encrypted: L.rrn ? encryptRrn(L.rrn) : null,
+            created_by: userId,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        landlordId = ins.id;
+        for (const c of L.coLessors) {
+          await trx
+            .insertInto("landlord_family_member")
+            .values({
+              landlord_id: landlordId,
+              name: c.name,
+              relationship: c.relationship,
+              phone: c.phone,
+              rrn_encrypted: c.rrn ? encryptRrn(c.rrn) : null,
+            })
+            .execute();
+        }
+      }
+    }
+
+    // 2. 매물
+    if (plan.property.mode === "existing") {
+      propertyId = plan.property.propertyId;
+    } else {
+      const P = plan.property;
+      const ins = await trx
+        .insertInto("property")
+        .values({
+          address: P.address,
+          property_type: P.propertyType,
+          size_pyeong: P.sizePyeong !== null ? String(P.sizePyeong) : null,
+          monthly_rent_krw: plan.terms.monthlyRentKrw,
+          deposit_krw: plan.terms.depositKrw,
+          status: "occupied",
+          landlord_id: landlordId,
+          created_by: userId,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      propertyId = ins.id;
+    }
+
+    // 3. 임차인
+    if (plan.tenant.mode === "existing") {
+      tenantId = plan.tenant.tenantId;
+    } else {
+      const T = plan.tenant;
+      const ins = await trx
+        .insertInto("tenant")
+        .values({
+          name: T.name,
+          phone: T.phone,
+          rank: T.rank,
+          military_id: T.militaryId,
+          unit: T.unit,
+          email: T.email,
+          base_location_id: T.baseLocationId,
+          status: "active",
+          created_by: userId,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      tenantId = ins.id;
+    }
+
+    // 4. 계약 + status side-effects (same as createLease)
+    await trx
+      .insertInto("lease")
+      .values({
+        property_id: propertyId,
+        tenant_id: tenantId,
+        start_date: new Date(plan.terms.startDate),
+        end_date: new Date(plan.terms.endDate),
+        monthly_rent_krw: plan.terms.monthlyRentKrw,
+        deposit_krw: plan.terms.depositKrw,
+        status: "active",
+        notes: plan.terms.notes,
+        created_by: userId,
+      })
+      .execute();
+
+    await trx
+      .updateTable("property")
+      .set({ status: "occupied", updated_at: new Date() })
+      .where("id", "=", propertyId)
+      .execute();
+    await trx
+      .updateTable("tenant")
+      .set({ status: "active", updated_at: new Date() })
+      .where("id", "=", tenantId)
+      .execute();
+  });
+
+  revalidatePath("/tenants");
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/properties");
+  revalidatePath(`/properties/${propertyId}`);
+  redirect(`/tenants/${tenantId}`);
 }
 
 export async function updateLease(id: number, formData: FormData) {
