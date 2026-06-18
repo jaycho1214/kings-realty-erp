@@ -147,10 +147,14 @@ export default async function TenantsPage({
       .orderBy("sort_order", "asc")
       .execute(),
     // Combobox sources for the 계약서로 등록 (lease intake) dialog.
-    db.selectFrom("landlord").select(["id", "name"]).orderBy("name", "asc").execute(),
+    db
+      .selectFrom("landlord")
+      .select(["id", "name"])
+      .orderBy("name", "asc")
+      .execute(),
     db
       .selectFrom("property")
-      .select(["id", "address", "landlord_id"])
+      .select(["id", "address", "address_jibeon", "landlord_id"])
       .orderBy("address", "asc")
       .execute(),
     db

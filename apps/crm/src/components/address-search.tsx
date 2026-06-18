@@ -24,9 +24,16 @@ interface AddressSearchProps {
     address_en: string | null;
   };
   onSelect?: (data: AddressData | null) => void;
+  /** Prefix for the hidden field names (e.g. "property_" → "property_address").
+   *  Default "" keeps the plain `address`/`address_jibeon`/… names. */
+  namePrefix?: string;
 }
 
-export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
+export function AddressSearch({
+  defaultValues,
+  onSelect,
+  namePrefix = "",
+}: AddressSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PostcodifyResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -88,15 +95,19 @@ export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
   return (
     <div className="space-y-3">
       {/* Hidden inputs for form submission */}
-      <input type="hidden" name="address" value={selected?.address ?? ""} />
       <input
         type="hidden"
-        name="address_jibeon"
+        name={`${namePrefix}address`}
+        value={selected?.address ?? ""}
+      />
+      <input
+        type="hidden"
+        name={`${namePrefix}address_jibeon`}
         value={selected?.address_jibeon ?? ""}
       />
       <input
         type="hidden"
-        name="address_en"
+        name={`${namePrefix}address_en`}
         value={selected?.address_en ?? ""}
       />
 
@@ -198,7 +209,7 @@ export function AddressSearch({ defaultValues, onSelect }: AddressSearchProps) {
         <Label htmlFor="address_detail">상세주소</Label>
         <Input
           id="address_detail"
-          name="address_detail"
+          name={`${namePrefix}address_detail`}
           value={addressDetail}
           onChange={(e) => setAddressDetail(e.target.value)}
           placeholder="동/호수 등 상세주소"

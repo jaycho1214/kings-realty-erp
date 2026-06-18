@@ -64,11 +64,16 @@ record" fields below each picker mount only while nothing is picked.
 
 ### 1. 매물 (Property)
 
-- **Autocomplete** over properties (by address) → `property_id` when picked,
-  else free text → `property_address`. Picking an existing property carries its
-  `landlord_id`, so the 임대인 section is hidden; free text reveals 평수
-  (`size_pyeong`) + 종류 (`property_type`: apartment/house/officetel/villa,
-  default `apartment`) and the 임대인 section.
+- The address is entered through **`AddressSearch`** (Postcodify), so a new
+  property is always normalized (도로명 `property_address`, 지번
+  `property_address_jibeon`, `property_address_detail`, `property_address_en`).
+  On select, the 지번 is matched against properties we already manage: a hit
+  **reuses** that record (sets `property_id`, hides the 임대인 section); a miss
+  is a **new** property and reveals 평수 (`property_size_pyeong`) + 종류
+  (`property_type`: apartment/house/officetel/villa, default `apartment`) and the
+  임대인 section. The parser requires both 도로명 + 지번 for a new property (a
+  typed-but-unselected address has neither), and submit is disabled until an
+  address is chosen.
 
 ### 2. 임대인 (Lessor) — one record, 1…N people (only when property is new)
 

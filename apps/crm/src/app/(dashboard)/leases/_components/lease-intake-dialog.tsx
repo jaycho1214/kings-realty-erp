@@ -8,6 +8,7 @@ import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { PhoneInput } from "@/components/phone-input";
 import { AutocompleteCreate } from "@/components/autocomplete-create";
+import { AddressSearch, type AddressData } from "@/components/address-search";
 import { Plus, Trash2 } from "lucide-react";
 import { addMonths, monthsBetween, seoulDateString } from "@/lib/date";
 import { createLeaseIntake } from "../_actions";
@@ -40,7 +41,12 @@ const RANK_OPTIONS = [
 
 interface IntakeProps {
   landlords: { id: number; name: string }[];
-  properties: { id: number; address: string; landlord_id: number }[];
+  properties: {
+    id: number;
+    address: string;
+    address_jibeon: string | null;
+    landlord_id: number;
+  }[];
   tenants: { id: number; name: string; rank: string | null }[];
   baseLocations: { id: number; name: string; name_ko: string | null }[];
   canViewRrn: boolean;
@@ -57,9 +63,27 @@ export function LeaseIntakeForm({
 
   // A non-null picked id means an existing record was chosen → its "new record"
   // fields stay hidden. null means free text → reveal them.
-  const [propertyPickedId, setPropertyPickedId] = useState<string | null>(null);
   const [landlordPickedId, setLandlordPickedId] = useState<string | null>(null);
   const [tenantPickedId, setTenantPickedId] = useState<string | null>(null);
+
+  // 매물 is resolved through Postcodify: once an address is selected we either
+  // match it (by 지번) to a property we already manage (reuse) or treat it as a
+  // new, normalized property.
+  const [addressChosen, setAddressChosen] = useState(false);
+  const [propertyMatchId, setPropertyMatchId] = useState<string | null>(null);
+
+  const handlePropertyAddress = (data: AddressData | null) => {
+    if (!data) {
+      setAddressChosen(false);
+      setPropertyMatchId(null);
+      return;
+    }
+    setAddressChosen(true);
+    const match = properties.find(
+      (p) => p.address_jibeon && p.address_jibeon === data.address_jibeon,
+    );
+    setPropertyMatchId(match ? String(match.id) : null);
+  };
 
   const [coLessors, setCoLessors] = useState<number[]>([]);
   const [coSeq, setCoSeq] = useState(0);
@@ -78,40 +102,51 @@ export function LeaseIntakeForm({
     id: String(l.id),
     label: l.name,
   }));
-  const propertyOptions = properties.map((p) => ({
-    id: String(p.id),
-    label: p.address,
-  }));
   const tenantOptions = tenants.map((t) => ({
     id: String(t.id),
     label: t.name,
     sublabel: t.rank ?? undefined,
   }));
 
-  const newProperty = propertyPickedId === null;
+  // New property = an address was chosen but it doesn't match one we already
+  // have. Reuse = chosen + matched. Nothing chosen yet = neither shown.
+  const newProperty = addressChosen && propertyMatchId === null;
   const newLandlord = landlordPickedId === null;
   const newTenant = tenantPickedId === null;
 
   return (
-    <form action={createLeaseIntake}>
+    <form
+      action={createLeaseIntake}
+      onKeyDown={(e) => {
+        // Enter inside a text field must never submit the dialog — only the
+        // 등록 button does. Autocomplete fields handle Enter themselves
+        // (pick the highlighted suggestion); this is the backstop for the rest.
+        const target = e.target as HTMLElement;
+        if (e.key === "Enter" && target.tagName === "INPUT") {
+          e.preventDefault();
+        }
+      }}
+    >
       <FieldGroup>
         {/* ── 매물 ── */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">매물 (Property)</h3>
-          <Field>
-            <Label>
-              임대물건 주소 <span className="text-danger">*</span>
-            </Label>
-            <AutocompleteCreate
-              textName="property_address"
-              idName="property_id"
-              options={propertyOptions}
-              onPicked={setPropertyPickedId}
-              required
-              placeholder="주소 검색 또는 새 주소 입력"
-              newHint="새 매물 등록"
-            />
-          </Field>
+          {/* When the chosen address matches a property we already manage, its
+              id reuses that record; otherwise empty → the parser creates one. */}
+          <input
+            type="hidden"
+            name="property_id"
+            value={propertyMatchId ?? ""}
+          />
+          <AddressSearch
+            namePrefix="property_"
+            onSelect={handlePropertyAddress}
+          />
+          {addressChosen && propertyMatchId && (
+            <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              이미 등록된 매물입니다 — 기존 매물을 재사용합니다.
+            </p>
+          )}
           {newProperty && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -419,8 +454,13 @@ export function LeaseIntakeForm({
           </Field>
         </section>
 
-        <div className="flex justify-end pt-1">
-          <SubmitButton label="등록" />
+        <div className="flex items-center justify-end gap-3 pt-1">
+          {!addressChosen && (
+            <span className="text-xs text-muted-foreground">
+              매물 주소를 검색해 선택해주세요
+            </span>
+          )}
+          <SubmitButton label="등록" disabled={!addressChosen} />
         </div>
       </FieldGroup>
     </form>

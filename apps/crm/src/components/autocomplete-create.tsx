@@ -51,6 +51,7 @@ export function AutocompleteCreate({
   const [query, setQuery] = useState(defaultValue);
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
@@ -87,6 +88,7 @@ export function AutocompleteCreate({
 
   const setText = (value: string) => {
     setQuery(value);
+    setActiveIndex(-1);
     if (pickedId !== null) {
       setPickedId(null);
       onPicked?.(null);
@@ -97,7 +99,31 @@ export function AutocompleteCreate({
     setQuery(opt.label);
     setPickedId(opt.id);
     setOpen(false);
+    setActiveIndex(-1);
     onPicked?.(opt.id);
+  };
+
+  // Keep Enter from ever submitting the form from this field: it picks the
+  // highlighted suggestion (if any) or just closes the list, never submits.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      if (open) {
+        e.preventDefault();
+        if (activeIndex >= 0 && filtered[activeIndex])
+          pick(filtered[activeIndex]);
+        else setOpen(false);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
+    }
   };
 
   const showNewRow = !!query.trim() && !exactMatch && !!newHint;
@@ -121,6 +147,7 @@ export function AutocompleteCreate({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
         />
         {query && (
           <button
@@ -140,14 +167,15 @@ export function AutocompleteCreate({
       {open && (filtered.length > 0 || showNewRow) && (
         <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-lg border bg-popover p-1 shadow-md">
           <div className="max-h-56 overflow-y-auto py-1">
-            {filtered.map((o) => (
+            {filtered.map((o, i) => (
               <button
                 key={o.id}
                 type="button"
                 onClick={() => pick(o)}
+                onMouseEnter={() => setActiveIndex(i)}
                 className={cn(
                   "flex w-full flex-col rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                  pickedId === o.id && "bg-accent",
+                  (pickedId === o.id || activeIndex === i) && "bg-accent",
                 )}
               >
                 <span>{o.label}</span>

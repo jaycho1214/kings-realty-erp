@@ -31,6 +31,9 @@ export type PropertyPlan =
   | {
       mode: "new";
       address: string;
+      addressJibeon: string | null;
+      addressDetail: string | null;
+      addressEn: string | null;
       sizePyeong: number | null;
       propertyType: string;
     };
@@ -89,7 +92,15 @@ export function parseLeaseIntake(
     property = { mode: "existing", propertyId };
   } else {
     const address = str("property_address");
-    if (!address) throw new Error("임대물건 주소를 입력해주세요.");
+    if (!address) throw new Error("임대물건 주소를 검색하여 선택해주세요.");
+    // A Postcodify selection always carries 지번; its absence means a typed-but-
+    // unselected address, which we refuse so every new property is normalized.
+    const addressJibeon = strOrNull("property_address_jibeon");
+    if (!addressJibeon) {
+      throw new Error(
+        "주소를 검색하여 선택해주세요. (지번·도로명 주소가 함께 저장됩니다)",
+      );
+    }
     const sizeRaw = str("property_size_pyeong");
     const sizePyeong = sizeRaw ? Number(sizeRaw) : null;
     if (sizePyeong !== null && !Number.isFinite(sizePyeong)) {
@@ -99,7 +110,15 @@ export function parseLeaseIntake(
     if (!PROPERTY_TYPES.has(propertyType)) {
       throw new Error("매물 종류를 선택해주세요.");
     }
-    property = { mode: "new", address, sizePyeong, propertyType };
+    property = {
+      mode: "new",
+      address,
+      addressJibeon,
+      addressDetail: strOrNull("property_address_detail"),
+      addressEn: strOrNull("property_address_en"),
+      sizePyeong,
+      propertyType,
+    };
   }
 
   // --- Landlord (only when creating a new property) ---

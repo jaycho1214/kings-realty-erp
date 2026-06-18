@@ -6,7 +6,8 @@ import { parseLeaseIntake } from "./lease-intake";
 // its *_id is present (a suggestion was picked) and "new" otherwise (free text).
 function base(): FormData {
   const fd = new FormData();
-  fd.set("property_address", "평택시 …");
+  fd.set("property_address", "경기도 평택시 중앙로 123");
+  fd.set("property_address_jibeon", "경기도 평택시 비전동 456-7");
   fd.set("property_type", "apartment");
   fd.set("landlord_name", "홍길동");
   fd.set("landlord_phone", "010-1111-2222");
@@ -89,6 +90,10 @@ test("missing required fields throw Korean errors", () => {
   const fd2 = base();
   fd2.delete("property_address"); // no id and no address
   assert.throws(() => parseLeaseIntake(fd2, { canViewRrn: true }), /주소/);
+
+  const fd2b = base();
+  fd2b.delete("property_address_jibeon"); // typed-but-unselected (no 지번)
+  assert.throws(() => parseLeaseIntake(fd2b, { canViewRrn: true }), /지번/);
 
   const fd3 = base();
   fd3.set("monthly_rent_krw", "abc");

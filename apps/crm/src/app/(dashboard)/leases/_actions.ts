@@ -168,6 +168,9 @@ export async function createLeaseIntake(formData: FormData) {
         .insertInto("property")
         .values({
           address: P.address,
+          address_jibeon: P.addressJibeon,
+          address_detail: P.addressDetail,
+          address_en: P.addressEn,
           property_type: P.propertyType,
           size_pyeong: P.sizePyeong !== null ? String(P.sizePyeong) : null,
           monthly_rent_krw: plan.terms.monthlyRentKrw,
