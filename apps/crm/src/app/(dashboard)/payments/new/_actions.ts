@@ -119,14 +119,42 @@ export async function createBulkPayment(formData: FormData) {
   if (notes) parts.push(notes);
   const paymentNotes = parts.join(" | ") || null;
 
-  // Reference the $100-bill rate row for the day (the primary denomination).
+  // Reference the rate row for the payment's date (prefer the $100
+  // denomination). If the day's rate was never registered, auto-register
+  // whatever rate(s) the staff just entered so the first USD payment of the day
+  // seeds it — only filling the gap (doNothing on conflict), never overwriting
+  // an admin-set rate.
   let exchangeRateId: number | null = null;
   if (usdAmount > 0) {
+    const payment_date_str = formData.get("payment_date") as string;
+    const ratesToRegister: { denomination: number; rate: number }[] = [];
+    if (usd100 > 0 && usd100Rate > 0) {
+      ratesToRegister.push({ denomination: 100, rate: usd100Rate });
+    }
+    if (usd20 > 0 && usd20Rate > 0) {
+      ratesToRegister.push({ denomination: 20, rate: usd20Rate });
+    }
+
+    for (const r of ratesToRegister) {
+      await db
+        .insertInto("exchange_rate")
+        .values({
+          date: payment_date_str,
+          denomination: r.denomination,
+          usd_to_krw: r.rate,
+          set_by: Number(session.user.id),
+        })
+        .onConflict((oc) => oc.columns(["date", "denomination"]).doNothing())
+        .execute();
+    }
+    if (ratesToRegister.length > 0) revalidatePath("/exchange-rate");
+
     const rateRow = await db
       .selectFrom("exchange_rate")
       .select("id")
-      .where("denomination", "=", 100)
       .where("date", "=", payment_date)
+      .where("denomination", "in", [100, 20])
+      .orderBy("denomination", "desc") // prefer the $100 row when both exist
       .executeTakeFirst();
     exchangeRateId = rateRow?.id ?? null;
   }

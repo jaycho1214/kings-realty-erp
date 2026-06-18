@@ -122,15 +122,21 @@ export function TypeCombobox({
               >
                 기타
               </CommandItem>
-              {q && !exists && (
+              {/* Always visible so adding a type is discoverable — a prompt
+                  when empty, an actionable item once a new name is typed. */}
+              {!exists && (
                 <CommandItem
                   // Value embeds the query so cmdk's filter never hides it.
                   value={`${q} __add_new__`}
-                  disabled={adding}
+                  disabled={!q || adding}
                   onSelect={handleAdd}
                 >
                   <Plus className="size-3.5" />
-                  <span>“{q}” 새 유형 추가</span>
+                  <span>
+                    {q
+                      ? `“${q}” 새 유형 추가`
+                      : "새 유형 추가 — 이름을 입력하세요"}
+                  </span>
                 </CommandItem>
               )}
             </CommandGroup>

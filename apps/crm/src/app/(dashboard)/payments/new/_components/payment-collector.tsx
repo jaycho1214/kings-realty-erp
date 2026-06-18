@@ -67,6 +67,9 @@ interface LineItem {
   id: string;
   type: string;
   label: string;
+  // Free-text 내용 for a 기타 line (the combobox keeps showing "기타"); becomes
+  // the payment's label on submit.
+  memo?: string;
   amount: number;
   chargeId?: number;
 }
@@ -147,8 +150,9 @@ export function PaymentCollector({
 
   // Keyboard focus-chaining: each action lands focus on the next field staff
   // would touch, so the whole form is reachable without the mouse.
-  const addRentBtnRef = useRef<HTMLButtonElement>(null);
+  const addItemBtnRef = useRef<HTMLButtonElement>(null);
   const amountRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const memoRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // Holds the latest handleSubmit so the document-level ⌘/Ctrl+Enter listener
   // (bound once) always calls the current closure.
   const submitRef = useRef<() => void>(() => {});
@@ -213,6 +217,17 @@ export function PaymentCollector({
   const focusAmount = useCallback((id: string) => {
     requestAnimationFrame(() => {
       const el = amountRefs.current[id];
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    });
+  }, []);
+
+  // Same idea for a 기타 row's 내용 field — focused right after 기타 is picked.
+  const focusMemo = useCallback((id: string) => {
+    requestAnimationFrame(() => {
+      const el = memoRefs.current[id];
       if (el) {
         el.focus();
         el.select();
@@ -297,16 +312,18 @@ export function PaymentCollector({
     [focusAmount],
   );
 
-  // Pick a type for a blank row, then land focus on its amount field.
+  // Pick a type for a blank row, then land focus on the next field: 기타 needs
+  // a 내용 description first, everything else goes straight to the amount.
   const handleTypeSelect = useCallback(
     (id: string, label: string, type: string) => {
       setLineItems((prev) =>
         prev.map((item) => (item.id === id ? { ...item, label, type } : item)),
       );
       setAutoOpenTypeId(null);
-      focusAmount(id);
+      if (label === "기타") focusMemo(id);
+      else focusAmount(id);
     },
-    [focusAmount],
+    [focusAmount, focusMemo],
   );
 
   const removeLineItem = useCallback((id: string) => {
@@ -370,7 +387,10 @@ export function PaymentCollector({
 
     lineItems.forEach((item, i) => {
       fd.set(`items[${i}].type`, item.type);
-      fd.set(`items[${i}].label`, item.label);
+      // For a 기타 line the description lives in 내용 (memo); fall back to "기타".
+      const sentLabel =
+        item.label === "기타" ? item.memo?.trim() || "기타" : item.label;
+      fd.set(`items[${i}].label`, sentLabel);
       fd.set(`items[${i}].amount_krw`, String(item.amount));
       if (item.chargeId) fd.set(`items[${i}].charge_id`, String(item.chargeId));
     });
@@ -413,9 +433,9 @@ export function PaymentCollector({
   }, []);
 
   // Arriving from a lease link (lease preselected): the tenant search stays
-  // closed, so land focus on the first add-action instead.
+  // closed, so land focus on the default add-action (항목 추가) instead.
   useEffect(() => {
-    if (defaultLeaseId) addRentBtnRef.current?.focus();
+    if (defaultLeaseId) addItemBtnRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -498,10 +518,11 @@ export function PaymentCollector({
                                       : lease.id;
                                   handleLeaseSelect(next);
                                   setComboOpen(false);
-                                  // Land on the most common next step.
+                                  // Land on 항목 추가 so Enter adds an item by
+                                  // default (rent stays one button over).
                                   if (next !== "")
                                     requestAnimationFrame(() =>
-                                      addRentBtnRef.current?.focus(),
+                                      addItemBtnRef.current?.focus(),
                                     );
                                 }}
                                 data-checked={lease.id === selectedLeaseId}
@@ -562,17 +583,30 @@ export function PaymentCollector({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10" />
                     <TableHead className="w-32">유형</TableHead>
                     <TableHead>내용</TableHead>
                     <TableHead className="w-40 text-right">
                       금액 (&#8361;)
                     </TableHead>
-                    <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lineItems.map((item) => (
+                  {lineItems.map((item, index) => (
                     <TableRow key={item.id}>
+                      {/* Delete sits on the left and is skipped by Tab so it
+                          never interrupts the type → amount → next-row flow. */}
+                      <TableCell>
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          aria-label="항목 삭제"
+                          onClick={() => removeLineItem(item.id)}
+                          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-danger"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </TableCell>
                       <TableCell>
                         {item.chargeId || item.type === "rent" ? (
                           item.label || "월세"
@@ -589,7 +623,35 @@ export function PaymentCollector({
                         )}
                       </TableCell>
                       <TableCell>
-                        {item.type === "rent" ? "월 임대료" : item.label || "-"}
+                        {item.type === "rent" ? (
+                          "월 임대료"
+                        ) : item.label === "기타" ? (
+                          <Input
+                            ref={(el) => {
+                              memoRefs.current[item.id] = el;
+                            }}
+                            value={item.memo ?? ""}
+                            onChange={(e) =>
+                              updateLineItem(item.id, "memo", e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                              // Enter from 내용 hops to the amount, keeping the
+                              // keep-adding flow moving.
+                              if (
+                                e.key === "Enter" &&
+                                !e.metaKey &&
+                                !e.ctrlKey
+                              ) {
+                                e.preventDefault();
+                                focusAmount(item.id);
+                              }
+                            }}
+                            placeholder="내용 입력"
+                            className="h-7 text-sm"
+                          />
+                        ) : (
+                          item.label || "-"
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Input
@@ -607,25 +669,27 @@ export function PaymentCollector({
                             )
                           }
                           onKeyDown={(e) => {
-                            // Enter commits this item and opens a fresh row —
-                            // the "keep adding" loop. ⌘/Ctrl+Enter is left for
-                            // the document-level submit handler.
-                            if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
+                            if (e.metaKey || e.ctrlKey) return; // ⌘/Ctrl+Enter submits
+                            const isLast = index === lineItems.length - 1;
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              // Last row: open a fresh row (keep-adding loop).
+                              // Otherwise drop into the next existing row.
+                              if (isLast) addLineItem();
+                              else focusAmount(lineItems[index + 1].id);
+                            } else if (
+                              e.key === "Tab" &&
+                              !e.shiftKey &&
+                              isLast
+                            ) {
+                              // Only the last row's Tab adds a new row; earlier
+                              // rows Tab naturally to the next row.
                               e.preventDefault();
                               addLineItem();
                             }
                           }}
                           className="w-full text-right"
                         />
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(item.id)}
-                          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-danger"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -663,7 +727,6 @@ export function PaymentCollector({
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  ref={addRentBtnRef}
                   type="button"
                   onClick={addRentLine}
                   disabled={!selectedLease || hasRentLine}
@@ -673,6 +736,7 @@ export function PaymentCollector({
                   월세 추가
                 </button>
                 <button
+                  ref={addItemBtnRef}
                   type="button"
                   onClick={addLineItem}
                   disabled={!selectedLease}
@@ -689,6 +753,9 @@ export function PaymentCollector({
                     금액에서
                     <kbd className="inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
                       ⏎ Enter
+                    </kbd>
+                    <kbd className="inline-flex h-5 select-none items-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
+                      ⇥ Tab
                     </kbd>
                     다음 항목 추가
                   </span>
