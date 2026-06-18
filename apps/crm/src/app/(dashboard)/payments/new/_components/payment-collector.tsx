@@ -260,30 +260,8 @@ export function PaymentCollector({
     setAutoOpenTypeId(id);
   }, []);
 
-  const hasRentLine = useMemo(
-    () => lineItems.some((item) => item.type === "rent"),
-    [lineItems],
-  );
-
-  const addRentLine = useCallback(() => {
-    if (!selectedLease) return;
-    const id = generateId();
-    setLineItems((prev) => [
-      ...prev,
-      {
-        id,
-        type: "rent",
-        label: "월세",
-        amount: selectedLease.monthly_rent_krw,
-      },
-    ]);
-    // Amount is pre-filled with the rent — land on it (selected) to verify or
-    // overtype, then ⌘/Ctrl+Enter submits.
-    focusAmount(id);
-  }, [selectedLease, focusAmount]);
-
   // Open (unpaid) charges for the selected lease, minus ones already added as
-  // line items — offered as one-click "불러오기" buttons that settle on save.
+  // line items — offered as one-click cards that settle their charge on save.
   const availableCharges = useMemo(() => {
     if (!selectedLeaseId || !openChargesByLease) return [] as ChargeOption[];
     const added = new Set(
@@ -311,6 +289,26 @@ export function PaymentCollector({
     },
     [focusAmount],
   );
+
+  // Load every outstanding charge at once (전체 불러오기) — each linked so it
+  // settles its charge on save.
+  const addAllCharges = useCallback(() => {
+    setLineItems((prev) => {
+      const added = new Set(
+        prev.map((i) => i.chargeId).filter((v): v is number => v != null),
+      );
+      const toAdd = (openChargesByLease?.[selectedLeaseId as number] ?? [])
+        .filter((c) => !added.has(c.id))
+        .map((c) => ({
+          id: generateId(),
+          type: c.type,
+          label: c.label,
+          amount: c.amount,
+          chargeId: c.id,
+        }));
+      return [...prev, ...toAdd];
+    });
+  }, [openChargesByLease, selectedLeaseId]);
 
   // Pick a type for a blank row, then land focus on the next field: 기타 needs
   // a 내용 description first, everything else goes straight to the amount.
@@ -571,6 +569,56 @@ export function PaymentCollector({
                   </Badge>
                 </div>
               )}
+
+              {/* All outstanding 미납 (incl. the rent charge) for this tenant —
+                  one click loads a card as a line item linked to its charge, so
+                  it settles on save. */}
+              {selectedLease && availableCharges.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      미납·청구 {availableCharges.length}건
+                    </p>
+                    <button
+                      type="button"
+                      onClick={addAllCharges}
+                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+                    >
+                      <Plus className="size-3.5" />
+                      전체 추가하기
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableCharges.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => addChargeLine(c)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-2.5 py-1.5 hover:bg-muted dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
+                      >
+                        <Plus className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="text-sm font-medium">{c.label}</span>
+                        <span className="tabular text-xs text-muted-foreground">
+                          {c.billing_month}
+                        </span>
+                        <span className="tabular text-sm font-medium">
+                          {formatKRW(c.amount)}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[10.5px] font-medium",
+                            c.status === "overdue"
+                              ? "bg-danger/10 text-danger"
+                              : "bg-warning/10 text-warning",
+                          )}
+                        >
+                          {c.status === "overdue" ? "연체" : "미납"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -700,45 +748,7 @@ export function PaymentCollector({
                 </TableBody>
               </Table>
 
-              {availableCharges.length > 0 && (
-                <div className="space-y-2 rounded-lg border border-dashed border-input p-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    미납·청구 항목 불러오기
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {availableCharges.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => addChargeLine(c)}
-                        className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
-                      >
-                        <Plus className="size-3.5" />
-                        <span>
-                          {c.billing_month} {c.label}
-                        </span>
-                        <span className="tabular text-muted-foreground">
-                          {formatKRW(c.amount)}
-                        </span>
-                        {c.status === "overdue" && (
-                          <span className="text-[11px] text-danger">미납</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={addRentLine}
-                  disabled={!selectedLease || hasRentLine}
-                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input bg-background px-2.5 text-[0.8rem] font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50"
-                >
-                  <Plus className="size-3.5" />
-                  월세 추가
-                </button>
                 <button
                   ref={addItemBtnRef}
                   type="button"
