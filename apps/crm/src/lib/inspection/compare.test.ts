@@ -26,6 +26,7 @@ function snap(status1: string, status2: string): InspectionSnapshot {
 test("worsened items are flagged, unchanged are not", () => {
   const rows = compareInspections(snap("good", "good"), snap("damage", "good"));
   assert.equal(rows.length, 2);
+  assert.ok(rows.every((r) => r.sectionLabelKo === "방"));
   const wall = rows.find((r) => r.label_ko === "벽지")!;
   const floor = rows.find((r) => r.label_ko === "바닥")!;
   assert.equal(wall.worsened, true);

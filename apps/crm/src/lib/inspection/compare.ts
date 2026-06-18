@@ -2,6 +2,7 @@ import type { InspectionSnapshot, ItemStatus, SnapshotItem } from "./types";
 
 export interface ComparisonRow {
   key: string;
+  sectionLabelKo: string;
   instance: number | null;
   label_ko: string;
   from: ItemStatus;
@@ -58,6 +59,7 @@ export function compareInspections(
       const to = item.status;
       rows.push({
         key: sec.key,
+        sectionLabelKo: sec.label_ko,
         instance: sec.instance,
         label_ko: item.label_ko,
         from,

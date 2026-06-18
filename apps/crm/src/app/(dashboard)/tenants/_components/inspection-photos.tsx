@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { PhotoRef } from "@/lib/inspection/types";
 
 export function InspectionPhotos({
@@ -10,18 +11,25 @@ export function InspectionPhotos({
   onAdd,
   onRemove,
   size = "md",
+  alert = false,
 }: {
   inspectionId: number;
   photos: PhotoRef[];
   onAdd: (photo: PhotoRef) => void;
   onRemove: (id: number) => void;
   size?: "sm" | "md";
+  /** Emphasize the add affordance — used when an item is 이상/파손 (사진 필요). */
+  alert?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const thumb = size === "sm" ? "size-12" : "size-16";
+  // Quiet by default; the camera only earns attention when damage needs a photo.
+  const addClass = alert
+    ? "border-solid border-danger/50 text-danger hover:border-danger hover:bg-danger-weak"
+    : "border-dashed text-muted-foreground/60 hover:border-primary hover:text-primary";
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -80,7 +88,10 @@ export function InspectionPhotos({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className={`flex ${thumb} items-center justify-center rounded-md border border-dashed text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50`}
+          className={cn(
+            `flex ${thumb} items-center justify-center rounded-md border transition-colors disabled:opacity-50`,
+            addClass,
+          )}
           aria-label="사진 추가"
         >
           <Camera className="size-4" />

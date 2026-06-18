@@ -19,6 +19,7 @@ import {
 import { SubmitButton } from "@/components/submit-button";
 import { parseSnapshot } from "@/lib/inspection/parse";
 import { compareInspections } from "@/lib/inspection/compare";
+import { STATUS_LABEL } from "@/lib/inspection/labels";
 import { createInspectionDraft, deleteInspection } from "../_actions";
 
 interface InspectionRow {
@@ -137,7 +138,7 @@ export function Inspections({
                     pendingLabel="삭제 중..."
                   />
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-sm">
+                <div className="mt-2 flex items-center gap-3 text-sm tabular-nums">
                   {counts.issue > 0 && (
                     <span className="text-warning">이상 {counts.issue}</span>
                   )}
@@ -180,17 +181,23 @@ export function Inspections({
               {worsened.map((r) => (
                 <div
                   key={`${r.key}-${r.instance ?? 0}-${r.label_ko}`}
-                  className="grid grid-cols-[1fr_auto] gap-2 bg-danger/5 px-3.5 py-2 text-sm"
+                  className="grid grid-cols-[1fr_auto] items-center gap-2 bg-danger-weak/40 px-3.5 py-2 text-sm"
                 >
                   <span>
                     {r.label_ko}
                     <span className="ml-1 text-xs text-muted-foreground">
-                      ({r.key}
-                      {r.instance != null ? ` ${r.instance}` : ""})
+                      {r.sectionLabelKo}
+                      {r.instance != null ? ` ${r.instance}` : ""}
                     </span>
                   </span>
-                  <span className="text-danger">
-                    {r.from} → {r.to}
+                  <span className="whitespace-nowrap text-xs">
+                    <span className="text-muted-foreground">
+                      {STATUS_LABEL[r.from]}
+                    </span>
+                    <span className="mx-1 text-muted-foreground">→</span>
+                    <span className="font-medium text-danger">
+                      {STATUS_LABEL[r.to]}
+                    </span>
                   </span>
                 </div>
               ))}
