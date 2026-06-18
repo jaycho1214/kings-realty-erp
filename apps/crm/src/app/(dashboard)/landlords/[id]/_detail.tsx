@@ -89,7 +89,15 @@ export default async function LandlordDetailPage({
       .execute(),
     db
       .selectFrom("landlord_family_member")
-      .select(["id", "name", "relationship", "sex", "phone", "notes"])
+      .select([
+        "id",
+        "name",
+        "relationship",
+        "sex",
+        "phone",
+        "notes",
+        "rrn_encrypted",
+      ])
       .where("landlord_id", "=", numId)
       .orderBy("created_at", "asc")
       .execute(),
@@ -297,7 +305,19 @@ export default async function LandlordDetailPage({
           label: "가족 구성원",
           count: familyMembers.length,
           content: (
-            <LandlordFamilyMembers landlordId={numId} members={familyMembers} />
+            <LandlordFamilyMembers
+              landlordId={numId}
+              canViewRrn={canViewRrn}
+              members={familyMembers.map((m) => ({
+                id: m.id,
+                name: m.name,
+                relationship: m.relationship,
+                sex: m.sex,
+                phone: m.phone,
+                notes: m.notes,
+                hasRrn: !!m.rrn_encrypted,
+              }))}
+            />
           ),
         },
         {

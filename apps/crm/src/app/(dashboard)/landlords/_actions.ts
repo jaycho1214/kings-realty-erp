@@ -150,13 +150,50 @@ export async function revealLandlordRrn(
   return { rrn: formatRrn(plain) };
 }
 
+/**
+ * Decrypt and return a co-lessor (landlord family member)'s RRN. Admin/
+ * accounting only; every reveal is audit-logged.
+ */
+export async function revealLandlordFamilyMemberRrn(
+  id: number,
+): Promise<{ rrn: string } | { error: string }> {
+  const session = await requireSensitiveAccess();
+  const db = getDb();
+
+  const row = await db
+    .selectFrom("landlord_family_member")
+    .select(["rrn_encrypted"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+
+  if (!row?.rrn_encrypted) {
+    return { error: "등록된 주민등록번호가 없습니다." };
+  }
+
+  let plain: string;
+  try {
+    plain = decryptRrn(row.rrn_encrypted);
+  } catch {
+    return { error: "복호화에 실패했습니다." };
+  }
+
+  await logAudit({
+    actorId: Number(session.user.id),
+    action: "landlord_family_member.rrn.reveal",
+    entityType: "landlord_family_member",
+    entityId: id,
+  });
+
+  return { rrn: formatRrn(plain) };
+}
+
 // --- Landlord Family Members ---
 
 export async function addLandlordFamilyMember(
   landlordId: number,
   formData: FormData,
 ) {
-  await requireUser();
+  const session = await requireUser();
 
   const db = getDb();
 
@@ -166,9 +203,26 @@ export async function addLandlordFamilyMember(
   const phone = (formData.get("phone") as string) || null;
   const notes = (formData.get("notes") as string) || null;
 
+  // RRN is only accepted from privileged users (admin/accounting).
+  const rrnRaw = formData.get("rrn");
+  const rrn_encrypted =
+    canViewSensitive(session.user.role) &&
+    typeof rrnRaw === "string" &&
+    rrnRaw.trim()
+      ? encryptRrn(rrnRaw)
+      : null;
+
   await db
     .insertInto("landlord_family_member")
-    .values({ landlord_id: landlordId, name, relationship, sex, phone, notes })
+    .values({
+      landlord_id: landlordId,
+      name,
+      relationship,
+      sex,
+      phone,
+      notes,
+      rrn_encrypted,
+    })
     .execute();
 
   revalidatePath(`/landlords/${landlordId}`);

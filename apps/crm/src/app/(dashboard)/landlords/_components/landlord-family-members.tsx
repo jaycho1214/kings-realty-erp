@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
-import { Trash2 } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { Trash2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +20,12 @@ import { formatPhone } from "@/lib/utils";
 import {
   addLandlordFamilyMember,
   deleteLandlordFamilyMember,
+  revealLandlordFamilyMemberRrn,
 } from "../_actions";
+
+// Inlined (NOT imported from @/lib/rrn — that module pulls in node:crypto and
+// must never be bundled into a client component).
+const RRN_MASK = "●●●●●●-●●●●●●●";
 
 interface FamilyMember {
   id: number;
@@ -29,11 +34,54 @@ interface FamilyMember {
   sex: string | null;
   phone: string | null;
   notes: string | null;
+  hasRrn: boolean;
 }
 
 interface LandlordFamilyMembersProps {
   landlordId: number;
   members: FamilyMember[];
+  canViewRrn: boolean;
+}
+
+function FamilyMemberRrn({
+  memberId,
+  hasRrn,
+}: {
+  memberId: number;
+  hasRrn: boolean;
+}) {
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  if (!hasRrn) return <span className="text-muted-foreground">-</span>;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="tabular">{revealed ?? RRN_MASK}</span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        disabled={pending}
+        aria-label={revealed ? "주민등록번호 가리기" : "주민등록번호 보기"}
+        onClick={() => {
+          if (revealed) {
+            setRevealed(null);
+            return;
+          }
+          setError(null);
+          startTransition(async () => {
+            const res = await revealLandlordFamilyMemberRrn(memberId);
+            if ("rrn" in res) setRevealed(res.rrn);
+            else setError(res.error);
+          });
+        }}
+      >
+        {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </Button>
+      {error && <span className="text-xs text-danger">{error}</span>}
+    </span>
+  );
 }
 
 function sexLabel(value: string | null): string {
@@ -62,6 +110,7 @@ function relationshipLabel(value: string): string {
 export function LandlordFamilyMembers({
   landlordId,
   members,
+  canViewRrn,
 }: LandlordFamilyMembersProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -80,6 +129,7 @@ export function LandlordFamilyMembers({
               <TableHead>관계</TableHead>
               <TableHead>성별</TableHead>
               <TableHead>전화번호</TableHead>
+              {canViewRrn && <TableHead>주민번호</TableHead>}
               <TableHead>비고</TableHead>
               <TableHead className="w-[60px]">{""}</TableHead>
             </TableRow>
@@ -88,7 +138,7 @@ export function LandlordFamilyMembers({
             {members.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={6}
+                  colSpan={canViewRrn ? 7 : 6}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   등록된 가족 구성원이 없습니다.
@@ -113,6 +163,14 @@ export function LandlordFamilyMembers({
                     <TableCell className="tabular text-muted-foreground">
                       {member.phone ? formatPhone(member.phone) : "-"}
                     </TableCell>
+                    {canViewRrn && (
+                      <TableCell className="tabular text-muted-foreground">
+                        <FamilyMemberRrn
+                          memberId={member.id}
+                          hasRrn={member.hasRrn}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="text-muted-foreground">
                       {member.notes ?? "-"}
                     </TableCell>
@@ -159,6 +217,14 @@ export function LandlordFamilyMembers({
           </select>
           <SexToggle name="sex" compact />
           <PhoneInput name="phone" placeholder="전화번호" className="w-48" />
+          {canViewRrn && (
+            <Input
+              name="rrn"
+              placeholder="주민번호"
+              autoComplete="off"
+              className="w-36"
+            />
+          )}
           <Input name="notes" placeholder="비고" className="w-32" />
           <SubmitButton label="추가" />
         </form>
