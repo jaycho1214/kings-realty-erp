@@ -23,8 +23,9 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { TenantForm } from "./_components/tenant-form";
 import { TenantLifecycleActions } from "./_components/tenant-lifecycle-actions";
+import { LeaseIntakeForm } from "../leases/_components/lease-intake-dialog";
 import { getSession } from "@/lib/session";
-import { isAdmin } from "@/lib/authz";
+import { isAdmin, canViewSensitive } from "@/lib/authz";
 
 const PAGE_SIZE = 200;
 
@@ -57,6 +58,7 @@ export default async function TenantsPage({
 
   const session = await getSession();
   const admin = isAdmin(session?.user?.role);
+  const canViewRrn = canViewSensitive(session?.user?.role);
 
   // No `status` param defaults to the 입주 (active) roster. `all` shows every
   // non-deleted tenant (입주 + 퇴거); `deleted` is the 휴지통 view. Moved-out
@@ -125,7 +127,14 @@ export default async function TenantsPage({
     countQuery = countQuery.where("tenant.status", "=", statusFilter);
   }
 
-  const [tenants, totalResult, baseLocations] = await Promise.all([
+  const [
+    tenants,
+    totalResult,
+    baseLocations,
+    landlordsList,
+    propertiesList,
+    tenantsList,
+  ] = await Promise.all([
     query
       .orderBy("tenant.created_at", "desc")
       .limit(PAGE_SIZE)
@@ -137,6 +146,19 @@ export default async function TenantsPage({
       .select(["id", "name", "name_ko"])
       .orderBy("sort_order", "asc")
       .execute(),
+    // Combobox sources for the 계약서로 등록 (lease intake) dialog.
+    db.selectFrom("landlord").select(["id", "name"]).orderBy("name", "asc").execute(),
+    db
+      .selectFrom("property")
+      .select(["id", "address", "landlord_id"])
+      .orderBy("address", "asc")
+      .execute(),
+    db
+      .selectFrom("tenant")
+      .select(["id", "name", "rank"])
+      .where("status", "=", "active")
+      .orderBy("name", "asc")
+      .execute(),
   ]);
 
   const total = Number(totalResult?.count ?? 0);
@@ -147,9 +169,25 @@ export default async function TenantsPage({
         title="세입자"
         count={total}
         actions={
-          <CreateDialog title="새 세입자" buttonLabel="새 세입자" wide>
-            <TenantForm variant="plain" baseLocations={baseLocations} />
-          </CreateDialog>
+          <div className="flex gap-2">
+            <CreateDialog
+              title="계약서로 등록"
+              buttonLabel="계약서로 등록"
+              wide
+              closeOnSuccess
+            >
+              <LeaseIntakeForm
+                landlords={landlordsList}
+                properties={propertiesList}
+                tenants={tenantsList}
+                baseLocations={baseLocations}
+                canViewRrn={canViewRrn}
+              />
+            </CreateDialog>
+            <CreateDialog title="새 세입자" buttonLabel="새 세입자" wide>
+              <TenantForm variant="plain" baseLocations={baseLocations} />
+            </CreateDialog>
+          </div>
         }
       />
 
