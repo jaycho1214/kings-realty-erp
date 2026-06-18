@@ -37,7 +37,7 @@ signature lines (full appendix at the end).
 Two enabling facts: `property` already stores `rooms` / `bathrooms` counts (used
 to instantiate repeatable room sections), and the Excel's **section 12
 (가전 및 가구)** overlaps almost exactly with the per-property **비품(appliance)
-registry** (a future auto-population hook, §11 TODO).
+registry** (a future auto-population hook — see Non-goals / TODO).
 
 ## Decisions (locked with operator)
 
@@ -49,8 +49,13 @@ registry** (a future auto-population hook, §11 TODO).
    (DB-backed catalog, like `bill_preset`), and **per-inspection snapshot
    edits** — each inspection copies the template at creation and can add / remove
    / rename its own lines without mutating the master or past inspections.
-3. **Per-item photos.**
-4. **Output (print/PDF): deferred** — tracked as a TODO (§11), not built now.
+3. **Photos at two levels:** per-item (attached to a specific checklist line)
+   **and** a per-inspection general gallery (overall / move-out photos that
+   don't belong to a single line). Same upload + document system; the only
+   difference is whether the blob is referenced by an item or sits at the
+   inspection level.
+4. **Placement:** the tenant detail page (§7).
+5. **Output (print/PDF): deferred** — tracked as a TODO, not built now.
 
 ## Design
 
@@ -130,7 +135,7 @@ versioned for forward migration):
 }
 ```
 
-Typed name + timestamp for now (drawn-signature image is a §11 TODO).
+Typed name + timestamp for now (drawn-signature image is a Non-goals / TODO item).
 
 **Backward compatibility:** old inspections hold the flat
 `[{area,status,note}]` checklist. The parser tolerates both: a non-`{sections}`
@@ -180,6 +185,8 @@ The editor renders:
 - **Sections** as accordions; each item row = 양호/이상/파손 toggle + 비고 input
   + photo strip (§5). Add/remove item, rename, **add room** (append a
   `bedroom`/`bathroom` instance), remove room.
+- A **general photo gallery** for the whole inspection (overall / move-out
+  shots not tied to a line) — see §5.
 - **특이사항 메모** free-text.
 - **서명**: tenant & inspector name inputs (stamp `signed_at` on entry).
 - **Save (draft)** and **완료(finalize)**.
@@ -187,24 +194,35 @@ The editor renders:
 Saving writes the snapshot back to `inspection.checklist` (+ `signature`,
 `summary`). The current add dialog and the flat `AREAS` list are removed.
 
-### 5. Per-item photos
+### 5. Photos — per-item and per-inspection
 
-Reuse the private-blob document system. Each item's `photos[]` holds
-`{id, url}`:
+Reuse the private-blob document system. **Every** inspection photo is a
+`document` row with `entity_type='inspection'`, `entity_id = inspection.id`,
+served through the auth proxy `/api/documents/{id}` as an inline `<img>`
+thumbnail. What differs is the *linkage*:
 
-- **Upload:** the existing camera-capable file input (`accept="image/*"
+- **Per-item:** the item's `photos[]` holds `{id, url}` references. Used for
+  photographing a specific line's condition (e.g. 파손 벽지).
+- **Per-inspection (general gallery):** photos uploaded at the inspection level
+  with **no** item reference — overall / move-out shots. These are exactly the
+  inspection's `document` rows that no item references (`item.photos` ids
+  subtracted from the full set). The superseded design's flat gallery survives
+  here.
+
+Mechanics (shared):
+
+- **Upload:** the camera-capable file input (`accept="image/*"
   capture="environment" multiple`) POSTs to `/api/upload` with
   `entity_type=inspection`, `entity_id={inspection.id}`. Two route changes:
   add `"inspection"` to `ALLOWED_ENTITY_TYPES`, and return the inserted
-  **document id** alongside the url (`{ id, url }`) so the item can reference it.
-  The blob is served through the auth proxy `/api/documents/{id}` as an inline
-  `<img>` thumbnail.
-- **Item linkage:** push `{id, url:"/api/documents/{id}"}` onto `item.photos`,
-  then persist the snapshot. All inspection photos share
-  `entity_id = inspection.id`, so the document table also yields a flat
-  per-inspection gallery and a clean cleanup key.
-- **Delete one photo:** delete the blob + `document` row and splice it out of
-  `item.photos`.
+  **document id** alongside the url (`{ id, url }`).
+- **Linkage:** for a per-item upload, push `{id, url:"/api/documents/{id}"}`
+  onto that `item.photos` and persist the snapshot; for a general upload, do
+  nothing extra — the document row alone places it in the gallery.
+- **Delete one photo:** delete the blob + `document` row; if it was item-linked,
+  splice it out of `item.photos`.
+- Because every photo shares `entity_id = inspection.id`, inspection-level
+  cleanup (§8) removes both kinds with one key.
 
 ### 6. Signatures
 
