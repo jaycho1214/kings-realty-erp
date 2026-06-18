@@ -225,6 +225,7 @@ export interface LandlordFamilyMember {
   notes: string | null;
   phone: string | null;
   relationship: string;
+  rrn_encrypted: string | null;
   sex: string | null;
   updated_at: Generated<Timestamp>;
 }
