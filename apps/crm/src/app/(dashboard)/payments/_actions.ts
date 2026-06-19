@@ -4,7 +4,11 @@ import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, requirePermission } from "@/lib/authz";
-import { recomputeChargeStatus } from "@/lib/charges";
+import {
+  recomputeChargeStatus,
+  resettleChargeTuple,
+  normalizeChargeType,
+} from "@/lib/charges";
 import { seoulDateString } from "@/lib/date";
 
 export async function createPayment(formData: FormData) {
@@ -41,32 +45,104 @@ export async function createPayment(formData: FormData) {
   const status = (formData.get("status") as string) || "pending";
   const notes = (formData.get("notes") as string) || null;
 
-  await db
-    .insertInto("payment")
-    .values({
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .insertInto("payment")
+      .values({
+        lease_id,
+        payment_type,
+        billing_month,
+        amount_krw,
+        currency_paid,
+        amount_paid,
+        exchange_rate_id,
+        payment_method,
+        payment_date,
+        status,
+        notes,
+        received_by: Number(session.user.id),
+      })
+      .execute();
+    // A standalone payment may cover an outstanding charge — settle it.
+    await resettleChargeTuple(
+      trx,
       lease_id,
-      payment_type,
       billing_month,
-      amount_krw,
-      currency_paid,
-      amount_paid,
-      exchange_rate_id,
-      payment_method,
-      payment_date,
-      status,
-      notes,
-      received_by: Number(session.user.id),
-    })
-    .execute();
+      normalizeChargeType(payment_type),
+      seoulDateString(),
+    );
+  });
 
   revalidatePath("/payments");
+  revalidatePath("/");
   redirect("/payments");
+}
+
+interface PaymentWriteValues {
+  lease_id: number;
+  payment_type: string;
+  billing_month: Date;
+  amount_krw: string;
+  currency_paid: string;
+  amount_paid: string;
+  exchange_rate_id: number | null;
+  payment_method: string;
+  payment_date: Date;
+  status: string;
+  notes: string | null;
+}
+
+/**
+ * Update a payment row and re-derive the settlement of every charge tuple it
+ * touches — its OLD (lease, month, charge type) and its NEW one — so editing a
+ * charge-linked payment (month, type, amount, status, lease) never leaves a
+ * charge stranded as paid/unpaid against stale values. One transaction.
+ */
+async function writePaymentUpdate(
+  id: number,
+  values: PaymentWriteValues,
+): Promise<void> {
+  const db = getDb();
+  const today = seoulDateString();
+  await db.transaction().execute(async (trx) => {
+    const before = await trx
+      .selectFrom("payment")
+      .select(["lease_id", "billing_month", "payment_type"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+
+    await trx
+      .updateTable("payment")
+      .set({ ...values, updated_at: new Date() })
+      .where("id", "=", id)
+      .execute();
+
+    // Re-settle the affected tuples (old + new), deduped so an unchanged tuple
+    // is only resettled once.
+    const tuples = new Map<
+      string,
+      { leaseId: number; billingMonth: Date; type: string }
+    >();
+    const add = (leaseId: number, bm: Date, paymentType: string) => {
+      const type = normalizeChargeType(paymentType);
+      tuples.set(`${leaseId}|${bm.getTime()}|${type}`, {
+        leaseId,
+        billingMonth: bm,
+        type,
+      });
+    };
+    if (before) {
+      add(before.lease_id, new Date(before.billing_month), before.payment_type);
+    }
+    add(values.lease_id, values.billing_month, values.payment_type);
+    for (const t of tuples.values()) {
+      await resettleChargeTuple(trx, t.leaseId, t.billingMonth, t.type, today);
+    }
+  });
 }
 
 export async function updatePayment(id: number, formData: FormData) {
   await requireUser();
-
-  const db = getDb();
 
   const lease_id = Number(formData.get("lease_id") as string);
   const payment_type = formData.get("payment_type") as string;
@@ -97,26 +173,22 @@ export async function updatePayment(id: number, formData: FormData) {
   const status = (formData.get("status") as string) || "pending";
   const notes = (formData.get("notes") as string) || null;
 
-  await db
-    .updateTable("payment")
-    .set({
-      lease_id,
-      payment_type,
-      billing_month,
-      amount_krw,
-      currency_paid,
-      amount_paid,
-      exchange_rate_id,
-      payment_method,
-      payment_date,
-      status,
-      notes,
-      updated_at: new Date(),
-    })
-    .where("id", "=", id)
-    .execute();
+  await writePaymentUpdate(id, {
+    lease_id,
+    payment_type,
+    billing_month,
+    amount_krw,
+    currency_paid,
+    amount_paid,
+    exchange_rate_id,
+    payment_method,
+    payment_date,
+    status,
+    notes,
+  });
 
   revalidatePath("/payments");
+  revalidatePath("/");
   redirect(`/payments/${id}`);
 }
 
@@ -143,8 +215,6 @@ export async function updateTenantPayment(
 ) {
   await requireUser();
 
-  const db = getDb();
-
   const lease_id = Number(formData.get("lease_id") as string);
   const payment_type = formData.get("payment_type") as string;
   const billing_month = new Date(
@@ -179,28 +249,24 @@ export async function updateTenantPayment(
     throw new Error("청구 월과 납부일을 올바르게 입력해주세요.");
   }
 
-  await db
-    .updateTable("payment")
-    .set({
-      lease_id,
-      payment_type,
-      billing_month,
-      amount_krw,
-      currency_paid,
-      amount_paid,
-      exchange_rate_id,
-      payment_method,
-      payment_date,
-      status,
-      notes,
-      updated_at: new Date(),
-    })
-    .where("id", "=", id)
-    .execute();
+  await writePaymentUpdate(id, {
+    lease_id,
+    payment_type,
+    billing_month,
+    amount_krw,
+    currency_paid,
+    amount_paid,
+    exchange_rate_id,
+    payment_method,
+    payment_date,
+    status,
+    notes,
+  });
 
   revalidatePath(`/tenants/${tenantId}`);
   revalidatePath("/payments");
   revalidatePath(`/payments/${id}`);
+  revalidatePath("/");
 }
 
 /**
@@ -215,8 +281,6 @@ export async function updatePropertyPayment(
 ) {
   await requireUser();
 
-  const db = getDb();
-
   const lease_id = Number(formData.get("lease_id") as string);
   const payment_type = formData.get("payment_type") as string;
   const billing_month = new Date(
@@ -251,28 +315,24 @@ export async function updatePropertyPayment(
     throw new Error("청구 월과 납부일을 올바르게 입력해주세요.");
   }
 
-  await db
-    .updateTable("payment")
-    .set({
-      lease_id,
-      payment_type,
-      billing_month,
-      amount_krw,
-      currency_paid,
-      amount_paid,
-      exchange_rate_id,
-      payment_method,
-      payment_date,
-      status,
-      notes,
-      updated_at: new Date(),
-    })
-    .where("id", "=", id)
-    .execute();
+  await writePaymentUpdate(id, {
+    lease_id,
+    payment_type,
+    billing_month,
+    amount_krw,
+    currency_paid,
+    amount_paid,
+    exchange_rate_id,
+    payment_method,
+    payment_date,
+    status,
+    notes,
+  });
 
   revalidatePath(`/properties/${propertyId}`);
   revalidatePath("/payments");
   revalidatePath(`/payments/${id}`);
+  revalidatePath("/");
 }
 
 export async function toggleBillPaid(id: number) {
@@ -337,21 +397,45 @@ export async function deletePayment(id: number) {
   await requirePermission("payment", "delete");
 
   const db = getDb();
+  const today = seoulDateString();
 
-  // Charges this payment settled — the FK nulls their paid_by_payment_id on
-  // delete, but status stays 'paid', so recompute them back to billed/overdue.
-  const linked = await db
-    .selectFrom("charge_item")
-    .select("id")
-    .where("paid_by_payment_id", "=", id)
-    .execute();
+  await db.transaction().execute(async (trx) => {
+    // Charges this payment settled. The FK nulls their paid_by_payment_id on
+    // delete; capture their tuples first so we can re-derive settlement after.
+    const linked = await trx
+      .selectFrom("charge_item")
+      .select(["id", "lease_id", "billing_month", "type"])
+      .where("paid_by_payment_id", "=", id)
+      .execute();
 
-  await db.deleteFrom("payment").where("id", "=", id).execute();
+    await trx.deleteFrom("payment").where("id", "=", id).execute();
 
-  await recomputeChargeStatus(
-    linked.map((r) => r.id),
-    seoulDateString(),
-  );
+    // Revert every linked charge from paid (incl. non-KRW, which resettle skips).
+    await recomputeChargeStatus(
+      linked.map((r) => r.id),
+      today,
+      trx,
+    );
+
+    // Then re-settle each affected tuple, so a charge still fully covered by
+    // another payment re-links instead of wrongly dropping to unpaid.
+    const tuples = new Map<
+      string,
+      { leaseId: number; billingMonth: Date; type: string }
+    >();
+    for (const c of linked) {
+      if (c.lease_id == null || c.billing_month == null) continue;
+      const bm = new Date(c.billing_month);
+      tuples.set(`${c.lease_id}|${bm.getTime()}|${c.type}`, {
+        leaseId: c.lease_id,
+        billingMonth: bm,
+        type: c.type,
+      });
+    }
+    for (const t of tuples.values()) {
+      await resettleChargeTuple(trx, t.leaseId, t.billingMonth, t.type, today);
+    }
+  });
 
   revalidatePath("/payments");
   revalidatePath("/");

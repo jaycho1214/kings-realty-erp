@@ -45,11 +45,12 @@ export function firstOfMonth(year: number, month: number): string {
 
 /**
  * Whole calendar days from Seoul-today until `target` (negative if already
- * past). Computed as a UTC-midnight difference of two Seoul calendar dates, so
- * the result never drifts with the server timezone — unlike a raw
- * `(targetMs - Date.now()) / 86_400_000`, whose "today" half depends on the
- * server clock. `target` may be a Date or anything `new Date()` parses (e.g. a
- * "YYYY-MM-DD" date column).
+ * past). Computed as a UTC-midnight difference of two Seoul calendar dates,
+ * avoiding the raw `(targetMs - Date.now()) / 86_400_000` whose "today" half
+ * depends on the server clock. `target` may be a Date or anything `new Date()`
+ * parses (e.g. a "YYYY-MM-DD" date column). Note: a bare `date`-column value is
+ * first parsed by pg at the server timezone, so this is exact on the UTC
+ * runtime; pass a Seoul date string for a strictly timezone-independent result.
  */
 export function daysUntil(
   target: Date | string,

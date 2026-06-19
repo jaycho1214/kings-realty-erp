@@ -280,9 +280,9 @@ export async function reconcileCharges(): Promise<number> {
 export async function recomputeChargeStatus(
   chargeIds: number[],
   today: string,
+  db: Executor = getDb(),
 ): Promise<void> {
   if (chargeIds.length === 0) return;
-  const db = getDb();
   await db
     .updateTable("charge_item")
     .set({
@@ -297,4 +297,93 @@ export async function recomputeChargeStatus(
     })
     .where("id", "in", chargeIds)
     .execute();
+}
+
+/**
+ * A payment type settles the same-named charge type, except 선불금(prepayment)
+ * which is prepaid rent and settles the 월세(rent) charge.
+ */
+export function normalizeChargeType(paymentType: string): string {
+  return paymentType === "prepayment" ? "rent" : paymentType;
+}
+
+/**
+ * Re-derive the settlement of the single charge in a (lease, billing_month,
+ * charge type) tuple from the paid payments currently in it. Settlement is a
+ * pure function of those payments, so this both SETTLES (links + marks paid when
+ * fully covered) and UN-SETTLES (drops the link + reverts to billed/overdue when
+ * no longer covered) — safe to call after a payment is created, edited, or
+ * deleted so an edit can never strand a charge as paid/unpaid against stale
+ * values. 선불금(prepayment) counts toward the 월세(rent) charge. KRW charges
+ * only; null-amount and waived/void charges are left untouched. `today` is a
+ * Seoul "YYYY-MM-DD". Charge rows are unique per (lease, type, billing_month),
+ * so the tuple maps to at most one charge. Runs on the passed executor, so it
+ * stays inside the caller's transaction.
+ */
+export async function resettleChargeTuple(
+  db: Executor,
+  leaseId: number,
+  billingMonth: Date,
+  chargeType: string,
+  today: string,
+): Promise<void> {
+  const charge = await db
+    .selectFrom("charge_item")
+    .select(["id", "amount"])
+    .where("lease_id", "=", leaseId)
+    .where("billing_month", "=", billingMonth)
+    .where("type", "=", chargeType)
+    .where("currency", "=", "KRW")
+    .where("amount", "is not", null)
+    .where("status", "not in", ["waived", "void"])
+    .executeTakeFirst();
+  if (!charge) return;
+
+  // Paid payments covering this charge type (선불금 counts toward 월세).
+  const coverage = await db
+    .selectFrom("payment")
+    .select((eb) => [
+      eb.fn.sum<string>("amount_krw").as("paid_krw"),
+      eb.fn.max("id").as("payment_id"),
+    ])
+    .where("lease_id", "=", leaseId)
+    .where("billing_month", "=", billingMonth)
+    .where("status", "=", "paid")
+    .where((eb) =>
+      chargeType === "rent"
+        ? eb("payment_type", "in", ["rent", "prepayment"])
+        : eb("payment_type", "=", chargeType),
+    )
+    .executeTakeFirst();
+
+  const covered =
+    coverage?.payment_id != null &&
+    Number(coverage.paid_krw ?? 0) >= Number(charge.amount);
+
+  if (covered) {
+    await db
+      .updateTable("charge_item")
+      .set({
+        paid_by_payment_id: coverage.payment_id as number,
+        status: "paid",
+        updated_at: new Date(),
+      })
+      .where("id", "=", charge.id)
+      .execute();
+  } else {
+    // No longer covered: drop the stale link and revert to billed/overdue
+    // (amount-null and waived/void were excluded above, so only those remain).
+    await db
+      .updateTable("charge_item")
+      .set({
+        paid_by_payment_id: null,
+        status: sql<string>`case
+          when due_date is not null and due_date < ${today}::date then 'overdue'
+          else 'billed'
+        end`,
+        updated_at: new Date(),
+      })
+      .where("id", "=", charge.id)
+      .execute();
+  }
 }

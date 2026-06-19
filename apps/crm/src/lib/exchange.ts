@@ -22,7 +22,10 @@ export const getUsdToKrwRate = cache(async (): Promise<number | null> => {
   const latest = (denom: number) =>
     rows.find((r) => Number(r.denomination) === denom);
   const pick = latest(20) ?? latest(100) ?? rows[0];
-  return pick ? Number(pick.usd_to_krw) : null;
+  const rate = pick ? Number(pick.usd_to_krw) : null;
+  // A 0 / negative / non-finite stored rate is unusable — treat it as missing so
+  // toKrw falls back to face value instead of collapsing every USD amount to ₩0.
+  return rate && Number.isFinite(rate) && rate > 0 ? rate : null;
 });
 
 /**
