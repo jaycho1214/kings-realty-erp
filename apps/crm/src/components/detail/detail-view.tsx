@@ -35,6 +35,8 @@ export interface DetailViewProps {
   title: string;
   /** Status / identity chips rendered next to the title. */
   badges?: React.ReactNode;
+  /** Secondary line under the title (e.g. address, full-width, never clipped). */
+  subtitle?: React.ReactNode;
   facts?: Fact[];
   /** The primary "기본 정보" tab, split into a read view and an edit form. */
   info?: { label?: string; read: React.ReactNode; edit: React.ReactNode };
@@ -55,6 +57,7 @@ export function DetailView({
   activeTab = "",
   title,
   badges,
+  subtitle,
   facts,
   info,
   tabs = [],
@@ -113,11 +116,14 @@ export function DetailView({
           <span className="text-foreground">{title}</span>
         </nav>
         <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <h1 className="truncate text-xl font-semibold tracking-tight">
-              {title}
-            </h1>
-            {badges}
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+              <h1 className="truncate text-xl font-semibold tracking-tight">
+                {title}
+              </h1>
+              {badges}
+            </div>
+            {subtitle && <div className="mt-1">{subtitle}</div>}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {actions}

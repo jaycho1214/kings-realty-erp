@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { MapPin } from "lucide-react";
 import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,7 @@ export default async function TenantDetailPage({
         sql<string>`coalesce(property.address_jibeon, property.address)`.as(
           "address",
         ),
+        "property.address_detail",
         "landlord.id as landlord_id",
         "landlord.name as landlord_name",
         "landlord.phone as landlord_phone",
@@ -359,6 +361,13 @@ export default async function TenantDetailPage({
   const activeLease =
     leases.find((l) => l.status === "active" || l.status === "pending") ?? null;
 
+  // 현재 거주지 전체 주소 (지번/도로명 + 상세) — 헤더 이름 아래 노출.
+  const activeAddress = activeLease
+    ? [activeLease.address, activeLease.address_detail?.trim()]
+        .filter(Boolean)
+        .join(" ")
+    : null;
+
   // Inspections (입주/퇴거 점검) belong to a lease; bind the tab to the tenant's
   // most-recent lease (covers both move-in on a current lease and move-out on a
   // just-ended one).
@@ -366,7 +375,14 @@ export default async function TenantDetailPage({
   const inspections = inspectionLease
     ? await db
         .selectFrom("inspection")
-        .select(["id", "type", "status", "inspected_at", "checklist", "summary"])
+        .select([
+          "id",
+          "type",
+          "status",
+          "inspected_at",
+          "checklist",
+          "summary",
+        ])
         .where("lease_id", "=", inspectionLease.id)
         .orderBy("inspected_at", "desc")
         .execute()
@@ -593,6 +609,17 @@ export default async function TenantDetailPage({
       basePath={`/tenants/${numId}`}
       activeTab={activeTab}
       title={tenant.name}
+      subtitle={
+        activeLease && activeAddress ? (
+          <Link
+            href={`/properties/${activeLease.property_id}`}
+            className="inline-flex items-start gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:underline"
+          >
+            <MapPin className="mt-0.5 size-3.5 shrink-0" />
+            {activeAddress}
+          </Link>
+        ) : undefined
+      }
       badges={
         <>
           {tenant.status === "active" ? (
