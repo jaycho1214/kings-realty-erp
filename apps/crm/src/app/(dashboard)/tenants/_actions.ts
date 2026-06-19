@@ -290,11 +290,36 @@ export async function deletePet(id: number, tenantId: number) {
 
 // --- Tenant Status ---
 
-export async function updateTenantStatus(id: number, status: string) {
+export async function updateTenantStatus(
+  id: number,
+  status: string,
+  // Move-out date as a Seoul "YYYY-MM-DD" string; defaults to now. Ignored when
+  // returning to active.
+  movedOutOn?: string | null,
+) {
   await requirePermission("tenant", "update");
 
   if (status !== "active" && status !== "inactive") {
     throw new Error("올바르지 않은 상태입니다.");
+  }
+
+  // Moving out archives the tenant (starts the 보관→휴지통 retention clock);
+  // returning to active un-archives them. Anchor the picked calendar date to
+  // noon Seoul so it reads as the same day whether the server formats in UTC
+  // or KST.
+  let archivedAt: Date | null = null;
+  if (status === "inactive") {
+    if (movedOutOn) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(movedOutOn)) {
+        throw new Error("올바르지 않은 날짜입니다.");
+      }
+      archivedAt = new Date(`${movedOutOn}T12:00:00+09:00`);
+      if (Number.isNaN(archivedAt.getTime())) {
+        throw new Error("올바르지 않은 날짜입니다.");
+      }
+    } else {
+      archivedAt = new Date();
+    }
   }
 
   const db = getDb();
@@ -303,9 +328,7 @@ export async function updateTenantStatus(id: number, status: string) {
     .updateTable("tenant")
     .set({
       status,
-      // Moving out archives the tenant (starts the 보관→휴지통 retention clock);
-      // returning to active un-archives them.
-      archived_at: status === "active" ? null : new Date(),
+      archived_at: archivedAt,
       updated_at: new Date(),
     })
     .where("id", "=", id)
