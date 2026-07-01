@@ -5,7 +5,7 @@ import suneditor from "suneditor";
 import plugins from "suneditor/src/plugins";
 import type SunEditorInstance from "suneditor/src/lib/core";
 import "suneditor/dist/css/suneditor.min.css";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NOTE_IMAGE_TITLE } from "@/lib/notes/constants";
 
@@ -49,8 +49,10 @@ export default function NoteComposer({
   const containerRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<SunEditorInstance | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
   const [eventMenuOpen, setEventMenuOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [menu, setMenu] = useState<{
     query: string;
     top: number;
@@ -77,51 +79,61 @@ export default function NoteComposer({
     if (!hostRef.current) return;
     const editor = suneditor.create(hostRef.current, {
       plugins,
-      buttonList: [["bold", "italic", "underline", "link", "list", "image"]],
+      // No default "image" button — image insertion is our own (drag/paste/button).
+      buttonList: [["bold", "italic", "underline", "link", "list"]],
       minHeight: "66px",
       height: "auto",
       resizingBar: false,
       showPathLabel: false,
       placeholder: "메모를 입력하세요...",
       defaultTag: "p",
-      // Preserve mention chips through SunEditor's own HTML cleaning.
-      attributesWhitelist: { span: "class|data-mention" },
+      // Preserve mention chips + our embedded images through SunEditor cleaning.
+      attributesWhitelist: { span: "class|data-mention", img: "src|alt" },
     });
     if (initialHtml) editor.setContents(initialHtml);
     editorRef.current = editor;
     if (autoFocus) editor.core.focus();
 
-    // Upload pasted/selected images through the authenticated document proxy
-    // (private blob) and embed the same-origin /api/documents/<id> URL.
-    editor.onImageUploadBefore = (files, _info, _core, uploadHandler) => {
-      (async () => {
-        try {
-          const fd = new FormData();
-          fd.set("file", files[0]);
-          fd.set("entity_type", "tenant");
-          fd.set("entity_id", String(tenantId));
-          fd.set("title", NOTE_IMAGE_TITLE);
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
-          if (!res.ok) {
-            const { error } = await res.json().catch(() => ({}));
-            uploadHandler({ errorMessage: error || "이미지 업로드 실패" });
-            return;
-          }
-          const { id } = await res.json();
-          uploadHandler({
-            result: [
-              {
-                url: `/api/documents/${id}`,
-                name: files[0].name,
-                size: files[0].size,
-              },
-            ],
-          });
-        } catch {
-          uploadHandler({ errorMessage: "이미지 업로드 실패" });
-        }
-      })();
-      return false; // defer to the async custom upload above
+    // Our own image handling: intercept image drops and pastes, upload them
+    // ourselves, and place the <img> at the drop point / caret. Returning false
+    // stops SunEditor's built-in image handling.
+    editor.onDrop = (e) => {
+      const de = e as DragEvent;
+      const imgs = de.dataTransfer
+        ? Array.from(de.dataTransfer.files).filter((f) =>
+            f.type.startsWith("image/"),
+          )
+        : [];
+      setDragging(false);
+      if (imgs.length === 0) return true;
+      e.preventDefault();
+      const docAny = document as unknown as {
+        caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      };
+      const range = docAny.caretRangeFromPoint?.(de.clientX, de.clientY);
+      const sel = editor.core.getSelection();
+      if (range && sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        editor.core.focus();
+      }
+      imgs.forEach((f) => uploadImageFile(f));
+      return false;
+    };
+
+    editor.onPaste = (e) => {
+      const ce = e as ClipboardEvent;
+      const imgs = ce.clipboardData
+        ? Array.from(ce.clipboardData.files).filter((f) =>
+            f.type.startsWith("image/"),
+          )
+        : [];
+      if (imgs.length === 0) return true;
+      e.preventDefault();
+      editor.core.focus();
+      imgs.forEach((f) => uploadImageFile(f));
+      return false;
     };
 
     // Detect a trailing `@query` token at the caret and position the dropdown.
@@ -199,6 +211,34 @@ export default function NoteComposer({
     setEventMenuOpen(false);
   }
 
+  // Upload one image through the authenticated document proxy (private blob),
+  // then embed the same-origin /api/documents/<id> URL at the current caret.
+  async function uploadImageFile(file: File) {
+    const editor = editorRef.current;
+    if (!editor || !file.type.startsWith("image/")) return;
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("entity_type", "tenant");
+      fd.set("entity_id", String(tenantId));
+      fd.set("title", NOTE_IMAGE_TITLE);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) return;
+      const { id } = await res.json();
+      editor.insertHTML(
+        `<img src="/api/documents/${id}" alt="${escapeHtml(file.name)}" />`,
+        true,
+        false,
+      );
+    } catch {
+      // Swallow — a failed upload simply inserts nothing.
+    }
+  }
+
+  function pickImages() {
+    fileInputRef.current?.click();
+  }
+
   function onKeyDownCapture(e: React.KeyboardEvent) {
     if (!menu || candidates.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -237,9 +277,28 @@ export default function NoteComposer({
       ref={containerRef}
       className="note-editor relative"
       onKeyDownCapture={onKeyDownCapture}
+      onDragEnter={(e) => {
+        if (e.dataTransfer?.types?.includes("Files")) setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer?.types?.includes("Files")) {
+          e.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+          setDragging(false);
+      }}
     >
       {/* SunEditor replaces this textarea in place. */}
       <textarea ref={hostRef} defaultValue={initialHtml ?? ""} />
+
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-lg border-2 border-dashed border-brand bg-brand-weak/70 text-xs font-medium text-brand">
+          여기에 이미지를 놓으세요
+        </div>
+      )}
 
       {menu && candidates.length > 0 && (
         <ul
@@ -266,40 +325,64 @@ export default function NoteComposer({
       )}
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="relative">
-          {events.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-muted-foreground"
-              onClick={() => setEventMenuOpen((o) => !o)}
-            >
-              <CalendarPlus className="size-3.5" />
-              일정
-            </Button>
-          )}
-          {eventMenuOpen && events.length > 0 && (
-            <ul className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-56 overflow-auto rounded-lg border bg-popover p-1 text-sm shadow-md">
-              {events.map((ev) => (
-                <li key={ev.id}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-secondary/60"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      insertEventLink(ev);
-                    }}
-                  >
-                    <span className="w-full truncate">{ev.title}</span>
-                    <span className="tabular text-[11px] text-muted-foreground">
-                      {new Date(ev.date).toLocaleDateString("ko-KR")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="flex items-center gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              files.forEach((f) => uploadImageFile(f));
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-muted-foreground"
+            onClick={pickImages}
+          >
+            <ImagePlus className="size-3.5" />
+            이미지
+          </Button>
+          <div className="relative">
+            {events.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-muted-foreground"
+                onClick={() => setEventMenuOpen((o) => !o)}
+              >
+                <CalendarPlus className="size-3.5" />
+                일정
+              </Button>
+            )}
+            {eventMenuOpen && events.length > 0 && (
+              <ul className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-56 overflow-auto rounded-lg border bg-popover p-1 text-sm shadow-md">
+                {events.map((ev) => (
+                  <li key={ev.id}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-secondary/60"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        insertEventLink(ev);
+                      }}
+                    >
+                      <span className="w-full truncate">{ev.title}</span>
+                      <span className="tabular text-[11px] text-muted-foreground">
+                        {new Date(ev.date).toLocaleDateString("ko-KR")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           {onCancel && (
