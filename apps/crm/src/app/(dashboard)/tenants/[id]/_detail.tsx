@@ -76,6 +76,7 @@ export default async function TenantDetailPage({
     notes,
     baseLocations,
     documents,
+    staff,
   ] = await Promise.all([
     db
       .selectFrom("tenant_family_member")
@@ -145,13 +146,20 @@ export default async function TenantDetailPage({
     db
       .selectFrom("tenant_note")
       .innerJoin("user", "user.id", "tenant_note.created_by")
+      .leftJoin("user as resolver", "resolver.id", "tenant_note.resolved_by")
       .select([
         "tenant_note.id",
         "tenant_note.content",
+        "tenant_note.created_by",
         "tenant_note.created_at",
+        "tenant_note.updated_at",
+        "tenant_note.resolved_at",
         "user.name as author_name",
+        "user.image as author_image",
+        "resolver.name as resolver_name",
       ])
       .where("tenant_note.tenant_id", "=", numId)
+      .where("tenant_note.parent_id", "is", null)
       .orderBy("tenant_note.created_at", "desc")
       .execute(),
     db
@@ -173,6 +181,12 @@ export default async function TenantDetailPage({
       .where("entity_type", "=", "tenant")
       .where("entity_id", "=", numId)
       .orderBy("created_at", "desc")
+      .execute(),
+    db
+      .selectFrom("user")
+      .select(["id", "name"])
+      .where("banned", "is not", true)
+      .orderBy("name", "asc")
       .execute(),
   ]);
 
@@ -282,6 +296,7 @@ export default async function TenantDetailPage({
 
   const canEditLedger = canViewSensitive(session?.user?.role);
   const canViewRrn = canViewSensitive(session?.user?.role);
+  const currentUserId = session?.user?.id ? Number(session.user.id) : null;
 
   const tenantGroupCode = rankToGroupCode(tenant.rank);
 
@@ -697,13 +712,21 @@ export default async function TenantDetailPage({
       aside={
         <TenantNotes
           tenantId={numId}
+          currentUserId={currentUserId}
+          staff={staff}
           notes={notes.map((n) => ({
-            ...n,
+            id: n.id,
+            content: n.content,
+            created_by: n.created_by,
+            author_name: n.author_name,
+            author_image: n.author_image,
+            resolver_name: n.resolver_name,
+            resolved: n.resolved_at != null,
+            edited: n.updated_at != null,
             created_at:
               n.created_at instanceof Date
                 ? n.created_at.toISOString()
-                : n.created_at,
-            author_name: n.author_name,
+                : String(n.created_at),
           }))}
         />
       }
