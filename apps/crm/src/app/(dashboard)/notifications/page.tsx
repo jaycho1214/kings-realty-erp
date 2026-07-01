@@ -1,9 +1,12 @@
 import { getDb } from "@kingsrealty/db";
 import { PageHeader } from "@/components/page-header";
+import { getSession } from "@/lib/session";
 import { NotificationList } from "./_components/notification-list";
 
 export default async function NotificationsPage() {
   const db = getDb();
+  const session = await getSession();
+  const userId = session?.user?.id ? Number(session.user.id) : null;
 
   const notifications = await db
     .selectFrom("notification")
@@ -18,6 +21,12 @@ export default async function NotificationsPage() {
       "is_read",
       "created_at",
     ])
+    .where((eb) =>
+      eb.or([
+        eb("target_user_id", "is", null),
+        ...(userId != null ? [eb("target_user_id", "=", userId)] : []),
+      ]),
+    )
     .orderBy("is_read", "asc")
     .orderBy("created_at", "desc")
     .limit(200)

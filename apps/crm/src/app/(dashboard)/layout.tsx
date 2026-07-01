@@ -24,6 +24,7 @@ export default async function DashboardLayout({
   }
 
   const db = getDb();
+  const userId = Number(session.user.id);
   const [tenants, leases, properties, unpaid, services, notifications] =
     await Promise.all([
       db
@@ -66,6 +67,12 @@ export default async function DashboardLayout({
         .selectFrom("notification")
         .select(({ fn }) => fn.count<number>("id").as("c"))
         .where("is_read", "=", false)
+        .where((eb) =>
+          eb.or([
+            eb("target_user_id", "is", null),
+            eb("target_user_id", "=", userId),
+          ]),
+        )
         .executeTakeFirst(),
     ]);
 
