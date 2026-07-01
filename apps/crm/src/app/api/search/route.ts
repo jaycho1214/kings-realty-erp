@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { getDb } from "@kingsrealty/db";
 import { auth } from "@/lib/auth";
 import { isStaffOrAdmin } from "@/lib/authz";
-import { escapeLike } from "@/lib/utils";
+import { nameSearchPatterns } from "@/lib/search";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -15,57 +15,37 @@ export async function GET(req: NextRequest) {
   }
 
   const q = req.nextUrl.searchParams.get("q");
-  if (!q || q.length < 1)
-    return NextResponse.json({
-      results: { tenants: [], properties: [], landlords: [] },
-    });
+  const patterns = nameSearchPatterns(q ?? "");
+  if (patterns.length === 0)
+    return NextResponse.json({ results: { tenants: [] } });
 
   const db = getDb();
-  const searchTerm = `%${escapeLike(q)}%`;
 
-  const [tenants, properties, landlords] = await Promise.all([
-    db
-      .selectFrom("tenant")
-      .select(["id", "name", "phone", "status"])
-      .where("deleted_at", "is", null)
-      .where((eb) =>
-        eb.or([
-          eb("name", "ilike", searchTerm),
-          eb("phone", "ilike", searchTerm),
-        ]),
-      )
-      .limit(5)
-      .execute(),
-    db
-      .selectFrom("property")
-      .select(["id", "address", "status"])
-      .where("address", "ilike", searchTerm)
-      .limit(5)
-      .execute(),
-    db
-      .selectFrom("landlord")
-      .select(["id", "name", "phone"])
-      .where((eb) =>
-        eb.or([
-          eb("name", "ilike", searchTerm),
-          eb("phone", "ilike", searchTerm),
-        ]),
-      )
-      .limit(5)
-      .execute(),
-  ]);
+  // Match every whitespace token against the name (AND), so word order and
+  // partial tokens both work. Each tenant carries its current active lease id,
+  // which the payment shortcut hands to /payments/new?lease=... — the same
+  // status ('active') that page lists, so the preselect resolves.
+  const tenants = await db
+    .selectFrom("tenant")
+    .select((eb) => [
+      "tenant.id",
+      "tenant.name",
+      "tenant.phone",
+      "tenant.status",
+      eb
+        .selectFrom("lease")
+        .select("lease.id")
+        .whereRef("lease.tenant_id", "=", "tenant.id")
+        .where("lease.status", "=", "active")
+        .orderBy("lease.start_date", "desc")
+        .limit(1)
+        .as("activeLeaseId"),
+    ])
+    .where("tenant.deleted_at", "is", null)
+    .where((eb) => eb.and(patterns.map((p) => eb("tenant.name", "ilike", p))))
+    .orderBy("tenant.name")
+    .limit(10)
+    .execute();
 
-  return NextResponse.json({
-    results: {
-      tenants: tenants.map((t) => ({ ...t, type: "tenant" as const })),
-      properties: properties.map((p) => ({
-        ...p,
-        type: "property" as const,
-      })),
-      landlords: landlords.map((l) => ({
-        ...l,
-        type: "landlord" as const,
-      })),
-    },
-  });
+  return NextResponse.json({ results: { tenants } });
 }

@@ -24,7 +24,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { useIsMac } from "@/hooks/use-is-mac";
@@ -35,19 +34,7 @@ interface SearchResults {
     name: string;
     phone: string;
     status: string;
-    type: "tenant";
-  }>;
-  properties: Array<{
-    id: number;
-    address: string;
-    status: string;
-    type: "property";
-  }>;
-  landlords: Array<{
-    id: number;
-    name: string;
-    phone: string;
-    type: "landlord";
+    activeLeaseId: number | null;
   }>;
 }
 
@@ -128,12 +115,32 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
     [router, handleOpenChange],
   );
 
+  // ⌘↵ / Ctrl+↵ on the highlighted tenant jumps straight to recording a
+  // payment. Read the destination off the selected item so it stays in sync
+  // with cmdk's own keyboard navigation. Capture phase runs before cmdk's
+  // plain-Enter handler.
+  React.useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        const selected = document.querySelector<HTMLElement>(
+          '[data-slot="command-item"][data-selected="true"]',
+        );
+        const href = selected?.getAttribute("data-payment-href");
+        if (href) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleSelect(href);
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, handleSelect]);
+
   const hasSearchQuery = searchQuery.length > 0;
-  const hasResults =
-    searchResults &&
-    (searchResults.tenants.length > 0 ||
-      searchResults.properties.length > 0 ||
-      searchResults.landlords.length > 0);
+  const tenants = searchResults?.tenants ?? [];
+  const hasResults = tenants.length > 0;
 
   return (
     <>
@@ -152,72 +159,68 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         open={open}
         onOpenChange={handleOpenChange}
         title="명령 팔레트"
-        description="검색하거나 빠른 실행을 선택하세요"
+        description="세입자를 검색하거나 빠른 실행을 선택하세요"
       >
         <Command
           shouldFilter={false}
           className="[&_[cmdk-item]]:bg-transparent [&_[cmdk-item][data-selected=true]]:bg-muted"
         >
-          <CommandInput placeholder="검색..." onValueChange={setSearchQuery} />
+          <CommandInput
+            placeholder="세입자 이름 검색..."
+            onValueChange={setSearchQuery}
+          />
           <CommandList>
             <CommandEmpty>
               {isSearching ? "검색 중..." : "검색 결과가 없습니다"}
             </CommandEmpty>
 
-            {hasSearchQuery && searchResults && (
+            {hasSearchQuery && hasResults && (
               <>
-                {searchResults.tenants.length > 0 && (
-                  <CommandGroup heading="세입자">
-                    {searchResults.tenants.map((tenant) => (
+                <CommandGroup heading="세입자">
+                  {tenants.map((tenant) => {
+                    const paymentHref =
+                      tenant.activeLeaseId != null
+                        ? `/payments/new?lease=${tenant.activeLeaseId}`
+                        : null;
+                    return (
                       <CommandItem
                         key={`tenant-${tenant.id}`}
                         value={`tenant ${tenant.name} ${tenant.phone}`}
+                        data-payment-href={paymentHref ?? undefined}
                         onSelect={() => handleSelect(`/tenants/${tenant.id}`)}
                       >
                         <Users />
-                        {tenant.name}
-                        <CommandShortcut>{tenant.phone}</CommandShortcut>
+                        <span className="truncate">{tenant.name}</span>
+                        <span
+                          data-slot="command-shortcut"
+                          className="ml-auto flex items-center gap-2"
+                        >
+                          <span className="text-xs tracking-widest text-muted-foreground">
+                            {tenant.phone}
+                          </span>
+                          {paymentHref && (
+                            <button
+                              type="button"
+                              aria-label={`${tenant.name} 수납 등록`}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                handleSelect(paymentHref);
+                              }}
+                              className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                            >
+                              <CreditCard className="size-3!" />
+                              수납
+                            </button>
+                          )}
+                        </span>
                       </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
+                    );
+                  })}
+                </CommandGroup>
 
-                {searchResults.properties.length > 0 && (
-                  <CommandGroup heading="매물">
-                    {searchResults.properties.map((property) => (
-                      <CommandItem
-                        key={`property-${property.id}`}
-                        value={`property ${property.address}`}
-                        onSelect={() =>
-                          handleSelect(`/properties/${property.id}`)
-                        }
-                      >
-                        <Building2 />
-                        {property.address}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {searchResults.landlords.length > 0 && (
-                  <CommandGroup heading="임대인">
-                    {searchResults.landlords.map((landlord) => (
-                      <CommandItem
-                        key={`landlord-${landlord.id}`}
-                        value={`landlord ${landlord.name} ${landlord.phone}`}
-                        onSelect={() =>
-                          handleSelect(`/landlords/${landlord.id}`)
-                        }
-                      >
-                        <Users />
-                        {landlord.name}
-                        <CommandShortcut>{landlord.phone}</CommandShortcut>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {hasResults && <CommandSeparator />}
+                <CommandSeparator />
               </>
             )}
 
@@ -265,6 +268,21 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 ))}
             </CommandGroup>
           </CommandList>
+
+          {hasResults && (
+            <div className="flex items-center justify-end gap-3 border-t px-3 py-1.5 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <kbd className="rounded border bg-muted px-1 font-mono">↵</kbd>
+                상세
+              </span>
+              <span className="flex items-center gap-1">
+                <kbd className="rounded border bg-muted px-1 font-mono">
+                  {isMac ? "⌘↵" : "Ctrl ↵"}
+                </kbd>
+                수납
+              </span>
+            </div>
+          )}
         </Command>
       </CommandDialog>
     </>

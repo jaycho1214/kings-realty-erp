@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/date.test.ts src/lib/tasks/board.test.ts src/lib/tasks/suggestions.test.ts src/lib/lease-intake.test.ts src/lib/charge-types.test.ts src/lib/inspection/snapshot.test.ts src/lib/inspection/parse.test.ts src/lib/inspection/compare.test.ts"
+    "test": "node --import tsx --test src/lib/date.test.ts src/lib/tasks/board.test.ts src/lib/tasks/suggestions.test.ts src/lib/lease-intake.test.ts src/lib/charge-types.test.ts src/lib/inspection/snapshot.test.ts src/lib/inspection/parse.test.ts src/lib/inspection/compare.test.ts src/lib/search.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
