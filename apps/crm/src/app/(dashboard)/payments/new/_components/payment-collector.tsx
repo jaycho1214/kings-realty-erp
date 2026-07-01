@@ -486,8 +486,10 @@ export function PaymentCollector({
         </div>
       )}
 
-      <div className="flex flex-col gap-5 md:flex-row">
-        {/* Left column: Tenant + Line Items */}
+      <div className="flex flex-col gap-5 xl:flex-row">
+        {/* Left column: Tenant + Line Items. Stays full-width until xl — below
+            that the sidebar (232px) leaves too little room for the charge table
+            and tenant fields to sit beside the 340px summary without crushing. */}
         <div className="min-w-0 flex-1 space-y-4">
           {/* Section 1: Tenant Selection */}
           <Card>
@@ -820,8 +822,8 @@ export function PaymentCollector({
         </div>
 
         {/* Right column: Payment + Metadata + Submit (sticky on desktop) */}
-        <div className="md:w-[340px] md:shrink-0">
-          <div className="space-y-4 md:sticky md:top-4">
+        <div className="xl:w-[340px] xl:shrink-0">
+          <div className="space-y-4 xl:sticky xl:top-4">
             {/* Section 3: Payment Tender (USD / KRW / hybrid) */}
             <Card>
               <CardHeader>
