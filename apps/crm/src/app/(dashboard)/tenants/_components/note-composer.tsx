@@ -5,6 +5,7 @@ import suneditor from "suneditor";
 import plugins from "suneditor/src/plugins";
 import type SunEditorInstance from "suneditor/src/lib/core";
 import "suneditor/dist/css/suneditor.min.css";
+import { CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NOTE_IMAGE_TITLE } from "@/lib/notes/constants";
 
@@ -13,9 +14,16 @@ interface StaffOption {
   name: string;
 }
 
+interface EventOption {
+  id: number;
+  title: string;
+  date: string; // ISO
+}
+
 interface NoteComposerProps {
   tenantId: number;
   staff: StaffOption[];
+  events: EventOption[];
   onSubmit: (html: string) => void | Promise<void>;
   submitLabel: string;
   initialHtml?: string;
@@ -31,6 +39,7 @@ function escapeHtml(s: string): string {
 export default function NoteComposer({
   tenantId,
   staff,
+  events,
   onSubmit,
   submitLabel,
   initialHtml,
@@ -41,6 +50,7 @@ export default function NoteComposer({
   const hostRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<SunEditorInstance | null>(null);
   const [pending, setPending] = useState(false);
+  const [eventMenuOpen, setEventMenuOpen] = useState(false);
   const [menu, setMenu] = useState<{
     query: string;
     top: number;
@@ -174,6 +184,21 @@ export default function NoteComposer({
     setMenu(null);
   }
 
+  function insertEventLink(ev: EventOption) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const d = new Date(ev.date);
+    const href = `/calendar?year=${d.getFullYear()}&month=${d.getMonth() + 1}`;
+    const label = `📅 ${escapeHtml(ev.title)}`;
+    editor.core.focus();
+    editor.insertHTML(
+      `<a class="event-chip" data-event="${ev.id}" href="${href}">${label}</a>&nbsp;`,
+      true,
+      false,
+    );
+    setEventMenuOpen(false);
+  }
+
   function onKeyDownCapture(e: React.KeyboardEvent) {
     if (!menu || candidates.length === 0) return;
     if (e.key === "ArrowDown") {
@@ -240,20 +265,57 @@ export default function NoteComposer({
         </ul>
       )}
 
-      <div className="mt-2 flex justify-end gap-2">
-        {onCancel && (
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-            취소
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="relative">
+          {events.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-muted-foreground"
+              onClick={() => setEventMenuOpen((o) => !o)}
+            >
+              <CalendarPlus className="size-3.5" />
+              일정
+            </Button>
+          )}
+          {eventMenuOpen && events.length > 0 && (
+            <ul className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-56 overflow-auto rounded-lg border bg-popover p-1 text-sm shadow-md">
+              {events.map((ev) => (
+                <li key={ev.id}>
+                  <button
+                    type="button"
+                    className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-secondary/60"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      insertEventLink(ev);
+                    }}
+                  >
+                    <span className="w-full truncate">{ev.title}</span>
+                    <span className="tabular text-[11px] text-muted-foreground">
+                      {new Date(ev.date).toLocaleDateString("ko-KR")}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {onCancel && (
+            <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+              취소
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSubmit}
+            disabled={pending}
+          >
+            {pending ? "저장 중..." : submitLabel}
           </Button>
-        )}
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleSubmit}
-          disabled={pending}
-        >
-          {pending ? "저장 중..." : submitLabel}
-        </Button>
+        </div>
       </div>
     </div>
   );

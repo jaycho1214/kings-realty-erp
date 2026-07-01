@@ -78,6 +78,7 @@ export default async function TenantDetailPage({
     baseLocations,
     documents,
     staff,
+    tenantEvents,
   ] = await Promise.all([
     db
       .selectFrom("tenant_family_member")
@@ -192,6 +193,13 @@ export default async function TenantDetailPage({
       .select(["id", "name"])
       .where("banned", "is not", true)
       .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("calendar_event")
+      .select(["id", "title", "date"])
+      .where("tenant_id", "=", numId)
+      .orderBy("date", "desc")
+      .limit(50)
       .execute(),
   ]);
 
@@ -719,6 +727,12 @@ export default async function TenantDetailPage({
           tenantId={numId}
           currentUserId={currentUserId}
           staff={staff}
+          events={tenantEvents.map((e) => ({
+            id: e.id,
+            title: e.title,
+            date:
+              e.date instanceof Date ? e.date.toISOString() : String(e.date),
+          }))}
           notes={notes.map((n) => ({
             id: n.id,
             content: n.content,

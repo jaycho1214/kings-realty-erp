@@ -22,7 +22,7 @@ export function sanitizeNoteHtml(html: string): string {
       "img",
     ],
     allowedAttributes: {
-      a: ["href", "target", "rel"],
+      a: ["href", "target", "rel", "class", "data-event"],
       span: ["class", "data-mention"],
       img: ["src", "alt"],
     },

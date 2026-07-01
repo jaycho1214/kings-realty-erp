@@ -22,6 +22,11 @@ interface StaffOption {
   id: number;
   name: string;
 }
+interface EventOption {
+  id: number;
+  title: string;
+  date: string;
+}
 interface NoteRow {
   id: number;
   content: string;
@@ -37,6 +42,7 @@ interface TenantNotesProps {
   tenantId: number;
   currentUserId: number | null;
   staff: StaffOption[];
+  events: EventOption[];
   notes: NoteRow[];
 }
 
@@ -61,6 +67,7 @@ export function TenantNotes({
   tenantId,
   currentUserId,
   staff,
+  events,
   notes,
 }: TenantNotesProps) {
   const [hideResolved, setHideResolved] = useState(false);
@@ -95,6 +102,7 @@ export function TenantNotes({
         <NoteComposer
           tenantId={tenantId}
           staff={staff}
+          events={events}
           submitLabel="메모 추가"
           onSubmit={async (html) => {
             const fd = new FormData();
@@ -191,6 +199,7 @@ export function TenantNotes({
                     <NoteComposer
                       tenantId={tenantId}
                       staff={staff}
+                      events={events}
                       initialHtml={n.content}
                       submitLabel="저장"
                       autoFocus

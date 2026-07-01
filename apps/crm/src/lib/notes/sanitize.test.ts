@@ -57,3 +57,12 @@ test("strips external/tracking image src", () => {
   const out = sanitizeNoteHtml('<img src="https://evil.example/track.gif" />');
   assert.doesNotMatch(out, /evil\.example/);
 });
+
+test("keeps event-link chip attributes", () => {
+  const html =
+    '<a class="event-chip" data-event="12" href="/calendar?year=2026&month=7">📅 점검</a>';
+  const out = sanitizeNoteHtml(html);
+  assert.match(out, /class="event-chip"/);
+  assert.match(out, /data-event="12"/);
+  assert.match(out, /href="\/calendar\?year=2026&(amp;)?month=7"/);
+});

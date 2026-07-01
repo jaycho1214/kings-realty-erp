@@ -270,3 +270,21 @@
   margin: 6px 0;
   border-radius: calc(var(--radius) - 3px);
 }
+
+/* Calendar-event link chip */
+.note-editor .event-chip,
+.note-content .event-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.4em;
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.note-content .event-chip:hover {
+  background: var(--brand-weak);
+  color: var(--brand);
+}
