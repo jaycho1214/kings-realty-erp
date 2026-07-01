@@ -362,6 +362,7 @@ export interface Property {
   created_at: Generated<Timestamp>;
   created_by: number | null;
   deposit_krw: Numeric;
+  front_door_password: string | null;
   id: Generated<number>;
   landlord_id: number;
   management_phone: string | null;
@@ -373,6 +374,7 @@ export interface Property {
   rooms: number | null;
   size_pyeong: Numeric | null;
   status: Generated<string>;
+  unit_password: string | null;
   updated_at: Generated<Timestamp>;
 }
 

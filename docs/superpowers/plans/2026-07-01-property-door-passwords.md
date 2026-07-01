@@ -24,8 +24,11 @@
 Adds the two columns and regenerates the Kysely `Property` type. FileMigrationProvider
 auto-discovers migrations by filename — no registration needed.
 
+> Numbered `027` (not `026`): the parallel tenant-notes work landed `026_tenant_note_enhance`
+> on the DB while this was being planned, so ours must sort after it.
+
 **Files:**
-- Create: `packages/db/src/migrations/026_property_door_passwords.ts`
+- Create: `packages/db/src/migrations/027_property_door_passwords.ts`
 - Modify (regenerated, do not hand-edit): `packages/db/src/types.ts`
 
 **Interfaces:**
@@ -33,7 +36,7 @@ auto-discovers migrations by filename — no registration needed.
 
 - [ ] **Step 1: Write the migration**
 
-Create `packages/db/src/migrations/026_property_door_passwords.ts`:
+Create `packages/db/src/migrations/027_property_door_passwords.ts`:
 
 ```ts
 import { type Kysely } from "kysely";
@@ -68,7 +71,7 @@ export async function down(db: Kysely<unknown>): Promise<void> {
 - [ ] **Step 2: Run the migration**
 
 Run: `pnpm db:migrate`
-Expected: output includes `↑ 026_property_door_passwords: Success` and `Done.`
+Expected: output includes `↑ 027_property_door_passwords: Success` and `Done.`
 (Requires `DATABASE_URL` in `packages/db/.env` — applies to whatever DB it points at.)
 
 - [ ] **Step 3: Regenerate Kysely types**
@@ -85,8 +88,8 @@ Expected: two matches inside the `Property` interface, both typed `string | null
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/db/src/migrations/026_property_door_passwords.ts packages/db/src/types.ts
-git commit -m "feat(db): add front_door_password/unit_password to property (migration 026)
+git add packages/db/src/migrations/027_property_door_passwords.ts packages/db/src/types.ts
+git commit -m "feat(db): add front_door_password/unit_password to property (migration 027)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
