@@ -31,6 +31,9 @@ export async function createProperty(formData: FormData) {
   const landlord_id = Number(formData.get("landlord_id") as string);
   const notes = (formData.get("notes") as string) || null;
   const management_phone = (formData.get("management_phone") as string) || null;
+  const front_door_password =
+    (formData.get("front_door_password") as string) || null;
+  const unit_password = (formData.get("unit_password") as string) || null;
   const moveout_date = (formData.get("moveout_date") as string) || null;
 
   // Require a Postcodify-selected address: both 지번 and 도로명 must be present so
@@ -64,6 +67,8 @@ export async function createProperty(formData: FormData) {
       landlord_id,
       notes,
       management_phone,
+      front_door_password,
+      unit_password,
       moveout_date,
       created_by: Number(session.user.id),
     })
@@ -99,6 +104,9 @@ export async function updateProperty(id: number, formData: FormData) {
   const landlord_id = Number(formData.get("landlord_id") as string);
   const notes = (formData.get("notes") as string) || null;
   const management_phone = (formData.get("management_phone") as string) || null;
+  const front_door_password =
+    (formData.get("front_door_password") as string) || null;
+  const unit_password = (formData.get("unit_password") as string) || null;
   const moveout_date = (formData.get("moveout_date") as string) || null;
 
   // A 도로명 address must always be present. 지번 isn't hard-required here so the
@@ -132,6 +140,8 @@ export async function updateProperty(id: number, formData: FormData) {
       landlord_id,
       notes,
       management_phone,
+      front_door_password,
+      unit_password,
       moveout_date,
       updated_at: new Date(),
     })

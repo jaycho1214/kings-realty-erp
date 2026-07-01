@@ -30,6 +30,8 @@ interface PropertyFormProps {
     landlord_id: number;
     notes: string | null;
     management_phone: string | null;
+    front_door_password: string | null;
+    unit_password: string | null;
     moveout_date: string | null;
   };
 }
@@ -233,6 +235,31 @@ export function PropertyForm({
             placeholder="관리사무소 전화번호"
           />
         </Field>
+
+        {/* Row 6b: 출입 비밀번호 */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <Label htmlFor="front_door_password">현관 비밀번호</Label>
+            <Input
+              id="front_door_password"
+              name="front_door_password"
+              autoComplete="off"
+              defaultValue={defaultValues?.front_door_password ?? ""}
+              placeholder="공동현관 / 로비 비밀번호"
+            />
+          </Field>
+
+          <Field>
+            <Label htmlFor="unit_password">집 비밀번호</Label>
+            <Input
+              id="unit_password"
+              name="unit_password"
+              autoComplete="off"
+              defaultValue={defaultValues?.unit_password ?? ""}
+              placeholder="세대 도어락 비밀번호"
+            />
+          </Field>
+        </div>
 
         {/* Row 7: 비고 */}
         <Field>
