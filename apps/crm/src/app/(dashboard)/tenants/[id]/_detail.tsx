@@ -565,6 +565,31 @@ export default async function TenantDetailPage({
         )}
       </div>
 
+      <div className="space-y-6">
+        <section className="space-y-3">
+          <div className="flex items-baseline gap-1.5">
+            <h2 className="text-[13px] font-semibold">가족 구성원</h2>
+            {familyMembers.length > 0 && (
+              <span className="tabular text-[11px] font-medium text-muted-foreground">
+                {familyMembers.length}
+              </span>
+            )}
+          </div>
+          <FamilyMembers tenantId={numId} members={familyMembers} />
+        </section>
+        <section className="space-y-3">
+          <div className="flex items-baseline gap-1.5">
+            <h2 className="text-[13px] font-semibold">반려동물</h2>
+            {pets.length > 0 && (
+              <span className="tabular text-[11px] font-medium text-muted-foreground">
+                {pets.length}
+              </span>
+            )}
+          </div>
+          <TenantPets tenantId={numId} pets={pets} />
+        </section>
+      </div>
+
       <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-4">
         <TenantStatusButton tenantId={numId} currentStatus={tenant.status} />
         <DeleteButton
@@ -668,18 +693,6 @@ export default async function TenantDetailPage({
         />
       }
       tabs={[
-        {
-          key: "family",
-          label: "가족 구성원",
-          count: familyMembers.length,
-          content: <FamilyMembers tenantId={numId} members={familyMembers} />,
-        },
-        {
-          key: "pets",
-          label: "반려동물",
-          count: pets.length,
-          content: <TenantPets tenantId={numId} pets={pets} />,
-        },
         {
           key: "documents",
           label: "문서",
