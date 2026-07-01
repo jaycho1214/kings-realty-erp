@@ -31,6 +31,7 @@ import { getOhaLimit } from "@/lib/oha";
 import { rankToGroupCode } from "@/lib/oha-groups";
 import { getSession } from "@/lib/session";
 import { canViewSensitive } from "@/lib/authz";
+import { NOTE_IMAGE_TITLE } from "@/lib/notes/constants";
 import { TenantLedger } from "../_components/tenant-ledger";
 import { TenantCharges } from "../_components/tenant-charges";
 import { TenantRecurringCharges } from "../_components/tenant-recurring-charges";
@@ -180,6 +181,10 @@ export default async function TenantDetailPage({
       ])
       .where("entity_type", "=", "tenant")
       .where("entity_id", "=", numId)
+      // Inline note images live as documents too; keep them out of the 문서 tab.
+      .where((eb) =>
+        eb.or([eb("title", "is", null), eb("title", "!=", NOTE_IMAGE_TITLE)]),
+      )
       .orderBy("created_at", "desc")
       .execute(),
     db

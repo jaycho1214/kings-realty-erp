@@ -93,6 +93,7 @@ export function TenantNotes({
 
       <div className="shrink-0 border-b border-border/60 p-3.5">
         <NoteComposer
+          tenantId={tenantId}
           staff={staff}
           submitLabel="메모 추가"
           onSubmit={async (html) => {
@@ -188,6 +189,7 @@ export function TenantNotes({
 
                   {editing === n.id ? (
                     <NoteComposer
+                      tenantId={tenantId}
                       staff={staff}
                       initialHtml={n.content}
                       submitLabel="저장"

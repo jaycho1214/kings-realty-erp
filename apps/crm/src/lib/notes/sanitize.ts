@@ -19,12 +19,18 @@ export function sanitizeNoteHtml(html: string): string {
       "p",
       "br",
       "span",
+      "img",
     ],
     allowedAttributes: {
       a: ["href", "target", "rel"],
       span: ["class", "data-mention"],
+      img: ["src", "alt"],
     },
     allowedSchemes: ["http", "https", "mailto"],
+    // Note images are same-origin proxy URLs (/api/documents/<id>). Disallowing
+    // all schemes for <img> keeps relative srcs but strips external/tracking
+    // images pasted into a note.
+    allowedSchemesByTag: { img: [] },
     transformTags: {
       a: (tagName, attribs) => ({
         tagName,

@@ -6,6 +6,7 @@ import plugins from "suneditor/src/plugins";
 import type SunEditorInstance from "suneditor/src/lib/core";
 import "suneditor/dist/css/suneditor.min.css";
 import { Button } from "@/components/ui/button";
+import { NOTE_IMAGE_TITLE } from "@/lib/notes/constants";
 
 interface StaffOption {
   id: number;
@@ -13,6 +14,7 @@ interface StaffOption {
 }
 
 interface NoteComposerProps {
+  tenantId: number;
   staff: StaffOption[];
   onSubmit: (html: string) => void | Promise<void>;
   submitLabel: string;
@@ -27,6 +29,7 @@ function escapeHtml(s: string): string {
 }
 
 export default function NoteComposer({
+  tenantId,
   staff,
   onSubmit,
   submitLabel,
@@ -64,7 +67,7 @@ export default function NoteComposer({
     if (!hostRef.current) return;
     const editor = suneditor.create(hostRef.current, {
       plugins,
-      buttonList: [["bold", "italic", "underline", "link", "list"]],
+      buttonList: [["bold", "italic", "underline", "link", "list", "image"]],
       minHeight: "66px",
       height: "auto",
       resizingBar: false,
@@ -77,6 +80,39 @@ export default function NoteComposer({
     if (initialHtml) editor.setContents(initialHtml);
     editorRef.current = editor;
     if (autoFocus) editor.core.focus();
+
+    // Upload pasted/selected images through the authenticated document proxy
+    // (private blob) and embed the same-origin /api/documents/<id> URL.
+    editor.onImageUploadBefore = (files, _info, _core, uploadHandler) => {
+      (async () => {
+        try {
+          const fd = new FormData();
+          fd.set("file", files[0]);
+          fd.set("entity_type", "tenant");
+          fd.set("entity_id", String(tenantId));
+          fd.set("title", NOTE_IMAGE_TITLE);
+          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          if (!res.ok) {
+            const { error } = await res.json().catch(() => ({}));
+            uploadHandler({ errorMessage: error || "이미지 업로드 실패" });
+            return;
+          }
+          const { id } = await res.json();
+          uploadHandler({
+            result: [
+              {
+                url: `/api/documents/${id}`,
+                name: files[0].name,
+                size: files[0].size,
+              },
+            ],
+          });
+        } catch {
+          uploadHandler({ errorMessage: "이미지 업로드 실패" });
+        }
+      })();
+      return false; // defer to the async custom upload above
+    };
 
     // Detect a trailing `@query` token at the caret and position the dropdown.
     editor.onKeyUp = () => {

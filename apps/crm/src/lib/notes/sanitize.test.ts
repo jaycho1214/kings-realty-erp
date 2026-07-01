@@ -47,3 +47,13 @@ test("extractMentions detects everyone", () => {
   assert.equal(m.everyone, true);
   assert.deepEqual(m.userIds, []);
 });
+
+test("keeps same-origin proxy images", () => {
+  const out = sanitizeNoteHtml('<img src="/api/documents/5" alt="shot" />');
+  assert.match(out, /src="\/api\/documents\/5"/);
+});
+
+test("strips external/tracking image src", () => {
+  const out = sanitizeNoteHtml('<img src="https://evil.example/track.gif" />');
+  assert.doesNotMatch(out, /evil\.example/);
+});
