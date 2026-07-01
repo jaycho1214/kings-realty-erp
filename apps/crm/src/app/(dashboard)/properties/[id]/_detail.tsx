@@ -23,6 +23,7 @@ import {
 import { formatKRW, formatDate } from "@/lib/utils";
 import { PropertyForm } from "../_components/property-form";
 import { PropertyPayments } from "../_components/property-payments";
+import { SecretValue } from "@/components/secret-value";
 import { deleteProperty } from "../_actions";
 
 const LEASE_STATUS_LABEL: Record<string, string> = {
@@ -96,6 +97,8 @@ export default async function PropertyDetailPage({
           "property.permission_status",
           "property.landlord_id",
           "property.management_phone",
+          "property.front_door_password",
+          "property.unit_password",
           "property.address_en",
           "property.notes",
           "property.moveout_date",
@@ -205,6 +208,15 @@ export default async function PropertyDetailPage({
           <Def label="보증금" mono>
             {formatKRW(property.deposit_krw)}
           </Def>
+          <Def label="현관 비밀번호">
+            <SecretValue
+              value={property.front_door_password}
+              label="현관 비밀번호"
+            />
+          </Def>
+          <Def label="집 비밀번호">
+            <SecretValue value={property.unit_password} label="집 비밀번호" />
+          </Def>
         </DefGroup>
         <DefGroup label="주소">
           <Def label="도로명 주소">{property.address || "-"}</Def>
@@ -266,6 +278,8 @@ export default async function PropertyDetailPage({
         landlord_id: property.landlord_id,
         notes: property.notes,
         management_phone: property.management_phone,
+        front_door_password: property.front_door_password,
+        unit_password: property.unit_password,
         moveout_date: property.moveout_date
           ? new Date(property.moveout_date).toISOString().split("T")[0]
           : null,
