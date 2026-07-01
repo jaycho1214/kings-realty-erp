@@ -554,7 +554,11 @@ export interface TenantNote {
   created_at: Generated<Timestamp>;
   created_by: number;
   id: Generated<number>;
+  parent_id: number | null;
+  resolved_at: Timestamp | null;
+  resolved_by: number | null;
   tenant_id: number;
+  updated_at: Timestamp | null;
 }
 
 export interface TenantPet {
