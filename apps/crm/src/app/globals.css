@@ -192,8 +192,8 @@
   font-family: inherit;
 }
 .note-editor .sun-editor .se-toolbar {
-  padding: 3px 4px;
-  background: transparent;
+  padding: 2px 3px;
+  background: color-mix(in oklch, var(--secondary) 45%, transparent);
   outline: none;
   border-bottom: 1px solid var(--border);
 }
@@ -208,21 +208,25 @@
   padding: 0;
 }
 .note-editor .sun-editor .se-btn {
-  height: 26px;
-  min-width: 26px;
-  margin: 1px;
+  height: 22px;
+  min-width: 22px;
+  margin: 0 1px;
+  padding: 0;
   border: none;
-  border-radius: calc(var(--radius) - 4px);
+  border-radius: calc(var(--radius) - 5px);
   color: var(--muted-foreground);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 .note-editor .sun-editor .se-btn > svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   fill: currentColor;
 }
 .note-editor .sun-editor .se-btn:enabled:hover,
 .note-editor .sun-editor .se-btn:enabled:focus {
-  background: var(--secondary);
+  background: color-mix(in oklch, var(--foreground) 8%, transparent);
   color: var(--foreground);
 }
 .note-editor .sun-editor .se-btn:enabled.active {
