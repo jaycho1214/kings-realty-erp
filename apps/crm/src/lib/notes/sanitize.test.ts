@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeNoteHtml, extractMentions } from "./sanitize.ts";
+import { sanitizeNoteHtml, extractMentions } from "./sanitize";
 
 test("keeps allowed formatting tags", () => {
   const out = sanitizeNoteHtml("<p>hi <strong>there</strong> <em>ok</em></p>");

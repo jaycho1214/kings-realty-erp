@@ -16,6 +16,7 @@ import {
   recomputeChargeStatus,
 } from "@/lib/charges";
 import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
+import { sanitizeNoteHtml, extractMentions } from "@/lib/notes/sanitize";
 
 export async function createTenant(formData: FormData) {
   const session = await requirePermission("tenant", "create");
@@ -809,21 +810,183 @@ export async function generateTenantRecurringCharges(tenantId: number) {
 
 // --- Tenant Notes ---
 
+// Create per-user "mention" notifications for the mentions in a note's HTML.
+// authorId is skipped; @everyone becomes a single broadcast (target NULL) row.
+// dedup_key makes this idempotent, so edits only ever add missing rows.
+async function notifyMentions(
+  db: ReturnType<typeof getDb>,
+  opts: {
+    tenantId: number;
+    noteId: number;
+    html: string;
+    authorId: number;
+    authorName: string;
+    tenantName: string;
+    onlyUserIds?: number[]; // when set (edit), restrict to these ids
+  },
+) {
+  const { userIds, everyone } = extractMentions(opts.html);
+  const rows: {
+    type: string;
+    target_user_id: number | null;
+    ref_entity_type: string;
+    ref_entity_id: number;
+    title: string;
+    message: string;
+    dedup_key: string;
+  }[] = [];
+
+  const allow = opts.onlyUserIds ? new Set(opts.onlyUserIds) : null;
+  for (const uid of userIds) {
+    if (uid === opts.authorId) continue;
+    if (allow && !allow.has(uid)) continue;
+    rows.push({
+      type: "mention",
+      target_user_id: uid,
+      ref_entity_type: "tenant",
+      ref_entity_id: opts.tenantId,
+      title: `${opts.authorName} 님이 메모에서 회원님을 멘션했습니다`,
+      message: `${opts.tenantName} · 메모를 확인하세요.`,
+      dedup_key: `mention:${opts.noteId}:${uid}`,
+    });
+  }
+  if (everyone && (!allow || allow.has(-1))) {
+    rows.push({
+      type: "mention",
+      target_user_id: null,
+      ref_entity_type: "tenant",
+      ref_entity_id: opts.tenantId,
+      title: `${opts.authorName} 님이 전체 멘션(@everyone)했습니다`,
+      message: `${opts.tenantName} · 메모를 확인하세요.`,
+      dedup_key: `mention:${opts.noteId}:everyone`,
+    });
+  }
+  if (rows.length === 0) return;
+  await db
+    .insertInto("notification")
+    .values(rows)
+    .onConflict((oc) => oc.column("dedup_key").doNothing())
+    .execute();
+}
+
 export async function addTenantNote(tenantId: number, formData: FormData) {
   const session = await requirePermission("tenant", "update");
 
-  const content = formData.get("content") as string;
-  if (!content?.trim()) return;
+  const raw = (formData.get("content") as string) ?? "";
+  const content = sanitizeNoteHtml(raw).trim();
+  if (!content || content === "<p><br></p>") return;
 
   const db = getDb();
+  const authorId = Number(session.user.id);
 
-  await db
+  const inserted = await db
     .insertInto("tenant_note")
     .values({
       tenant_id: tenantId,
-      content: content.trim(),
-      created_by: Number(session.user.id),
+      content,
+      created_by: authorId,
     })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+
+  const tenant = await db
+    .selectFrom("tenant")
+    .select("name")
+    .where("id", "=", tenantId)
+    .executeTakeFirst();
+
+  await notifyMentions(db, {
+    tenantId,
+    noteId: inserted.id,
+    html: content,
+    authorId,
+    authorName: session.user.name ?? "동료",
+    tenantName: tenant?.name ?? "세입자",
+  });
+
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/notifications");
+}
+
+export async function editTenantNote(
+  noteId: number,
+  tenantId: number,
+  formData: FormData,
+) {
+  const session = await requirePermission("tenant", "update");
+  const db = getDb();
+  const authorId = Number(session.user.id);
+
+  const existing = await db
+    .selectFrom("tenant_note")
+    .select(["created_by", "content"])
+    .where("id", "=", noteId)
+    .where("tenant_id", "=", tenantId)
+    .executeTakeFirst();
+  if (!existing) return;
+  if (existing.created_by !== authorId) {
+    throw new Error("본인이 작성한 메모만 수정할 수 있습니다.");
+  }
+
+  const raw = (formData.get("content") as string) ?? "";
+  const content = sanitizeNoteHtml(raw).trim();
+  if (!content || content === "<p><br></p>") return;
+
+  await db
+    .updateTable("tenant_note")
+    .set({ content, updated_at: new Date() })
+    .where("id", "=", noteId)
+    .execute();
+
+  // Only newly added mentions should notify.
+  const before = extractMentions(existing.content);
+  const after = extractMentions(content);
+  const newUserIds = after.userIds.filter((id) => !before.userIds.includes(id));
+  const everyoneIsNew = after.everyone && !before.everyone;
+  if (newUserIds.length > 0 || everyoneIsNew) {
+    const tenant = await db
+      .selectFrom("tenant")
+      .select("name")
+      .where("id", "=", tenantId)
+      .executeTakeFirst();
+    await notifyMentions(db, {
+      tenantId,
+      noteId,
+      html: content,
+      authorId,
+      authorName: session.user.name ?? "동료",
+      tenantName: tenant?.name ?? "세입자",
+      onlyUserIds: everyoneIsNew ? [...newUserIds, -1] : newUserIds,
+    });
+  }
+
+  revalidatePath(`/tenants/${tenantId}`);
+  revalidatePath("/notifications");
+}
+
+export async function toggleTenantNoteResolved(
+  noteId: number,
+  tenantId: number,
+) {
+  const session = await requirePermission("tenant", "update");
+  const db = getDb();
+
+  const note = await db
+    .selectFrom("tenant_note")
+    .select("resolved_at")
+    .where("id", "=", noteId)
+    .where("tenant_id", "=", tenantId)
+    .executeTakeFirst();
+  if (!note) return;
+
+  const resolving = note.resolved_at == null;
+  await db
+    .updateTable("tenant_note")
+    .set({
+      resolved_at: resolving ? new Date() : null,
+      resolved_by: resolving ? Number(session.user.id) : null,
+    })
+    .where("id", "=", noteId)
     .execute();
 
   revalidatePath(`/tenants/${tenantId}`);
