@@ -208,10 +208,14 @@
   padding: 0;
 }
 .note-editor .sun-editor .se-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 22px;
   min-width: 22px;
   margin: 0 1px;
   padding: 0;
+  line-height: 1;
   border: none;
   border-radius: calc(var(--radius) - 5px);
   color: var(--muted-foreground);
@@ -219,7 +223,13 @@
     background-color 0.12s ease,
     color 0.12s ease;
 }
+.note-editor .sun-editor .se-menu-list,
+.note-editor .sun-editor .se-btn-module {
+  display: flex;
+  align-items: center;
+}
 .note-editor .sun-editor .se-btn > svg {
+  display: block;
   width: 13px;
   height: 13px;
   fill: currentColor;
