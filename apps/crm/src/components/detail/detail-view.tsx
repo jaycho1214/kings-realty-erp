@@ -7,6 +7,7 @@ import { ChevronRight, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { KeyFacts, type Fact } from "./key-facts";
+import { useIsWide } from "@/hooks/use-wide";
 import { cn } from "@/lib/utils";
 
 export interface DetailTab {
@@ -46,9 +47,12 @@ export interface DetailViewProps {
   actions?: React.ReactNode;
   /**
    * Optional desktop side rail (e.g. a persistent notes panel). On xl+ it sits
-   * beside the tabs in a sticky right column; below xl it stacks under the tabs.
+   * beside the tabs in a sticky right column; below xl it collapses into a tab
+   * (labeled `asideLabel`) instead of stacking, to spare vertical space.
    */
   aside?: React.ReactNode;
+  /** Tab label used for `aside` when it collapses below xl. */
+  asideLabel?: string;
 }
 
 export function DetailView({
@@ -63,16 +67,26 @@ export function DetailView({
   tabs = [],
   actions,
   aside,
+  asideLabel = "메모",
 }: DetailViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = React.useTransition();
+  const isWide = useIsWide();
+
+  // The aside sits in a sticky rail on wide screens; below xl it becomes a tab.
+  const asideInRail = aside != null && isWide;
+  const asideAsTab = aside != null && !isWide;
 
   const infoLabel = info?.label ?? "기본 정보";
   // The info tab is always the default (key ""); other tabs carry their own slug.
-  const allTabs: DetailTab[] = info
-    ? [{ key: "", label: infoLabel, content: null }, ...tabs]
-    : tabs;
+  const allTabs: DetailTab[] = [
+    ...(info ? [{ key: "", label: infoLabel, content: null }] : []),
+    ...tabs,
+    ...(asideAsTab
+      ? [{ key: "notes", label: asideLabel, content: aside }]
+      : []),
+  ];
 
   // Resolve the active tab from the route segment, falling back to the first tab
   // for unknown/stale slugs so a bad deep-link still renders something sane.
@@ -156,7 +170,7 @@ export function DetailView({
       {/* Work area: tabs, optionally beside a sticky side rail on xl+. */}
       <div
         className={cn(
-          aside && "xl:grid xl:grid-cols-[minmax(0,1fr)_21rem] xl:gap-6",
+          asideInRail && "xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:gap-6",
         )}
       >
         <div className="min-w-0">
@@ -208,9 +222,9 @@ export function DetailView({
           </Tabs>
         </div>
 
-        {aside && (
+        {asideInRail && (
           // Stretched grid cell so the sticky child has room to travel as the
-          // tab content scrolls. Stacks below the tabs (with a gap) under xl.
+          // tab content scrolls. Below xl the aside renders as a tab instead.
           <div className="mt-4 xl:mt-0">
             <div className="xl:sticky xl:top-[4.75rem]">{aside}</div>
           </div>
