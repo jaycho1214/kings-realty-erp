@@ -41,6 +41,7 @@ import { TenantNotes } from "../_components/tenant-notes";
 import { TenantPayments } from "../_components/tenant-payments";
 import { LandlordRrn } from "../../landlords/[id]/_components/landlord-rrn";
 import { DocumentList } from "@/components/document-list";
+import { SecretValue } from "@/components/secret-value";
 import { CreateDialog } from "@/components/create-dialog";
 import { deleteTenant } from "../_actions";
 import { TenantStatusButton } from "../_components/tenant-status-button";
@@ -104,6 +105,8 @@ export default async function TenantDetailPage({
           "address",
         ),
         "property.address_detail",
+        "property.front_door_password",
+        "property.unit_password",
         "landlord.id as landlord_id",
         "landlord.name as landlord_name",
         "landlord.phone as landlord_phone",
@@ -553,6 +556,18 @@ export default async function TenantDetailPage({
               <DetailRow label="계약기간" mono>
                 {formatDate(activeLease.start_date)} ~{" "}
                 {formatDate(activeLease.end_date)}
+              </DetailRow>
+              <DetailRow label="현관 비밀번호" mono>
+                <SecretValue
+                  value={activeLease.front_door_password}
+                  label="현관 비밀번호"
+                />
+              </DetailRow>
+              <DetailRow label="집 비밀번호" mono>
+                <SecretValue
+                  value={activeLease.unit_password}
+                  label="집 비밀번호"
+                />
               </DetailRow>
             </DetailPanel>
           </div>
