@@ -5,7 +5,7 @@ import suneditor from "suneditor";
 import plugins from "suneditor/src/plugins";
 import type SunEditorInstance from "suneditor/src/lib/core";
 import "suneditor/dist/css/suneditor.min.css";
-import { CalendarPlus, ImagePlus } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NOTE_IMAGE_TITLE } from "@/lib/notes/constants";
 
@@ -36,6 +36,18 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// A note is "empty" when it has no visible text and no image. Mentions and
+// event chips carry text, so they count as content; an image-only note is fine.
+function isEditorEmpty(editor: SunEditorInstance): boolean {
+  const html = editor.getContents(true);
+  if (/<img\b/i.test(html)) return false;
+  const text = html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;|\u00A0/gi, " ")
+    .trim();
+  return text.length === 0;
+}
+
 export default function NoteComposer({
   tenantId,
   staff,
@@ -53,6 +65,7 @@ export default function NoteComposer({
   const [pending, setPending] = useState(false);
   const [eventMenuOpen, setEventMenuOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(true);
   const [menu, setMenu] = useState<{
     query: string;
     top: number;
@@ -77,10 +90,23 @@ export default function NoteComposer({
 
   useEffect(() => {
     if (!hostRef.current) return;
+    // Our own toolbar image button — opens the file picker instead of
+    // SunEditor's default image dialog.
+    const noteImagePlugin = {
+      name: "noteImage",
+      display: "command",
+      title: "이미지 첨부",
+      innerHTML:
+        '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>',
+      add: () => {},
+      action: () => fileInputRef.current?.click(),
+    };
     const editor = suneditor.create(hostRef.current, {
-      plugins,
-      // No default "image" button — image insertion is our own (drag/paste/button).
-      buttonList: [["bold", "italic", "underline", "link", "list"]],
+      plugins: { ...plugins, noteImage: noteImagePlugin } as typeof plugins,
+      // "noteImage" is our custom button; no default SunEditor image dialog.
+      buttonList: [
+        ["bold", "italic", "underline", "link", "list", "noteImage"],
+      ],
       minHeight: "66px",
       height: "auto",
       resizingBar: false,
@@ -138,6 +164,7 @@ export default function NoteComposer({
 
     // Detect a trailing `@query` token at the caret and position the dropdown.
     editor.onKeyUp = () => {
+      refreshEmpty();
       const range = editor.core.getRange();
       const node = range.startContainer;
       if (!node || node.nodeType !== Node.TEXT_NODE) {
@@ -161,12 +188,21 @@ export default function NoteComposer({
       });
     };
 
+    // Content-driven changes (paste, delete, programmatic inserts) gate submit.
+    editor.onChange = () => refreshEmpty();
+    refreshEmpty();
+
     return () => {
       editor.destroy();
       editorRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function refreshEmpty() {
+    const ed = editorRef.current;
+    if (ed) setIsEmpty(isEditorEmpty(ed));
+  }
 
   function insertMention(id: string, label: string) {
     const editor = editorRef.current;
@@ -194,6 +230,7 @@ export default function NoteComposer({
       false,
     );
     setMenu(null);
+    refreshEmpty();
   }
 
   function insertEventLink(ev: EventOption) {
@@ -209,6 +246,7 @@ export default function NoteComposer({
       false,
     );
     setEventMenuOpen(false);
+    refreshEmpty();
   }
 
   // Upload one image through the authenticated document proxy (private blob),
@@ -230,13 +268,10 @@ export default function NoteComposer({
         true,
         false,
       );
+      refreshEmpty();
     } catch {
       // Swallow — a failed upload simply inserts nothing.
     }
-  }
-
-  function pickImages() {
-    fileInputRef.current?.click();
   }
 
   function onKeyDownCapture(e: React.KeyboardEvent) {
@@ -261,12 +296,13 @@ export default function NoteComposer({
 
   async function handleSubmit() {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || isEditorEmpty(editor)) return;
     const html = editor.getContents(true);
     setPending(true);
     try {
       await onSubmit(html);
       editor.setContents("");
+      setIsEmpty(true);
     } finally {
       setPending(false);
     }
@@ -338,16 +374,6 @@ export default function NoteComposer({
               e.target.value = "";
             }}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-muted-foreground"
-            onClick={pickImages}
-          >
-            <ImagePlus className="size-3.5" />
-            이미지
-          </Button>
           <div className="relative">
             {events.length > 0 && (
               <Button
@@ -394,7 +420,7 @@ export default function NoteComposer({
             type="button"
             size="sm"
             onClick={handleSubmit}
-            disabled={pending}
+            disabled={pending || isEmpty}
           >
             {pending ? "저장 중..." : submitLabel}
           </Button>
