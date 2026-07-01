@@ -64,15 +64,11 @@ export default function NoteComposer({
     if (!hostRef.current) return;
     const editor = suneditor.create(hostRef.current, {
       plugins,
-      buttonList: [
-        ["bold", "underline", "italic"],
-        ["list"],
-        ["link"],
-        ["removeFormat"],
-      ],
-      minHeight: "72px",
+      buttonList: [["bold", "italic", "underline", "link", "list"]],
+      minHeight: "66px",
       height: "auto",
       resizingBar: false,
+      showPathLabel: false,
       placeholder: "메모를 입력하세요...",
       defaultTag: "p",
       // Preserve mention chips through SunEditor's own HTML cleaning.
@@ -178,7 +174,7 @@ export default function NoteComposer({
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="note-editor relative"
       onKeyDownCapture={onKeyDownCapture}
     >
       {/* SunEditor replaces this textarea in place. */}

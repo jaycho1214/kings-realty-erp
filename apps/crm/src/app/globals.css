@@ -21,7 +21,7 @@
   --muted-foreground: oklch(0.52 0.011 262);
   --accent: oklch(0.964 0.003 255);
   --accent-foreground: oklch(0.24 0.012 262);
-  --destructive: oklch(0.58 0.20 25);
+  --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.985 0.002 270);
   --border: oklch(0.917 0.004 258);
   --input: oklch(0.917 0.004 258);
@@ -35,13 +35,13 @@
   --success-weak: oklch(0.965 0.03 158);
   --warning: oklch(0.58 0.13 66);
   --warning-weak: oklch(0.97 0.05 80);
-  --danger: oklch(0.58 0.20 25);
+  --danger: oklch(0.58 0.2 25);
   --danger-weak: oklch(0.966 0.035 25);
 
   --chart-1: oklch(0.55 0.17 277);
   --chart-2: oklch(0.6 0.13 184);
   --chart-3: oklch(0.58 0.13 66);
-  --chart-4: oklch(0.58 0.20 25);
+  --chart-4: oklch(0.58 0.2 25);
   --chart-5: oklch(0.52 0.13 158);
 
   --sidebar: oklch(1 0 0);
@@ -67,11 +67,11 @@
   --secondary-foreground: oklch(0.96 0.004 270);
   --muted: oklch(0.27 0.012 275);
   --muted-foreground: oklch(0.71 0.012 275);
-  --accent: oklch(0.30 0.012 275);
+  --accent: oklch(0.3 0.012 275);
   --accent-foreground: oklch(0.96 0.004 270);
   --destructive: oklch(0.65 0.18 25);
   --destructive-foreground: oklch(0.96 0.004 270);
-  --border: oklch(0.30 0.01 275);
+  --border: oklch(0.3 0.01 275);
   --input: oklch(0.33 0.01 275);
   --ring: oklch(0.62 0.16 277);
 
@@ -97,7 +97,7 @@
   --sidebar-primary-foreground: oklch(0.16 0.01 275);
   --sidebar-accent: oklch(0.29 0.045 277);
   --sidebar-accent-foreground: oklch(0.82 0.1 277);
-  --sidebar-border: oklch(0.30 0.01 275);
+  --sidebar-border: oklch(0.3 0.01 275);
   --sidebar-ring: oklch(0.62 0.16 277);
 }
 
@@ -149,7 +149,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-sans:
+    "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont,
+    system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -177,4 +181,92 @@
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* --- Notes rich-text editor (SunEditor), scoped to the notes composer --- */
+.note-editor .sun-editor {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-family: inherit;
+}
+.note-editor .sun-editor .se-toolbar {
+  padding: 3px 4px;
+  background: transparent;
+  outline: none;
+  border-bottom: 1px solid var(--border);
+}
+.note-editor .sun-editor .se-toolbar-separator-vertical {
+  display: none;
+}
+.note-editor .sun-editor .se-btn-module-border {
+  margin: 0;
+  border: none;
+}
+.note-editor .sun-editor .se-btn-tray {
+  padding: 0;
+}
+.note-editor .sun-editor .se-btn {
+  height: 26px;
+  min-width: 26px;
+  margin: 1px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  color: var(--muted-foreground);
+}
+.note-editor .sun-editor .se-btn > svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+.note-editor .sun-editor .se-btn:enabled:hover,
+.note-editor .sun-editor .se-btn:enabled:focus {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.note-editor .sun-editor .se-btn:enabled.active {
+  color: var(--brand);
+  background: var(--brand-weak);
+}
+.note-editor .sun-editor .se-wrapper .se-wrapper-inner {
+  min-height: 66px;
+  padding: 9px 11px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.note-editor .sun-editor .se-wrapper .se-placeholder {
+  padding: 9px 11px;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.note-editor .sun-editor .se-resizing-bar {
+  display: none;
+}
+
+/* Mention chips + links + images — shared by the editor and rendered notes */
+.note-editor .mention,
+.note-content .mention {
+  font-weight: 500;
+  color: var(--brand);
+}
+.note-editor .sun-editor a,
+.note-content a {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.note-content p {
+  margin: 0;
+}
+.note-content p + p {
+  margin-top: 0.35rem;
+}
+.note-content img,
+.note-editor img {
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: calc(var(--radius) - 3px);
 }
