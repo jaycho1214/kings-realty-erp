@@ -79,6 +79,18 @@ export default async function TenantDetailPage({
     documents,
     staff,
     tenantEvents,
+    vacantProperties,
+    realtyFeeRows,
+    ledger,
+    exchangeVendors,
+    session,
+    ohaLimit,
+    charges,
+    recurring,
+    billPresets,
+    ohaRateRows,
+    usdRate,
+    inspections,
   ] = await Promise.all([
     db
       .selectFrom("tenant_family_member")
@@ -201,22 +213,6 @@ export default async function TenantDetailPage({
       .orderBy("date", "desc")
       .limit(50)
       .execute(),
-  ]);
-
-  // Data for creating a new lease for this tenant (vacant units + fee defaults),
-  // the unified ledger, exchange vendors, and the viewer's role.
-  const [
-    vacantProperties,
-    realtyFeeRows,
-    ledger,
-    exchangeVendors,
-    session,
-    ohaLimit,
-    charges,
-    recurring,
-    billPresets,
-    ohaRateRows,
-  ] = await Promise.all([
     db
       .selectFrom("property")
       .innerJoin("landlord", "landlord.id", "property.landlord_id")
@@ -305,6 +301,23 @@ export default async function TenantDetailPage({
       .where("effective_to", "is", null)
       .where("region", "=", "Default")
       .execute(),
+    getUsdToKrwRate(),
+    db
+      .selectFrom("inspection")
+      .select(["id", "type", "status", "inspected_at", "checklist", "summary"])
+      // Latest lease by start_date — the same lease `inspectionLease` (leases[0])
+      // resolves to, but as a subquery so this doesn't wait on the leases result.
+      // No lease → `lease_id = NULL` → zero rows, matching the old `[]` branch.
+      .where("lease_id", "=", (eb) =>
+        eb
+          .selectFrom("lease")
+          .select("lease.id")
+          .where("lease.tenant_id", "=", numId)
+          .orderBy("lease.start_date", "desc")
+          .limit(1),
+      )
+      .orderBy("inspected_at", "desc")
+      .execute(),
   ]);
 
   const canEditLedger = canViewSensitive(session?.user?.role);
@@ -373,7 +386,6 @@ export default async function TenantDetailPage({
       c.due_date != null &&
       c.due_date < today,
   );
-  const usdRate = await getUsdToKrwRate();
   const arrearsCount = arrearsCharges.length;
   const arrearsTotalKrw = arrearsCharges.reduce(
     (sum, c) => sum + toKrw(Number(c.amount), c.currency, usdRate),
@@ -403,21 +415,6 @@ export default async function TenantDetailPage({
   // most-recent lease (covers both move-in on a current lease and move-out on a
   // just-ended one).
   const inspectionLease = leases[0] ?? null;
-  const inspections = inspectionLease
-    ? await db
-        .selectFrom("inspection")
-        .select([
-          "id",
-          "type",
-          "status",
-          "inspected_at",
-          "checklist",
-          "summary",
-        ])
-        .where("lease_id", "=", inspectionLease.id)
-        .orderBy("inspected_at", "desc")
-        .execute()
-    : [];
 
   const baseLocation = tenant.base_location_id
     ? baseLocations.find((b) => b.id === tenant.base_location_id)

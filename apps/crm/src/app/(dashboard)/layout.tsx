@@ -25,56 +25,64 @@ export default async function DashboardLayout({
 
   const db = getDb();
   const userId = Number(session.user.id);
-  const [tenants, leases, properties, unpaid, services, notifications] =
-    await Promise.all([
-      db
-        .selectFrom("tenant")
-        .select(({ fn }) => fn.count<number>("id").as("c"))
-        .where("status", "=", "active")
-        .where("deleted_at", "is", null)
-        .executeTakeFirst(),
-      db
-        .selectFrom("lease")
-        .select(({ fn }) => fn.count<number>("id").as("c"))
-        .where("status", "=", "active")
-        .executeTakeFirst(),
-      db
-        .selectFrom("property")
-        .select(({ fn }) => fn.count<number>("id").as("c"))
-        .executeTakeFirst(),
-      db
-        .selectFrom("payment")
-        .innerJoin("lease", "lease.id", "payment.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .select(({ fn }) => fn.count<number>("payment.id").as("c"))
-        .where("payment.status", "=", "pending")
-        .where("tenant.deleted_at", "is", null)
-        .executeTakeFirst(),
-      db
-        .selectFrom("service_request")
-        .innerJoin("lease", "lease.id", "service_request.lease_id")
-        .innerJoin("tenant", "tenant.id", "lease.tenant_id")
-        .select(({ fn }) => fn.count<number>("service_request.id").as("c"))
-        .where("service_request.status", "in", [
-          "received",
-          "pending_repair",
-          "in_progress",
-          "postponed",
-        ])
-        .where("tenant.deleted_at", "is", null)
-        .executeTakeFirst(),
-      db
-        .selectFrom("notification")
-        .select(({ fn }) => fn.count<number>("id").as("c"))
-        .where("is_read", "=", false)
-        .where((eb) =>
-          eb.or([
-            eb("target_user_id", "is", null),
-            eb("target_user_id", "=", userId),
-          ]),
-        )
-        .executeTakeFirst(),
-    ]);
+  const [
+    tenants,
+    leases,
+    properties,
+    unpaid,
+    services,
+    notifications,
+    chargeTypes,
+  ] = await Promise.all([
+    db
+      .selectFrom("tenant")
+      .select(({ fn }) => fn.count<number>("id").as("c"))
+      .where("status", "=", "active")
+      .where("deleted_at", "is", null)
+      .executeTakeFirst(),
+    db
+      .selectFrom("lease")
+      .select(({ fn }) => fn.count<number>("id").as("c"))
+      .where("status", "=", "active")
+      .executeTakeFirst(),
+    db
+      .selectFrom("property")
+      .select(({ fn }) => fn.count<number>("id").as("c"))
+      .executeTakeFirst(),
+    db
+      .selectFrom("payment")
+      .innerJoin("lease", "lease.id", "payment.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select(({ fn }) => fn.count<number>("payment.id").as("c"))
+      .where("payment.status", "=", "pending")
+      .where("tenant.deleted_at", "is", null)
+      .executeTakeFirst(),
+    db
+      .selectFrom("service_request")
+      .innerJoin("lease", "lease.id", "service_request.lease_id")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select(({ fn }) => fn.count<number>("service_request.id").as("c"))
+      .where("service_request.status", "in", [
+        "received",
+        "pending_repair",
+        "in_progress",
+        "postponed",
+      ])
+      .where("tenant.deleted_at", "is", null)
+      .executeTakeFirst(),
+    db
+      .selectFrom("notification")
+      .select(({ fn }) => fn.count<number>("id").as("c"))
+      .where("is_read", "=", false)
+      .where((eb) =>
+        eb.or([
+          eb("target_user_id", "is", null),
+          eb("target_user_id", "=", userId),
+        ]),
+      )
+      .executeTakeFirst(),
+    getChargeTypeCatalog(),
+  ]);
 
   const counts = {
     tenants: Number(tenants?.c ?? 0),
@@ -84,8 +92,6 @@ export default async function DashboardLayout({
     services: Number(services?.c ?? 0),
     notifications: Number(notifications?.c ?? 0),
   };
-
-  const chargeTypes = await getChargeTypeCatalog();
 
   return (
     <AppShell counts={counts}>
