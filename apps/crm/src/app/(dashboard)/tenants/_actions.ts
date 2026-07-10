@@ -14,7 +14,13 @@ import { seoulYMD, seoulDateString, firstOfMonth } from "@/lib/date";
 import {
   generateRecurringChargesForMonth,
   recomputeChargeStatus,
+  syncTenantRentDef,
 } from "@/lib/charges";
+import {
+  parseCustomerIntake,
+  normalizePhone,
+  escapeHtml,
+} from "@/lib/customer-intake";
 import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
 import { sanitizeNoteHtml, extractMentions } from "@/lib/notes/sanitize";
 
@@ -1249,4 +1255,171 @@ export async function deleteInspectionPhoto(
   }
   revalidatePath(`/inspections/${inspectionId}`);
   revalidatePath(`/tenants/${tenantId}`);
+}
+
+/**
+ * 새 고객 일괄 등록 — 옛 ERP 고객등록과 같은 한 장짜리 폼. 이름+전화만으로 고객을
+ * 만들고, 주소가 있으면 집주인→매물→계약까지 한 트랜잭션으로 생성한다. 기존
+ * 집주인(전화 일치)·매물(주소 일치)은 재사용한다.
+ */
+export async function createCustomerIntake(formData: FormData) {
+  const session = await requirePermission("tenant", "create");
+  const plan = parseCustomerIntake(formData, { today: seoulDateString() });
+  if (plan.housing) {
+    await requirePermission("lease", "create");
+    await requirePermission("property", "create");
+    if (plan.housing.landlord.mode === "new") {
+      await requirePermission("landlord", "create");
+    }
+  }
+
+  const db = getDb();
+  const userId = Number(session.user.id);
+  let tenantId = 0;
+
+  await db.transaction().execute(async (trx) => {
+    const H = plan.housing;
+
+    // 1. 매물 재사용 조회 — 기존 매물이면 그 집주인을 그대로 쓴다.
+    let propertyId = 0;
+    if (H) {
+      const matches = await trx
+        .selectFrom("property")
+        .select(["id"])
+        .where((eb) =>
+          H.addressJibeon
+            ? eb("address_jibeon", "=", H.addressJibeon)
+            : eb("address", "=", H.address),
+        )
+        .where((eb) =>
+          H.addressDetail
+            ? eb("address_detail", "=", H.addressDetail)
+            : eb.or([
+                eb("address_detail", "is", null),
+                eb("address_detail", "=", ""),
+              ]),
+        )
+        .execute();
+      if (matches.length === 1) propertyId = matches[0].id;
+    }
+
+    // 2. 집주인 (새 매물일 때만 필요)
+    let landlordId = 0;
+    if (H && !propertyId) {
+      if (H.landlord.mode === "existing") {
+        landlordId = H.landlord.landlordId;
+      } else {
+        if (H.landlord.phone) {
+          const digits = normalizePhone(H.landlord.phone);
+          if (digits) {
+            const all = await trx
+              .selectFrom("landlord")
+              .select(["id", "phone"])
+              .execute();
+            const hits = all.filter(
+              (l) => l.phone && normalizePhone(l.phone) === digits,
+            );
+            if (hits.length === 1) landlordId = hits[0].id;
+          }
+        }
+        if (!landlordId) {
+          const ins = await trx
+            .insertInto("landlord")
+            .values({
+              name: H.landlord.name,
+              phone: H.landlord.phone ?? "",
+              created_by: userId,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          landlordId = ins.id;
+        }
+      }
+    }
+
+    // 3. 매물 생성 (재사용 안 된 경우)
+    if (H && !propertyId) {
+      const ins = await trx
+        .insertInto("property")
+        .values({
+          address: H.address,
+          address_jibeon: H.addressJibeon,
+          address_detail: H.addressDetail,
+          address_en: H.addressEn,
+          property_type: "apartment",
+          monthly_rent_krw: H.monthlyRentKrw,
+          deposit_krw: H.depositKrw,
+          status: "occupied",
+          landlord_id: landlordId,
+          created_by: userId,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      propertyId = ins.id;
+    }
+
+    // 4. 고객
+    const T = plan.tenant;
+    const tIns = await trx
+      .insertInto("tenant")
+      .values({
+        name: T.name,
+        phone: T.phone,
+        rank: T.rank,
+        unit: T.unit,
+        base_location_id: T.baseLocationId,
+        status: "active",
+        created_by: userId,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+    tenantId = tIns.id;
+
+    // 5. 계약 + 부수효과 (기존 createLease와 동일한 규칙)
+    if (H) {
+      await trx
+        .insertInto("lease")
+        .values({
+          property_id: propertyId,
+          tenant_id: tenantId,
+          start_date: new Date(H.startDate),
+          end_date: new Date(H.endDate),
+          monthly_rent_krw: H.monthlyRentKrw,
+          deposit_krw: H.depositKrw,
+          status: "active",
+          created_by: userId,
+        })
+        .execute();
+      await trx
+        .updateTable("property")
+        .set({ status: "occupied", updated_at: new Date() })
+        .where("id", "=", propertyId)
+        .execute();
+      if (Number(H.monthlyRentKrw) > 0) {
+        await syncTenantRentDef(trx, {
+          tenantId,
+          monthlyRentKrw: H.monthlyRentKrw,
+          startDate: new Date(H.startDate),
+          endDate: new Date(H.endDate),
+          active: true,
+          createdBy: userId,
+        });
+      }
+    }
+
+    // 6. 메모 → 카드의 메모(노트)로
+    if (plan.memo) {
+      const html = sanitizeNoteHtml(
+        `<p>${escapeHtml(plan.memo).replace(/\n/g, "<br />")}</p>`,
+      );
+      await trx
+        .insertInto("tenant_note")
+        .values({ tenant_id: tenantId, content: html, created_by: userId })
+        .execute();
+    }
+  });
+
+  revalidatePath("/tenants");
+  revalidatePath("/properties");
+  redirect(`/tenants/${tenantId}`);
 }
