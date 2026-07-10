@@ -4,6 +4,8 @@ import { MapPin } from "lucide-react";
 import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { CollapsedSection } from "@/components/collapsed-section";
 import {
   Table,
   TableHeader,
@@ -397,9 +399,9 @@ export default async function TenantDetailPage({
     realtyFeeDefaults[row.currency as "USD" | "KRW"] = String(row.amount);
   }
 
-  const totalPaid = payments
+  const recentPayments = payments
     .filter((p) => p.status === "paid")
-    .reduce((sum, p) => sum + Number(p.amount_krw), 0);
+    .slice(0, 5);
 
   const activeLease =
     leases.find((l) => l.status === "active" || l.status === "pending") ?? null;
@@ -433,9 +435,11 @@ export default async function TenantDetailPage({
 
   const deleteAction = deleteTenant.bind(null, numId);
 
+  const leaseEndDays = activeLease ? daysUntil(activeLease.end_date) : null;
+
   const facts: Fact[] = [
     {
-      label: "현재 월세",
+      label: "월세",
       value: activeLease ? formatKRW(activeLease.monthly_rent_krw) : "-",
     },
     {
@@ -444,20 +448,22 @@ export default async function TenantDetailPage({
       tone: activeLease ? "muted" : "default",
     },
     {
-      label: "DEROS",
-      value:
-        derosDays == null
-          ? "-"
-          : derosDays >= 0
-            ? `D-${derosDays}`
-            : `D+${-derosDays}`,
-      sub: tenant.deros ? formatDate(tenant.deros) : undefined,
+      label: "계약기간",
+      value: activeLease
+        ? `${formatDate(activeLease.start_date)} ~ ${formatDate(activeLease.end_date)}`
+        : "-",
+      sub:
+        leaseEndDays == null
+          ? undefined
+          : leaseEndDays >= 0
+            ? `D-${leaseEndDays}`
+            : `만료 D+${-leaseEndDays}`,
       tone:
-        derosDays == null
+        leaseEndDays == null
           ? "muted"
-          : derosDays < 0
+          : leaseEndDays < 0
             ? "danger"
-            : derosDays <= 90
+            : leaseEndDays <= 60
               ? "warning"
               : "default",
     },
@@ -467,13 +473,123 @@ export default async function TenantDetailPage({
       sub: arrearsCount > 0 ? `${arrearsCount}건` : undefined,
       tone: arrearsCount > 0 ? "danger" : "success",
     },
-    { label: "총 납부", value: formatKRW(totalPaid) },
   ];
 
   const readView = (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-        <DefinitionGrid>
+      {/* 주거 + 집주인 — 전화 왔을 때 바로 찾는 정보 */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DetailPanel
+          title="주거"
+          action={
+            activeLease ? (
+              <Link
+                href={`/properties/${activeLease.property_id}`}
+                className="text-xs text-brand hover:underline"
+              >
+                매물 상세 →
+              </Link>
+            ) : undefined
+          }
+        >
+          {activeLease ? (
+            <>
+              <DetailRow label="주소">{activeAddress}</DetailRow>
+              <DetailRow label="현관 비밀번호" mono>
+                <SecretValue
+                  value={activeLease.front_door_password}
+                  label="현관 비밀번호"
+                />
+              </DetailRow>
+              <DetailRow label="집 비밀번호" mono>
+                <SecretValue
+                  value={activeLease.unit_password}
+                  label="집 비밀번호"
+                />
+              </DetailRow>
+            </>
+          ) : (
+            <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+              활성 계약이 없습니다 — 임대 계약 탭에서 추가하세요.
+            </p>
+          )}
+        </DetailPanel>
+
+        <DetailPanel
+          title="집주인"
+          action={
+            activeLease ? (
+              <Link
+                href={`/landlords/${activeLease.landlord_id}`}
+                className="text-xs text-brand hover:underline"
+              >
+                임대인 상세 →
+              </Link>
+            ) : undefined
+          }
+        >
+          {activeLease ? (
+            <>
+              <DetailRow label="이름">{activeLease.landlord_name}</DetailRow>
+              <DetailRow label="전화" mono>
+                {activeLease.landlord_phone || "-"}
+              </DetailRow>
+              {canViewRrn && (
+                <DetailRow label="주민등록번호" mono>
+                  <LandlordRrn
+                    landlordId={activeLease.landlord_id}
+                    hasRrn={!!activeLease.landlord_rrn_encrypted}
+                  />
+                </DetailRow>
+              )}
+            </>
+          ) : (
+            <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+              -
+            </p>
+          )}
+        </DetailPanel>
+      </div>
+
+      {/* 최근 수납 + 큰 수납 버튼 */}
+      <DetailPanel
+        title="최근 수납"
+        action={
+          <Link
+            href={`/payments/new${activeLease ? `?lease=${activeLease.id}` : ""}`}
+            className={buttonVariants({ size: "sm" })}
+          >
+            수납 등록
+          </Link>
+        }
+      >
+        {recentPayments.length > 0 ? (
+          recentPayments.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between gap-4 border-b border-border/50 px-3.5 py-2.5 text-sm last:border-b-0"
+            >
+              <span className="tabular shrink-0 text-muted-foreground">
+                {p.payment_date ? formatDate(p.payment_date) : "-"}
+              </span>
+              <span className="min-w-0 flex-1 truncate">
+                {p.label ?? p.payment_type}
+              </span>
+              <span className="tabular shrink-0 font-medium">
+                {formatKRW(p.amount_krw)}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+            수납 내역이 없습니다.
+          </p>
+        )}
+      </DetailPanel>
+
+      {/* 아래로 접힌 상세 정보 */}
+      <CollapsedSection title="연락처 · 인적사항">
+        <DefinitionGrid className="rounded-none bg-transparent ring-0">
           <DefGroup label="연락처">
             <Def label="전화" mono>
               {tenant.phone || "-"}
@@ -488,6 +604,11 @@ export default async function TenantDetailPage({
               {formatDate(tenant.birth)}
             </Def>
           </DefGroup>
+        </DefinitionGrid>
+      </CollapsedSection>
+
+      <CollapsedSection title="군 정보">
+        <DefinitionGrid className="rounded-none bg-transparent ring-0">
           <DefGroup label="군 정보">
             <Def label="소속">{branchLabel ?? "-"}</Def>
             <Def label="계급">{tenant.rank || "-"}</Def>
@@ -498,7 +619,9 @@ export default async function TenantDetailPage({
                 : "-"}
             </Def>
             <Def label="DEROS" mono>
-              {formatDate(tenant.deros)}
+              {tenant.deros
+                ? `${formatDate(tenant.deros)}${derosDays != null ? ` (${derosDays >= 0 ? `D-${derosDays}` : `D+${-derosDays}`})` : ""}`
+                : "-"}
             </Def>
             <Def label="군 ID">{tenant.military_id || "-"}</Def>
             <Def label="부양가족">
@@ -515,120 +638,19 @@ export default async function TenantDetailPage({
             </Def>
           </DefGroup>
         </DefinitionGrid>
+      </CollapsedSection>
 
-        {activeLease ? (
-          <div className="space-y-4">
-            <DetailPanel
-              title="임대인"
-              action={
-                <Link
-                  href={`/landlords/${activeLease.landlord_id}`}
-                  className="text-xs text-brand hover:underline"
-                >
-                  임대인 상세 →
-                </Link>
-              }
-            >
-              <DetailRow label="이름">
-                <Link
-                  href={`/landlords/${activeLease.landlord_id}`}
-                  className="text-brand hover:underline"
-                >
-                  {activeLease.landlord_name}
-                </Link>
-              </DetailRow>
-              <DetailRow label="전화" mono>
-                {activeLease.landlord_phone || "-"}
-              </DetailRow>
-              <DetailRow label="생년월일" mono>
-                {formatDate(activeLease.landlord_birth)}
-              </DetailRow>
-              {canViewRrn && (
-                <DetailRow label="주민등록번호" mono>
-                  <LandlordRrn
-                    landlordId={activeLease.landlord_id}
-                    hasRrn={!!activeLease.landlord_rrn_encrypted}
-                  />
-                </DetailRow>
-              )}
-            </DetailPanel>
-
-            <DetailPanel
-              title="현재 계약"
-              action={
-                <Link
-                  href={`/leases/${activeLease.id}`}
-                  className="text-xs text-brand hover:underline"
-                >
-                  계약 상세 →
-                </Link>
-              }
-            >
-              <DetailRow label="매물">
-                <Link
-                  href={`/properties/${activeLease.property_id}`}
-                  className="text-brand hover:underline"
-                >
-                  {activeLease.address}
-                </Link>
-              </DetailRow>
-              <DetailRow label="월세" mono>
-                {formatKRW(activeLease.monthly_rent_krw)}
-              </DetailRow>
-              <DetailRow label="보증금" mono>
-                {formatKRW(activeLease.deposit_krw)}
-              </DetailRow>
-              <DetailRow label="계약기간" mono>
-                {formatDate(activeLease.start_date)} ~{" "}
-                {formatDate(activeLease.end_date)}
-              </DetailRow>
-              <DetailRow label="현관 비밀번호" mono>
-                <SecretValue
-                  value={activeLease.front_door_password}
-                  label="현관 비밀번호"
-                />
-              </DetailRow>
-              <DetailRow label="집 비밀번호" mono>
-                <SecretValue
-                  value={activeLease.unit_password}
-                  label="집 비밀번호"
-                />
-              </DetailRow>
-            </DetailPanel>
-          </div>
-        ) : (
-          <DetailPanel title="현재 계약">
-            <p className="px-3.5 py-8 text-center text-sm text-muted-foreground">
-              활성 계약이 없습니다.
-            </p>
-          </DetailPanel>
-        )}
-      </div>
-
-      <div className="space-y-6">
-        <section className="space-y-3">
-          <div className="flex items-baseline gap-1.5">
-            <h2 className="text-[13px] font-semibold">가족 구성원</h2>
-            {familyMembers.length > 0 && (
-              <span className="tabular text-[11px] font-medium text-muted-foreground">
-                {familyMembers.length}
-              </span>
-            )}
-          </div>
+      <CollapsedSection title="가족 구성원" count={familyMembers.length}>
+        <div className="p-3.5">
           <FamilyMembers tenantId={numId} members={familyMembers} />
-        </section>
-        <section className="space-y-3">
-          <div className="flex items-baseline gap-1.5">
-            <h2 className="text-[13px] font-semibold">반려동물</h2>
-            {pets.length > 0 && (
-              <span className="tabular text-[11px] font-medium text-muted-foreground">
-                {pets.length}
-              </span>
-            )}
-          </div>
+        </div>
+      </CollapsedSection>
+
+      <CollapsedSection title="반려동물" count={pets.length}>
+        <div className="p-3.5">
           <TenantPets tenantId={numId} pets={pets} />
-        </section>
-      </div>
+        </div>
+      </CollapsedSection>
 
       <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-4">
         <TenantStatusButton tenantId={numId} currentStatus={tenant.status} />
