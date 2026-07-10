@@ -6,6 +6,9 @@ import {
   Wrench,
   TrendingUp,
   ArrowRight,
+  UserPlus,
+  Banknote,
+  UserMinus,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatKRW, cn } from "@/lib/utils";
@@ -38,6 +41,8 @@ export default async function DashboardPage() {
   const { year: sy, month: sm, day: sd } = seoulYMD();
   const today = new Date(sy, sm - 1, sd);
   const monthStart = new Date(sy, sm - 1, 1);
+  const lastMonthStart = new Date(sy, sm - 2, 1);
+  const nextMonthStart = new Date(sy, sm, 1);
   const windowStart = new Date(sy, sm - 1 - 5, 1);
   const thirtyDays = new Date(today.getTime() + 30 * 864e5);
   const sixtyDays = new Date(today.getTime() + 60 * 864e5);
@@ -51,6 +56,8 @@ export default async function DashboardPage() {
     derosApproaching,
     todayRates,
     monthCharges,
+    moveInRows,
+    moveOutRows,
     usdRate,
     board,
     session,
@@ -165,10 +172,32 @@ export default async function DashboardPage() {
         "charge_item.status",
         "charge_item.amount",
         "charge_item.currency",
+        "charge_item.billing_month",
       ])
-      .where("charge_item.billing_month", "=", monthStart)
+      // Two months: current for the split, last for the 수납액 delta.
+      .where("charge_item.billing_month", ">=", lastMonthStart)
       .where("charge_item.amount", "is not", null)
       .where("tenant.deleted_at", "is", null)
+      .execute(),
+    // 이번달/지난달 입주·퇴거 — the old ERP's month-metric cards compare to
+    // last month. Lease start dates (입주) and tenant archive timestamps
+    // (퇴거 처리) are used instead of created_at, which the 2026-06 legacy
+    // import made meaningless as a "new this month" signal. Both months are
+    // fetched in one query and bucketed in JS.
+    db
+      .selectFrom("lease")
+      .innerJoin("tenant", "tenant.id", "lease.tenant_id")
+      .select(["lease.start_date as at"])
+      .where("tenant.deleted_at", "is", null)
+      .where("lease.start_date", ">=", lastMonthStart)
+      .where("lease.start_date", "<", nextMonthStart)
+      .execute(),
+    db
+      .selectFrom("tenant")
+      .select(["archived_at as at"])
+      .where("deleted_at", "is", null)
+      .where("archived_at", ">=", lastMonthStart)
+      .where("archived_at", "<", nextMonthStart)
       .execute(),
     getUsdToKrwRate(),
     // Independent of the queries above — fetch in the same wave instead of as
@@ -207,15 +236,22 @@ export default async function DashboardPage() {
 
   // Current-month collection status from charges (what's owed), so it agrees
   // with the charge-based 미납 surfaces. 완료=수납, 미납=청구됨, 연체=마감 경과.
+  // Last month contributes only its collected sum (the 수납액 delta).
   let mDone = 0,
     mPending = 0,
     mOverdue = 0,
     collectedAmt = 0,
-    expectedAmt = 0;
+    expectedAmt = 0,
+    lastCollectedAmt = 0;
   for (const c of monthCharges) {
     // 면제(waived)·무효(void) are terminal non-collectible — not owed, not 미납.
     if (c.status === "waived" || c.status === "void") continue;
     const krw = toKrw(Number(c.amount ?? 0), c.currency ?? "KRW", usdRate);
+    const isCurrentMonth = new Date(c.billing_month as Date) >= monthStart;
+    if (!isCurrentMonth) {
+      if (c.status === "paid") lastCollectedAmt += krw;
+      continue;
+    }
     expectedAmt += krw;
     if (c.status === "paid") {
       mDone += 1;
@@ -228,6 +264,20 @@ export default async function DashboardPage() {
   }
   const collectionRate =
     expectedAmt > 0 ? Math.round((collectedAmt / expectedAmt) * 100) : 0;
+
+  // 이번달/지난달 입주·퇴거 카운트 (old-ERP month cards).
+  const bucketByMonth = (rows: { at: Date | string | null }[]) => {
+    let current = 0,
+      last = 0;
+    for (const r of rows) {
+      if (!r.at) continue;
+      if (new Date(r.at) >= monthStart) current += 1;
+      else last += 1;
+    }
+    return { current, last };
+  };
+  const moveIns = bucketByMonth(moveInRows);
+  const moveOuts = bucketByMonth(moveOutRows);
 
   // 미납 = 금액이 있는 미수납 청구(charge_item). USD 는 $20 환율로 환산해 합산.
   const charges = openCharges as ChargeRow[];
@@ -292,6 +342,38 @@ export default async function DashboardPage() {
 
       {/* 할 일 보드 */}
       <TaskBoard data={board} today={todayStr} layout="columns" />
+
+      {/* 이번달 지표 — the old ERP's top row: big month numbers vs last month */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard
+          icon={UserPlus}
+          title={`${sm}월 입주`}
+          value={moveIns.current}
+          unit="명"
+          last={`${moveIns.last}명`}
+          delta={moveIns.current - moveIns.last}
+          href="/leases"
+        />
+        <MetricCard
+          icon={Banknote}
+          title={`${sm}월 수납액`}
+          value={formatKRW(collectedAmt)}
+          last={formatKRW(lastCollectedAmt)}
+          delta={collectedAmt - lastCollectedAmt}
+          deltaLabel={formatKRW(Math.abs(collectedAmt - lastCollectedAmt))}
+          href="/payments"
+        />
+        <MetricCard
+          icon={UserMinus}
+          title={`${sm}월 퇴거`}
+          value={moveOuts.current}
+          unit="명"
+          last={`${moveOuts.last}명`}
+          delta={moveOuts.current - moveOuts.last}
+          deltaTone="neutral"
+          href="/tenants?status=inactive"
+        />
+      </div>
 
       {/* Stat cards */}
       <div className="grid gap-3 lg:grid-cols-[1.15fr_0.95fr_1.5fr]">
@@ -598,6 +680,77 @@ export default async function DashboardPage() {
         </Panel>
       </div>
     </div>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  title,
+  value,
+  unit,
+  last,
+  delta,
+  deltaLabel,
+  deltaTone = "auto",
+  href,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  value: React.ReactNode;
+  unit?: string;
+  /** Last month's figure, already formatted (e.g. "10명", "₩376,406,790"). */
+  last: string;
+  delta: number;
+  /** Formatted absolute delta (defaults to the raw number). */
+  deltaLabel?: string;
+  /** "auto" colors +green/−red; "neutral" for metrics where more isn't better (퇴거). */
+  deltaTone?: "auto" | "neutral";
+  href: string;
+}) {
+  const deltaText =
+    delta === 0
+      ? "±0"
+      : `${delta > 0 ? "+" : "−"}${deltaLabel ?? Math.abs(delta)}`;
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-[13px] font-semibold">
+          <Icon className="size-4 text-muted-foreground" />
+          {title}
+          <Link
+            href={href}
+            className="ml-auto text-muted-foreground hover:text-foreground"
+          >
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="tabular text-2xl font-semibold leading-none">
+          {value}
+          {unit && (
+            <span className="ml-1 text-sm font-medium text-muted-foreground">
+              {unit}
+            </span>
+          )}
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span className="tabular">지난달 {last}</span>
+          <span
+            className={cn(
+              "tabular rounded-md px-1.5 py-px text-[11px] font-medium",
+              deltaTone === "neutral" || delta === 0
+                ? "bg-secondary text-muted-foreground"
+                : delta > 0
+                  ? "bg-success-weak text-success"
+                  : "bg-danger-weak text-danger",
+            )}
+          >
+            {deltaText}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
