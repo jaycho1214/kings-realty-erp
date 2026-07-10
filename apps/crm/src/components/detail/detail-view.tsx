@@ -53,6 +53,10 @@ export interface DetailViewProps {
   aside?: React.ReactNode;
   /** Tab label used for `aside` when it collapses below xl. */
   asideLabel?: string;
+  /** Hide the breadcrumb on lg+ (workspace layouts render their own list rail). */
+  mobileOnlyBack?: boolean;
+  /** Tighter vertical rhythm for dense workspace screens (tenant workspace). */
+  dense?: boolean;
 }
 
 export function DetailView({
@@ -68,6 +72,8 @@ export function DetailView({
   actions,
   aside,
   asideLabel = "메모",
+  mobileOnlyBack = false,
+  dense = false,
 }: DetailViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -116,10 +122,15 @@ export function DetailView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", dense && "space-y-3")}>
       {/* Header */}
       <div>
-        <nav className="flex items-center gap-1 text-xs text-muted-foreground">
+        <nav
+          className={cn(
+            "flex items-center gap-1 text-xs text-muted-foreground",
+            mobileOnlyBack && "lg:hidden",
+          )}
+        >
           <Link
             href={back.href}
             className="hover:text-foreground hover:underline"
@@ -165,7 +176,7 @@ export function DetailView({
         </div>
       </div>
 
-      {facts && facts.length > 0 && <KeyFacts items={facts} />}
+      {facts && facts.length > 0 && <KeyFacts items={facts} dense={dense} />}
 
       {/* Work area: tabs, optionally beside a sticky side rail on xl+. */}
       <div
@@ -215,7 +226,11 @@ export function DetailView({
               })}
             </TabsList>
             {allTabs.map((tab) => (
-              <TabsContent key={tab.key} value={tab.key} className="mt-5">
+              <TabsContent
+                key={tab.key}
+                value={tab.key}
+                className={cn("mt-5", dense && "mt-3.5")}
+              >
                 {info && tab.key === "" ? infoContent : tab.content}
               </TabsContent>
             ))}

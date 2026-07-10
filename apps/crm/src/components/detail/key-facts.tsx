@@ -26,20 +26,24 @@ const toneClass: Record<FactTone, string> = {
  * operational figures (money, counts, countdowns) in tabular mono. Scrolls
  * horizontally on narrow screens rather than wrapping into a ragged grid.
  */
-export function KeyFacts({ items }: { items: Fact[] }) {
+export function KeyFacts({ items, dense }: { items: Fact[]; dense?: boolean }) {
   return (
     <div className="scrollbar-none flex overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
       {items.map((f, i) => (
         <div
           key={i}
-          className="min-w-[140px] flex-1 border-r border-border/55 px-4 py-2.5 last:border-r-0"
+          className={cn(
+            "min-w-[140px] flex-1 border-r border-border/55 last:border-r-0",
+            dense ? "px-3.5 py-1.5" : "px-4 py-2.5",
+          )}
         >
           <div className="text-[11px] font-medium tracking-wide text-muted-foreground">
             {f.label}
           </div>
           <div
             className={cn(
-              "mt-0.5 text-base font-semibold",
+              "mt-0.5 font-semibold",
+              dense ? "text-sm" : "text-base",
               f.mono !== false && "tabular",
               toneClass[f.tone ?? "default"],
             )}
