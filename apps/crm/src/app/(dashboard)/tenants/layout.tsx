@@ -1,11 +1,10 @@
 import { getDb, sql } from "@kingsrealty/db";
 import { seoulYMD } from "@/lib/date";
 import { getSession } from "@/lib/session";
-import { isAdmin, canViewSensitive } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 import { PageHeader } from "@/components/page-header";
 import { CreateDialog } from "@/components/create-dialog";
-import { TenantForm } from "./_components/tenant-form";
-import { LeaseIntakeForm } from "../leases/_components/lease-intake-dialog";
+import { CustomerIntakeForm } from "./_components/customer-intake-form";
 import { TenantWorkspace } from "./_components/tenant-workspace";
 import { TenantRail, type RailTenant } from "./_components/tenant-rail";
 
@@ -17,14 +16,12 @@ export default async function TenantsLayout({
   const db = getDb();
   const session = await getSession();
   const admin = isAdmin(session?.user?.role);
-  const canViewRrn = canViewSensitive(session?.user?.role);
 
   // 조기 퇴거 flag needs "today" in Seoul, same as the old list page.
   const { year: sy, month: sm, day: sd } = seoulYMD();
   const today = new Date(sy, sm - 1, sd);
 
-  const [rosterRows, baseLocations, landlordsList, propertiesList] =
-    await Promise.all([
+  const [rosterRows, baseLocations, landlordsList] = await Promise.all([
       db
         .selectFrom("tenant")
         .select((eb) => [
@@ -64,16 +61,11 @@ export default async function TenantsLayout({
         .select(["id", "name", "name_ko"])
         .orderBy("sort_order", "asc")
         .execute(),
-      // Combobox sources for the 계약서로 등록 (lease intake) dialog.
+      // Combobox source for the 새 고객 intake's 집주인 autocomplete.
       db
         .selectFrom("landlord")
         .select(["id", "name"])
         .orderBy("name", "asc")
-        .execute(),
-      db
-        .selectFrom("property")
-        .select(["id", "address", "address_jibeon", "landlord_id"])
-        .orderBy("address", "asc")
         .execute(),
     ]);
 
@@ -91,11 +83,6 @@ export default async function TenantsLayout({
   const activeCount = roster.filter(
     (t) => !t.deleted && t.status === "active",
   ).length;
-  // The lease-intake combobox lists active tenants; derived from the roster
-  // query instead of a separate round trip.
-  const tenantsList = rosterRows
-    .filter((r) => r.deleted_at == null && r.status === "active")
-    .map((r) => ({ id: r.id, name: r.name, rank: r.rank }));
 
   return (
     <TenantWorkspace
@@ -104,25 +91,12 @@ export default async function TenantsLayout({
           title="세입자"
           count={activeCount}
           actions={
-            <div className="flex gap-2">
-              <CreateDialog
-                title="계약서로 등록"
-                buttonLabel="계약서로 등록"
-                wide
-                closeOnSuccess
-              >
-                <LeaseIntakeForm
-                  landlords={landlordsList}
-                  properties={propertiesList}
-                  tenants={tenantsList}
-                  baseLocations={baseLocations}
-                  canViewRrn={canViewRrn}
-                />
-              </CreateDialog>
-              <CreateDialog title="새 세입자" buttonLabel="새 세입자" wide>
-                <TenantForm variant="plain" baseLocations={baseLocations} />
-              </CreateDialog>
-            </div>
+            <CreateDialog title="새 고객" buttonLabel="새 고객" wide closeOnSuccess>
+              <CustomerIntakeForm
+                landlords={landlordsList}
+                baseLocations={baseLocations}
+              />
+            </CreateDialog>
           }
         />
       }
