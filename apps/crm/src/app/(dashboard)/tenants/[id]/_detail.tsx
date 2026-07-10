@@ -52,6 +52,27 @@ import { LeaseForm } from "../../leases/_components/lease-form";
 import { OhaAllowancePopover } from "../_components/oha-allowance-popover";
 import { Inspections } from "../_components/inspections";
 
+// Same vocabularies the 비품/AS screens use (appliance-form, services/page).
+const applianceOwnerMap: Record<string, string> = {
+  landlord: "집주인",
+  office: "킹스",
+  tenant: "세입자",
+};
+const applianceStatusMap: Record<string, string> = {
+  normal: "정상",
+  repair: "수리필요",
+  broken: "사용불가",
+};
+const serviceStatusMap: Record<string, string> = {
+  received: "접수",
+  pending_repair: "수리대기중",
+  in_progress: "수리중",
+  completed: "수리완료",
+  postponed: "수리연기",
+  self_handled: "개인처리결정",
+  escalated: "에스컬레이션",
+};
+
 export default async function TenantDetailPage({
   params,
 }: {
@@ -93,6 +114,8 @@ export default async function TenantDetailPage({
     ohaRateRows,
     usdRate,
     inspections,
+    appliances,
+    serviceRequests,
   ] = await Promise.all([
     db
       .selectFrom("tenant_family_member")
@@ -319,6 +342,34 @@ export default async function TenantDetailPage({
           .limit(1),
       )
       .orderBy("inspected_at", "desc")
+      .execute(),
+    // 카드의 비품 섹션 — 최신 계약 매물의 비품 (inspection과 같은 서브쿼리 패턴).
+    db
+      .selectFrom("appliance")
+      .select(["id", "name", "brand", "model_number", "owner", "status"])
+      .where("property_id", "=", (eb) =>
+        eb
+          .selectFrom("lease")
+          .select("lease.property_id")
+          .where("lease.tenant_id", "=", numId)
+          .orderBy("lease.start_date", "desc")
+          .limit(1),
+      )
+      .orderBy("name", "asc")
+      .execute(),
+    db
+      .selectFrom("service_request")
+      .innerJoin("lease", "lease.id", "service_request.lease_id")
+      .select([
+        "service_request.id",
+        "service_request.title",
+        "service_request.category",
+        "service_request.status",
+        "service_request.created_at",
+      ])
+      .where("lease.tenant_id", "=", numId)
+      .orderBy("service_request.created_at", "desc")
+      .limit(10)
       .execute(),
   ]);
 
@@ -638,6 +689,67 @@ export default async function TenantDetailPage({
             </Def>
           </DefGroup>
         </DefinitionGrid>
+      </CollapsedSection>
+
+      <CollapsedSection title="비품" count={appliances.length}>
+        {appliances.length > 0 ? (
+          <ul className="divide-y divide-border/50 text-sm">
+            {appliances.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center justify-between gap-3 px-3.5 py-2.5"
+              >
+                <span className="min-w-0 truncate">
+                  {a.name}
+                  {(a.brand || a.model_number) && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {[a.brand, a.model_number].filter(Boolean).join(" ")}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {applianceOwnerMap[a.owner] ?? a.owner} ·{" "}
+                  {applianceStatusMap[a.status] ?? a.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+            등록된 비품이 없습니다.
+          </p>
+        )}
+      </CollapsedSection>
+
+      <CollapsedSection title="AS 요청" count={serviceRequests.length}>
+        {serviceRequests.length > 0 ? (
+          <ul className="divide-y divide-border/50 text-sm">
+            {serviceRequests.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between gap-3 px-3.5 py-2.5"
+              >
+                <Link
+                  href={`/services/${s.id}`}
+                  className="min-w-0 truncate hover:underline"
+                >
+                  {s.title}
+                </Link>
+                <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                  <span className="tabular">{formatDate(s.created_at)}</span>
+                  <StatusBadge
+                    status={s.status}
+                    label={serviceStatusMap[s.status] ?? s.status}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+            AS 요청이 없습니다.
+          </p>
+        )}
       </CollapsedSection>
 
       <CollapsedSection title="가족 구성원" count={familyMembers.length}>
