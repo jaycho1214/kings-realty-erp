@@ -4,7 +4,7 @@ import { MapPin } from "lucide-react";
 import { getDb, sql } from "@kingsrealty/db";
 import { DeleteButton } from "@/components/delete-button";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { CollapsedSection } from "@/components/collapsed-section";
 import {
   Table,
@@ -606,12 +606,16 @@ export default async function TenantDetailPage({
       <DetailPanel
         title="최근 수납"
         action={
-          <Link
-            href={`/payments/new${activeLease ? `?lease=${activeLease.id}` : ""}`}
-            className={buttonVariants({ size: "sm" })}
+          <Button
+            size="sm"
+            render={
+              <Link
+                href={`/payments/new${activeLease ? `?lease=${activeLease.id}` : ""}`}
+              />
+            }
           >
             수납 등록
-          </Link>
+          </Button>
         }
       >
         {recentPayments.length > 0 ? (
