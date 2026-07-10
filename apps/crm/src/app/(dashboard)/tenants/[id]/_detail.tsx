@@ -671,6 +671,8 @@ export default async function TenantDetailPage({
   return (
     <DetailView
       back={{ href: "/tenants", label: "세입자" }}
+      mobileOnlyBack
+      dense
       basePath={`/tenants/${numId}`}
       activeTab={activeTab}
       title={tenant.name}

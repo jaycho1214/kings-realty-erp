@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Right-pane fallback while the tenants index/detail segment loads. */
-export default function TenantsLoading() {
+/** Fallback while a tenant detail loads (also fires on id→id navigation). */
+export default function TenantDetailLoading() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-8 w-64" />
