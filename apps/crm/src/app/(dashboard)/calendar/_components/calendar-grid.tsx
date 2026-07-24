@@ -148,7 +148,7 @@ export function CalendarGrid({
                 type="button"
                 onClick={() => toggleFilter(category)}
                 className={cn(
-                  "group flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all",
+                  "group flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
                   isActive
                     ? "border-foreground/15 bg-foreground/5 font-medium text-foreground shadow-sm"
                     : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
@@ -156,7 +156,7 @@ export function CalendarGrid({
               >
                 <div
                   className={cn(
-                    "size-2 rounded-full transition-all",
+                    "size-2 rounded-full transition-colors",
                     config.dotColor,
                     !isActive && activeFilters.size > 0 && "opacity-30",
                   )}
@@ -194,7 +194,7 @@ export function CalendarGrid({
                   type="button"
                   onClick={() => setSelectedStaffId(isActive ? null : s.id)}
                   className={cn(
-                    "rounded-lg border px-2.5 py-1.5 text-xs transition-all",
+                    "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
                     isActive
                       ? "border-foreground/15 bg-foreground/5 font-medium text-foreground shadow-sm"
                       : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",

@@ -431,8 +431,10 @@ export function InspectionEditor(props: {
         </div>
       </DataPanel>
 
+      {/* Sticky bar is opaque rather than translucent+blurred: backdrop-filter
+          re-blurs on every scroll frame, which stutters on staff machines. */}
       {!finalized && (
-        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background/90 px-1 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background px-1 py-2.5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span className="tabular-nums text-muted-foreground">
               점검 {checked}/{total}

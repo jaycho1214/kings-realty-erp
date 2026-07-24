@@ -239,7 +239,7 @@ export function CreateEventDialog({
                   type="button"
                   onClick={() => setSelectedColor(color.value)}
                   className={cn(
-                    "flex size-7 items-center justify-center rounded-full transition-all",
+                    "flex size-7 items-center justify-center rounded-full transition-colors",
                     selectedColor === color.value
                       ? "ring-2 ring-ring ring-offset-2 ring-offset-background"
                       : "hover:scale-110",
