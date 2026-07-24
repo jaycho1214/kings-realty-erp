@@ -53,7 +53,17 @@ export function TenantRail({
   const [q, setQ] = React.useState("");
   const listRef = React.useRef<HTMLDivElement>(null);
 
-  const rows = filterRoster(tenants, q, view);
+  // The roster is 100+ rows and every keystroke used to re-filter and
+  // re-reconcile all of them synchronously, which is what staff feel as typing
+  // lag on weak desks. Deferring the query lets React paint the keystroke
+  // first and rebuild the list at lower priority (interruptible, so a fast
+  // typist never queues up work); the memo keeps unrelated re-renders — a
+  // selection change, a router update — from re-filtering at all.
+  const deferredQ = React.useDeferredValue(q);
+  const rows = React.useMemo(
+    () => filterRoster(tenants, deferredQ, view),
+    [tenants, deferredQ, view],
+  );
 
   // Keep the selected row visible when selection changes (click or ↑/↓).
   React.useEffect(() => {
@@ -132,7 +142,7 @@ export function TenantRail({
             <div
               key={t.id}
               data-tenant-id={t.id}
-              className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2 last:border-b-0"
+              className="roster-row flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2 last:border-b-0"
             >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{t.name}</div>
@@ -153,7 +163,7 @@ export function TenantRail({
                 data-tenant-id={t.id}
                 aria-current={selected ? "page" : undefined}
                 className={cn(
-                  "relative block border-b border-border/40 px-3 py-2 last:border-b-0",
+                  "roster-row relative block border-b border-border/40 px-3 py-2 last:border-b-0",
                   selected
                     ? "bg-brand-weak before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-brand"
                     : "hover:bg-muted/60",

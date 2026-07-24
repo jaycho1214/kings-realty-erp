@@ -43,7 +43,7 @@ export default function SettingsLayout({
                   <Link
                     href={item.href}
                     className={cn(
-                      "inline-flex h-full items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all",
+                      "inline-flex h-full items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-background text-foreground shadow-sm"
                         : "text-foreground/60 hover:text-foreground",

@@ -302,3 +302,53 @@
   background: var(--brand-weak);
   color: var(--brand);
 }
+
+/* ── 저사양 모드 (low PC mode) ──────────────────────────────────────────────
+   Staff desks run weak integrated GPUs where animation, transition, and
+   backdrop-filter work costs real frames. This block removes all three.
+
+   State is resolved before first paint by the inline script in the root
+   layout (see src/lib/low-pc.ts) and written to <html data-low-pc>:
+     "on"   → reduced (user chose 저사양, or 자동 + OS reduced-motion)
+     "off"  → full motion (explicit user choice)
+     absent → the script never ran; fall back to the OS setting so
+              prefers-reduced-motion is still honored without JS.
+
+   Durations are 0.01ms rather than 0 so transitionend/animationend still
+   fire — Base UI's dialog and sheet rely on those events to unmount
+   (data-ending-style / data-closed). */
+:root[data-low-pc="on"] *,
+:root[data-low-pc="on"] *::before,
+:root[data-low-pc="on"] *::after {
+  animation-delay: -0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+  backdrop-filter: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-low-pc]) *,
+  :root:not([data-low-pc]) *::before,
+  :root:not([data-low-pc]) *::after {
+    animation-delay: -0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* Roster rail rows.
+   All 100+ rows stay in the DOM so ↑/↓ navigation and scrollIntoView keep
+   working — a virtualized list would break both, since they look rows up by
+   [data-tenant-id]. content-visibility lets the browser skip layout and paint
+   for rows scrolled out of view instead, which is where the cost actually is.
+   The `auto` keyword makes it remember each row's real height after first
+   render, so the scrollbar doesn't jump around. */
+.roster-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 53px;
+}

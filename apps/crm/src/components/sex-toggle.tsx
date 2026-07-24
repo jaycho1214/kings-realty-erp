@@ -43,7 +43,7 @@ export function SexToggle({
               setValue((prev) => (prev === opt.value ? "" : opt.value))
             }
             className={cn(
-              "flex-1 rounded-md px-3 text-sm font-medium transition-all",
+              "flex-1 rounded-md px-3 text-sm font-medium transition-colors",
               value === opt.value
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LowPcSync } from "@/components/low-pc-sync";
+import { LOW_PC_INIT_SCRIPT } from "@/lib/low-pc";
 import "./globals.css";
 
 const pretendard = localFont({
@@ -31,6 +33,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* Resolves 저사양 모드 onto <html> before first paint so the mode
+            never flashes. Must stay blocking and inline — see lib/low-pc.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: LOW_PC_INIT_SCRIPT }} />
+      </head>
       <body
         className={`${pretendard.variable} ${geistMono.variable} antialiased`}
       >
@@ -40,6 +47,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <LowPcSync />
           {children}
         </ThemeProvider>
       </body>

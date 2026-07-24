@@ -71,7 +71,7 @@ function NavigationMenuItem({
 }
 
 const navigationMenuTriggerStyle = () =>
-  "group/navigation-menu-trigger inline-flex h-9 w-max items-center justify-center rounded-lg bg-background px-2.5 py-1.5 text-sm font-medium transition-all outline-none hover:bg-default focus:bg-default focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-default/50 data-popup-open:hover:bg-default data-open:bg-default/50 data-open:hover:bg-default data-open:focus:bg-default";
+  "group/navigation-menu-trigger inline-flex h-9 w-max items-center justify-center rounded-lg bg-background px-2.5 py-1.5 text-sm font-medium transition-colors outline-none hover:bg-default focus:bg-default focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-default/50 data-popup-open:hover:bg-default data-open:bg-default/50 data-open:hover:bg-default data-open:focus:bg-default";
 
 function NavigationMenuTrigger({
   className,
@@ -114,7 +114,7 @@ function NavigationMenuLink({
     <a
       data-slot="navigation-menu-link"
       className={cn(
-        "flex items-center gap-2 rounded-lg p-2 text-sm transition-all outline-none hover:bg-default focus:bg-default focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-1 data-active:bg-default/50 data-active:hover:bg-default data-active:focus:bg-default [&_svg:not([class*='size-'])]:size-4",
+        "flex items-center gap-2 rounded-lg p-2 text-sm transition-colors outline-none hover:bg-default focus:bg-default focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-1 data-active:bg-default/50 data-active:hover:bg-default data-active:focus:bg-default [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
