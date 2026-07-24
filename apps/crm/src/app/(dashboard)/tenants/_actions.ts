@@ -17,10 +17,13 @@ import {
   syncTenantRentDef,
 } from "@/lib/charges";
 import {
-  parseCustomerIntake,
+  customerIntakeSchema,
+  toIntakePlan,
   normalizePhone,
   escapeHtml,
-} from "@/lib/customer-intake";
+} from "@/lib/schemas/customer-intake";
+import { parseForm } from "@/lib/schemas/parse";
+import { tenantSchema } from "@/lib/schemas/tenant";
 import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
 import { sanitizeNoteHtml, extractMentions } from "@/lib/notes/sanitize";
 import { ValidationError } from "@/lib/validation-error";
@@ -32,29 +35,7 @@ export async function createTenant(formData: FormData): Promise<FormState> {
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
-    const email = (formData.get("email") as string) || null;
-    const sex = (formData.get("sex") as string) || null;
-    const birth = (formData.get("birth") as string) || null;
-    const branch = (formData.get("branch") as string) || null;
-    const rank = (formData.get("rank") as string) || null;
-    const unit = (formData.get("unit") as string) || null;
-    const deros = (formData.get("deros") as string) || null;
-    const military_id = (formData.get("military_id") as string)?.trim() || null;
-    const dependent_status =
-      (formData.get("dependent_status") as string) || null;
-    const dependentCountRaw = (
-      formData.get("dependent_count") as string
-    )?.trim();
-    const dependent_count = dependentCountRaw
-      ? Number(dependentCountRaw)
-      : null;
-    const baseLocationId = formData.get("base_location_id") as string;
-    const baseLocationIdNum = Number(baseLocationId);
-    if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
-      throw new ValidationError("기지를 선택해주세요.");
-    }
+    const v = parseForm(tenantSchema, formData);
 
     // Parse family members from indexed form data
     const familyMembers: {
@@ -100,19 +81,7 @@ export async function createTenant(formData: FormData): Promise<FormState> {
       const result = await trx
         .insertInto("tenant")
         .values({
-          name,
-          phone,
-          email,
-          sex,
-          birth,
-          branch,
-          rank,
-          unit,
-          deros,
-          military_id,
-          dependent_status,
-          dependent_count,
-          base_location_id: baseLocationIdNum,
+          ...v,
           created_by: Number(session.user.id),
         })
         .returning("id")
@@ -151,46 +120,12 @@ export async function updateTenant(
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
-    const email = (formData.get("email") as string) || null;
-    const sex = (formData.get("sex") as string) || null;
-    const birth = (formData.get("birth") as string) || null;
-    const branch = (formData.get("branch") as string) || null;
-    const rank = (formData.get("rank") as string) || null;
-    const unit = (formData.get("unit") as string) || null;
-    const deros = (formData.get("deros") as string) || null;
-    const military_id = (formData.get("military_id") as string)?.trim() || null;
-    const dependent_status =
-      (formData.get("dependent_status") as string) || null;
-    const dependentCountRaw = (
-      formData.get("dependent_count") as string
-    )?.trim();
-    const dependent_count = dependentCountRaw
-      ? Number(dependentCountRaw)
-      : null;
-    const baseLocationId = formData.get("base_location_id") as string;
-    const baseLocationIdNum = Number(baseLocationId);
-    if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
-      throw new ValidationError("기지를 선택해주세요.");
-    }
+    const v = parseForm(tenantSchema, formData);
 
     await db
       .updateTable("tenant")
       .set({
-        name,
-        phone,
-        email,
-        sex,
-        birth,
-        branch,
-        rank,
-        unit,
-        deros,
-        military_id,
-        dependent_status,
-        dependent_count,
-        base_location_id: Number(baseLocationId),
+        ...v,
         updated_at: new Date(),
       })
       .where("id", "=", id)
@@ -1358,7 +1293,9 @@ export async function createCustomerIntake(
 ): Promise<FormState> {
   return runAction(async () => {
     const session = await requirePermission("tenant", "create");
-    const plan = parseCustomerIntake(formData, { today: seoulDateString() });
+    const plan = toIntakePlan(
+      parseForm(customerIntakeSchema({ today: seoulDateString() }), formData),
+    );
     if (plan.housing) {
       await requirePermission("lease", "create");
       await requirePermission("property", "create");

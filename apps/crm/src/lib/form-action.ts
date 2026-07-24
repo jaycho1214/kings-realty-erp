@@ -9,16 +9,22 @@
  * instead, which is what <ActionForm>'s useActionState consumes.
  *
  * Throw `ValidationError` for anything a user can fix; `runAction` turns it into
- * `{ error }`. Anything else is a bug: it is logged server-side and reported
- * generically so a raw Postgres message never lands in the UI.
+ * `{ error, fieldErrors }`. Anything else is a bug: it is logged server-side and
+ * reported generically so a raw Postgres message never lands in the UI.
  */
 import { unstable_rethrow } from "next/navigation";
-import { isValidationError } from "./validation-error";
+import { isValidationError, type FieldErrors } from "./validation-error";
 
 export { ValidationError, isValidationError } from "./validation-error";
+export type { FieldErrors } from "./validation-error";
 
 /** What every form-bound server action returns. No `error` = success. */
-export type FormState = { error?: string };
+export type FormState = {
+  /** Single-line summary, shown beside the submit button. */
+  error?: string;
+  /** Per-input messages keyed by `name`, rendered by <FieldError>. */
+  fieldErrors?: FieldErrors;
+};
 
 export const EMPTY_FORM_STATE: FormState = {};
 
@@ -35,7 +41,11 @@ export async function runAction(fn: () => Promise<void>): Promise<FormState> {
     return EMPTY_FORM_STATE;
   } catch (err) {
     unstable_rethrow(err);
-    if (isValidationError(err)) return { error: err.message };
+    if (isValidationError(err)) {
+      return err.fieldErrors
+        ? { error: err.message, fieldErrors: err.fieldErrors }
+        : { error: err.message };
+    }
     console.error("[server action]", err);
     return { error: UNEXPECTED };
   }

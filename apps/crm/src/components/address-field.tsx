@@ -53,7 +53,7 @@ export function AddressField() {
     <div className="space-y-3">
       <input type="hidden" name="address_jibeon" value={jibeon} />
       <input type="hidden" name="address_en" value={addressEn} />
-      <Field>
+      <Field name="address">
         <Label htmlFor="address">주소</Label>
         <div className="relative">
           <Input
@@ -96,7 +96,7 @@ export function AddressField() {
           <p className="text-xs text-muted-foreground">지번: {jibeon}</p>
         )}
       </Field>
-      <Field>
+      <Field name="address_detail">
         <Label htmlFor="address_detail">상세주소</Label>
         <Input
           id="address_detail"

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { cn } from "@/lib/utils";
+import { useFieldError } from "@/components/action-form";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
@@ -63,20 +64,40 @@ const fieldOrientationClasses: Record<FieldOrientation, string> = {
 function Field({
   className,
   orientation = "vertical",
+  name,
+  children,
   ...props
-}: React.ComponentProps<"div"> & { orientation?: FieldOrientation }) {
+}: React.ComponentProps<"div"> & {
+  orientation?: FieldOrientation;
+  /**
+   * The `name` of the input this field wraps. When set, a rejection the server
+   * attributed to that input renders underneath automatically — so a form gains
+   * per-field errors by naming its Fields, not by hand-placing error markup.
+   * Inert outside an <ActionForm>.
+   */
+  name?: string;
+}) {
+  const serverError = useFieldError(name ?? "");
   return (
     <div
       role="group"
       data-slot="field"
       data-orientation={orientation}
+      data-invalid={serverError ? true : undefined}
       className={cn(
         "group/field flex w-full gap-2 data-[invalid=true]:text-destructive",
         fieldOrientationClasses[orientation],
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+      {serverError && (
+        <p role="alert" className="text-xs font-normal text-danger">
+          {serverError}
+        </p>
+      )}
+    </div>
   );
 }
 

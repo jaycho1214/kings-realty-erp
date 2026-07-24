@@ -324,7 +324,7 @@ function RecurringForm({
   return (
     <form action={action} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Field>
+        <Field name="label">
           <Label htmlFor="label">항목 이름</Label>
           <Input
             id="label"
@@ -334,7 +334,7 @@ function RecurringForm({
             required
           />
         </Field>
-        <Field>
+        <Field name="type">
           <Label htmlFor="type">분류</Label>
           <select
             id="type"
@@ -351,7 +351,7 @@ function RecurringForm({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field>
+        <Field name="amount">
           <Label htmlFor="amount">금액 (비우면 변동)</Label>
           <Input
             id="amount"
@@ -362,7 +362,7 @@ function RecurringForm({
             defaultValue={defaults?.amount ?? ""}
           />
         </Field>
-        <Field>
+        <Field name="currency">
           <Label htmlFor="currency">통화</Label>
           <select
             id="currency"
@@ -376,7 +376,7 @@ function RecurringForm({
         </Field>
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Field>
+        <Field name="due_day">
           <Label htmlFor="due_day">마감일(일)</Label>
           <Input
             id="due_day"
@@ -387,7 +387,7 @@ function RecurringForm({
             defaultValue={defaults?.due_day ?? 10}
           />
         </Field>
-        <Field>
+        <Field name="start_month">
           <Label htmlFor="start_month">시작월</Label>
           <Input
             id="start_month"
@@ -396,7 +396,7 @@ function RecurringForm({
             defaultValue={monthVal(defaults?.start_month)}
           />
         </Field>
-        <Field>
+        <Field name="end_month">
           <Label htmlFor="end_month">종료월</Label>
           <Input
             id="end_month"

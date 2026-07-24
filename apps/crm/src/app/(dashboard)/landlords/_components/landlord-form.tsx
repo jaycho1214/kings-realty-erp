@@ -49,7 +49,7 @@ export function LandlordForm({
     <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="name">
             <Label htmlFor="name">
               이름 <span className="text-danger">*</span>
             </Label>
@@ -61,7 +61,7 @@ export function LandlordForm({
               placeholder="임대인 이름"
             />
           </Field>
-          <Field>
+          <Field name="phone">
             <Label htmlFor="phone">
               전화번호 <span className="text-danger">*</span>
             </Label>
@@ -75,7 +75,7 @@ export function LandlordForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="email">
             <Label htmlFor="email">이메일</Label>
             <Input
               id="email"
@@ -85,11 +85,11 @@ export function LandlordForm({
               placeholder="email@example.com"
             />
           </Field>
-          <Field>
+          <Field name="sex">
             <Label>성별</Label>
             <SexToggle name="sex" defaultValue={defaultValues?.sex} />
           </Field>
-          <Field>
+          <Field name="birth">
             <Label htmlFor="birth">생년월일</Label>
             <Input
               id="birth"
@@ -110,7 +110,7 @@ export function LandlordForm({
               placeholder="임대인 주소"
             />
           </Field>
-          <Field>
+          <Field name="business_type">
             <Label htmlFor="business_type">구분</Label>
             <select
               id="business_type"
@@ -131,7 +131,7 @@ export function LandlordForm({
             them without sensitive access). */}
         {canViewRrn && (
           <div className="grid gap-5 sm:grid-cols-3">
-            <Field>
+            <Field name="bank_name">
               <Label htmlFor="bank_name">은행명</Label>
               <BankSelect
                 id="bank_name"
@@ -139,7 +139,7 @@ export function LandlordForm({
                 defaultValue={defaultValues?.bank_name ?? ""}
               />
             </Field>
-            <Field>
+            <Field name="bank_account">
               <Label htmlFor="bank_account">계좌번호</Label>
               <Input
                 id="bank_account"
@@ -148,7 +148,7 @@ export function LandlordForm({
                 placeholder="계좌번호"
               />
             </Field>
-            <Field>
+            <Field name="account_holder">
               <Label htmlFor="account_holder">예금주</Label>
               <Input
                 id="account_holder"
@@ -161,7 +161,7 @@ export function LandlordForm({
         )}
 
         {canViewRrn && (
-          <Field>
+          <Field name="rrn">
             <Label htmlFor="rrn">
               주민등록번호
               <span className="ml-1.5 text-xs font-normal text-muted-foreground">
@@ -183,7 +183,7 @@ export function LandlordForm({
           </Field>
         )}
 
-        <Field>
+        <Field name="notes">
           <Label htmlFor="notes">비고</Label>
           <Textarea
             id="notes"

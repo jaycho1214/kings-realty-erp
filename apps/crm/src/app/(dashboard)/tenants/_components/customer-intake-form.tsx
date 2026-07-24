@@ -54,13 +54,13 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">고객</h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
+            <Field name="name">
               <Label htmlFor="name">
                 이름 <span className="text-danger">*</span>
               </Label>
               <Input id="name" name="name" required autoFocus />
             </Field>
-            <Field>
+            <Field name="phone">
               <Label htmlFor="phone">
                 전화번호 <span className="text-danger">*</span>
               </Label>
@@ -74,11 +74,11 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
                 placeholder="E-5, O-3 …"
               />
             </Field>
-            <Field>
+            <Field name="unit">
               <Label htmlFor="unit">부대</Label>
               <Input id="unit" name="unit" />
             </Field>
-            <Field>
+            <Field name="base_location_id">
               <Label htmlFor="base_location_id">
                 기지 <span className="text-danger">*</span>
               </Label>
@@ -121,11 +121,11 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
                 newHint="새 집주인 등록"
               />
             </Field>
-            <Field>
+            <Field name="landlord_phone">
               <Label htmlFor="landlord_phone">집주인 연락처</Label>
               <PhoneInput name="landlord_phone" />
             </Field>
-            <Field>
+            <Field name="monthly_rent_krw">
               <Label htmlFor="monthly_rent_krw">월세 (₩)</Label>
               <Input
                 id="monthly_rent_krw"
@@ -135,7 +135,7 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
                 placeholder="0"
               />
             </Field>
-            <Field>
+            <Field name="deposit_krw">
               <Label htmlFor="deposit_krw">보증금 (₩)</Label>
               <Input
                 id="deposit_krw"
@@ -145,7 +145,7 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
                 placeholder="0"
               />
             </Field>
-            <Field>
+            <Field name="start_date">
               <Label htmlFor="start_date">계약 시작</Label>
               <Input
                 id="start_date"
@@ -163,7 +163,7 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
                 }}
               />
             </Field>
-            <Field>
+            <Field name="end_date">
               <Label htmlFor="end_date">계약 만료</Label>
               <Input
                 id="end_date"

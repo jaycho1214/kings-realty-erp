@@ -274,7 +274,7 @@ export default async function ApplianceDetailPage({
                   <CreateDialog title="수리 요청" buttonLabel="수리 요청">
                     <ActionForm action={serviceForm}>
                       <FieldGroup>
-                        <Field>
+                        <Field name="title">
                           <Label htmlFor="sr-title">제목</Label>
                           <Input
                             id="sr-title"
@@ -283,7 +283,7 @@ export default async function ApplianceDetailPage({
                             placeholder={`${appliance.name} 수리`}
                           />
                         </Field>
-                        <Field>
+                        <Field name="category">
                           <Label htmlFor="sr-category">분류</Label>
                           <select
                             id="sr-category"
@@ -298,7 +298,7 @@ export default async function ApplianceDetailPage({
                             ))}
                           </select>
                         </Field>
-                        <Field>
+                        <Field name="description">
                           <Label htmlFor="sr-description">내용</Label>
                           <Textarea
                             id="sr-description"

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useActionState, useContext } from "react";
-import type { FormState } from "@/lib/form-action";
+import type { FormState, FieldErrors } from "@/lib/form-action";
 
 /**
  * A <form> whose server action reports expected failures as state instead of
@@ -10,14 +10,25 @@ import type { FormState } from "@/lib/form-action";
  * show the staff a generic error card — see src/lib/form-action.ts.
  *
  * Drop-in for `<form>`: swap the tag and the action keeps the same shape.
- * The message surfaces next to <SubmitButton>, where the user just clicked.
+ * The summary lands next to <SubmitButton>; per-field messages land on the
+ * inputs themselves via <FieldError name="…">.
  */
 
-const FormErrorContext = createContext<string | undefined>(undefined);
+type Ctx = { error?: string; fieldErrors?: FieldErrors };
+const FormErrorContext = createContext<Ctx>({});
 
-/** The current submission's error message, if the last submit failed. */
+/** The current submission's summary message, if the last submit failed. */
 export function useFormError(): string | undefined {
-  return useContext(FormErrorContext);
+  return useContext(FormErrorContext).error;
+}
+
+/**
+ * The message for one input, if that input was rejected. Consumed by <Field
+ * name="…"> so forms don't hand-place error markup.
+ */
+export function useFieldError(name: string): string | undefined {
+  const { fieldErrors } = useContext(FormErrorContext);
+  return name ? fieldErrors?.[name] : undefined;
 }
 
 /**
@@ -41,7 +52,9 @@ export function ActionForm({ action, children, ...props }: Props) {
   );
 
   return (
-    <FormErrorContext.Provider value={state?.error}>
+    <FormErrorContext.Provider
+      value={{ error: state?.error, fieldErrors: state?.fieldErrors }}
+    >
       <form {...props} action={formAction}>
         {children}
       </form>

@@ -205,7 +205,7 @@ export function TenantLedger({
           </DialogHeader>
           <form action={handleAdd} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field>
+              <Field name="direction">
                 <Label htmlFor="direction">구분</Label>
                 <select
                   id="direction"
@@ -216,12 +216,12 @@ export function TenantLedger({
                   <option value="disbursement">출금</option>
                 </select>
               </Field>
-              <Field>
+              <Field name="entry_date">
                 <Label htmlFor="entry_date">날짜</Label>
                 <Input id="entry_date" name="entry_date" type="date" required />
               </Field>
             </div>
-            <Field>
+            <Field name="category">
               <Label htmlFor="category">항목</Label>
               <Input
                 id="category"
@@ -231,7 +231,7 @@ export function TenantLedger({
               />
             </Field>
             <div className="grid grid-cols-2 gap-4">
-              <Field>
+              <Field name="currency">
                 <Label htmlFor="currency">통화</Label>
                 <select
                   id="currency"
@@ -244,7 +244,7 @@ export function TenantLedger({
                   <option value="USD">USD ($)</option>
                 </select>
               </Field>
-              <Field>
+              <Field name="amount">
                 <Label htmlFor="amount">금액 ({currency})</Label>
                 <Input
                   id="amount"
@@ -257,7 +257,7 @@ export function TenantLedger({
             </div>
             {currency === "USD" && (
               <div className="grid grid-cols-3 gap-4">
-                <Field>
+                <Field name="exchange_rate">
                   <Label htmlFor="exchange_rate">환율</Label>
                   <Input
                     id="exchange_rate"
@@ -268,7 +268,7 @@ export function TenantLedger({
                     required
                   />
                 </Field>
-                <Field>
+                <Field name="denomination">
                   <Label htmlFor="denomination">권종</Label>
                   <select
                     id="denomination"
@@ -282,7 +282,7 @@ export function TenantLedger({
                     <option value="10">$10</option>
                   </select>
                 </Field>
-                <Field>
+                <Field name="exchange_vendor_id">
                   <Label htmlFor="exchange_vendor_id">환전업체</Label>
                   <select
                     id="exchange_vendor_id"
@@ -299,7 +299,7 @@ export function TenantLedger({
                 </Field>
               </div>
             )}
-            <Field>
+            <Field name="description">
               <Label htmlFor="description">메모</Label>
               <Input
                 id="description"

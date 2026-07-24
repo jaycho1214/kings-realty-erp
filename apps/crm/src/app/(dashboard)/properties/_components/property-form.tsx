@@ -71,7 +71,7 @@ export function PropertyForm({
 
         {/* Row 3: 유형, 면적, 방, 화장실 */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Field>
+          <Field name="property_type">
             <Label htmlFor="property_type">
               유형 <span className="text-danger">*</span>
             </Label>
@@ -89,7 +89,7 @@ export function PropertyForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="size_pyeong">
             <Label htmlFor="size_pyeong">면적 (평)</Label>
             <Input
               id="size_pyeong"
@@ -102,7 +102,7 @@ export function PropertyForm({
             />
           </Field>
 
-          <Field>
+          <Field name="rooms">
             <Label htmlFor="rooms">방</Label>
             <Input
               id="rooms"
@@ -114,7 +114,7 @@ export function PropertyForm({
             />
           </Field>
 
-          <Field>
+          <Field name="bathrooms">
             <Label htmlFor="bathrooms">화장실</Label>
             <Input
               id="bathrooms"
@@ -129,7 +129,7 @@ export function PropertyForm({
 
         {/* Row 4: 월세, 보증금 */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
+          <Field name="monthly_rent_krw">
             <Label htmlFor="monthly_rent_krw">
               월세 (원) <span className="text-danger">*</span>
             </Label>
@@ -144,7 +144,7 @@ export function PropertyForm({
             />
           </Field>
 
-          <Field>
+          <Field name="deposit_krw">
             <Label htmlFor="deposit_krw">
               보증금 (원) <span className="text-danger">*</span>
             </Label>
@@ -162,7 +162,7 @@ export function PropertyForm({
 
         {/* Row 5: 임대인, 상태, 허가상태 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="landlord_id">
             <Label htmlFor="landlord_id">
               임대인 <span className="text-danger">*</span>
             </Label>
@@ -184,7 +184,7 @@ export function PropertyForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="status">
             <Label htmlFor="status">상태</Label>
             <select
               id="status"
@@ -201,7 +201,7 @@ export function PropertyForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="permission_status">
             <Label htmlFor="permission_status">허가상태</Label>
             <select
               id="permission_status"
@@ -215,7 +215,7 @@ export function PropertyForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="moveout_date">
             <Label htmlFor="moveout_date">퇴거일</Label>
             <Input
               id="moveout_date"
@@ -227,7 +227,7 @@ export function PropertyForm({
         </div>
 
         {/* Row 6: 관리실 연락처 */}
-        <Field>
+        <Field name="management_phone">
           <Label htmlFor="management_phone">관리실 연락처</Label>
           <Input
             id="management_phone"
@@ -239,7 +239,7 @@ export function PropertyForm({
 
         {/* Row 6b: 출입 비밀번호 */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
+          <Field name="front_door_password">
             <Label htmlFor="front_door_password">현관 비밀번호</Label>
             <Input
               id="front_door_password"
@@ -250,7 +250,7 @@ export function PropertyForm({
             />
           </Field>
 
-          <Field>
+          <Field name="unit_password">
             <Label htmlFor="unit_password">집 비밀번호</Label>
             <Input
               id="unit_password"
@@ -263,7 +263,7 @@ export function PropertyForm({
         </div>
 
         {/* Row 7: 비고 */}
-        <Field>
+        <Field name="notes">
           <Label htmlFor="notes">비고</Label>
           <Textarea
             id="notes"

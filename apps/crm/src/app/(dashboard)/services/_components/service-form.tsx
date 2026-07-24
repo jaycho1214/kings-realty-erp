@@ -197,7 +197,7 @@ export function ServiceForm({
     : undefined;
 
   const categorySelector = (
-    <Field>
+    <Field name="category">
       <Label>
         카테고리 <span className="text-danger">*</span>
       </Label>
@@ -273,7 +273,7 @@ export function ServiceForm({
     <ActionForm action={editAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="title">
             <Label htmlFor="title">
               제목 <span className="text-danger">*</span>
             </Label>
@@ -288,7 +288,7 @@ export function ServiceForm({
           {categorySelector}
         </div>
 
-        <Field>
+        <Field name="description">
           <Label htmlFor="description">
             내용 <span className="text-danger">*</span>
           </Label>
@@ -303,7 +303,7 @@ export function ServiceForm({
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="status">
             <Label htmlFor="status">상태</Label>
             <select
               id="status"
@@ -318,7 +318,7 @@ export function ServiceForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="cost_krw">
             <Label htmlFor="cost_krw">비용 (₩)</Label>
             <Input
               id="cost_krw"
@@ -333,7 +333,7 @@ export function ServiceForm({
               placeholder="0"
             />
           </Field>
-          <Field>
+          <Field name="bearer">
             <Label htmlFor="bearer">비용 부담</Label>
             <select
               id="bearer"
@@ -351,7 +351,7 @@ export function ServiceForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="location">
             <Label htmlFor="location">위치</Label>
             <Input
               id="location"
@@ -360,7 +360,7 @@ export function ServiceForm({
               placeholder="예: 화장실"
             />
           </Field>
-          <Field>
+          <Field name="scheduled_date">
             <Label htmlFor="scheduled_date">예약(방문)일</Label>
             <Input
               id="scheduled_date"
@@ -369,7 +369,7 @@ export function ServiceForm({
               defaultValue={defaultValues?.scheduled_date ?? ""}
             />
           </Field>
-          <Field>
+          <Field name="estimated_cost">
             <Label htmlFor="estimated_cost">예상 비용 (₩)</Label>
             <Input
               id="estimated_cost"
@@ -384,7 +384,7 @@ export function ServiceForm({
               placeholder="0"
             />
           </Field>
-          <Field>
+          <Field name="actual_cost">
             <Label htmlFor="actual_cost">실제 비용 (₩)</Label>
             <Input
               id="actual_cost"
@@ -401,7 +401,7 @@ export function ServiceForm({
               placeholder="0"
             />
           </Field>
-          <Field>
+          <Field name="escalated_to_landlord">
             <Label htmlFor="escalated_to_landlord">임대인 에스컬레이션</Label>
             <select
               id="escalated_to_landlord"
@@ -426,7 +426,7 @@ export function ServiceForm({
           defaultLandlordSelf={defaultValues?.landlord_self}
         />
 
-        <Field>
+        <Field name="postpone_reason">
           <Label htmlFor="postpone_reason">수리연기 사유</Label>
           <Input
             id="postpone_reason"
@@ -436,7 +436,7 @@ export function ServiceForm({
           />
         </Field>
 
-        <Field>
+        <Field name="notes">
           <Label htmlFor="notes">비고</Label>
           <Textarea
             id="notes"
@@ -472,7 +472,7 @@ export function ServiceForm({
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="title">
             <Label htmlFor="title">
               제목 <span className="text-danger">*</span>
             </Label>
@@ -487,7 +487,7 @@ export function ServiceForm({
           {categorySelector}
         </div>
 
-        <Field>
+        <Field name="description">
           <Label htmlFor="description">
             내용 <span className="text-danger">*</span>
           </Label>
@@ -502,11 +502,11 @@ export function ServiceForm({
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="location">
             <Label htmlFor="location">위치</Label>
             <Input id="location" name="location" placeholder="예: 화장실" />
           </Field>
-          <Field>
+          <Field name="bearer">
             <Label htmlFor="bearer">비용 부담</Label>
             <select
               id="bearer"
@@ -521,11 +521,11 @@ export function ServiceForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="scheduled_date">
             <Label htmlFor="scheduled_date">예약(방문)일</Label>
             <Input id="scheduled_date" name="scheduled_date" type="date" />
           </Field>
-          <Field>
+          <Field name="estimated_cost">
             <Label htmlFor="estimated_cost">예상 비용 (₩)</Label>
             <Input
               id="estimated_cost"
@@ -539,7 +539,7 @@ export function ServiceForm({
 
         <ServiceAssignmentFields users={users} vendors={vendors} />
 
-        <Field>
+        <Field name="notes">
           <Label htmlFor="notes">비고</Label>
           <Textarea
             id="notes"

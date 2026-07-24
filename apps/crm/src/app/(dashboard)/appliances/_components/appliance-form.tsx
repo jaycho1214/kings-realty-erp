@@ -40,7 +40,7 @@ export function ApplianceForm({
     <ActionForm action={action}>
       <FieldGroup>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
+          <Field name="property_id">
             <Label htmlFor="property_id">
               매물 <span className="text-danger">*</span>
             </Label>
@@ -62,7 +62,7 @@ export function ApplianceForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="name">
             <Label htmlFor="name">
               비품명 <span className="text-danger">*</span>
             </Label>
@@ -77,7 +77,7 @@ export function ApplianceForm({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field>
+          <Field name="owner">
             <Label htmlFor="owner">소유</Label>
             <select
               id="owner"
@@ -91,7 +91,7 @@ export function ApplianceForm({
             </select>
           </Field>
 
-          <Field>
+          <Field name="status">
             <Label htmlFor="status">상태</Label>
             <select
               id="status"
@@ -107,7 +107,7 @@ export function ApplianceForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field>
+          <Field name="brand">
             <Label htmlFor="brand">브랜드</Label>
             <Input
               id="brand"
@@ -117,7 +117,7 @@ export function ApplianceForm({
             />
           </Field>
 
-          <Field>
+          <Field name="model_number">
             <Label htmlFor="model_number">모델번호</Label>
             <Input
               id="model_number"
@@ -127,7 +127,7 @@ export function ApplianceForm({
             />
           </Field>
 
-          <Field>
+          <Field name="as_contact">
             <Label htmlFor="as_contact">A/S 연락처</Label>
             <Input
               id="as_contact"
@@ -138,7 +138,7 @@ export function ApplianceForm({
           </Field>
         </div>
 
-        <Field>
+        <Field name="notes">
           <Label htmlFor="notes">비고</Label>
           <Textarea
             id="notes"

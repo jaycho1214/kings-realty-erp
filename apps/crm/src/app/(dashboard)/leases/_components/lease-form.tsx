@@ -185,7 +185,7 @@ export function LeaseForm({
     <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="property_id">
             <Label htmlFor="property_id">
               매물 <span className="text-danger">*</span>
             </Label>
@@ -204,7 +204,7 @@ export function LeaseForm({
               emptyText="매물을 찾을 수 없습니다"
             />
           </Field>
-          <Field>
+          <Field name="tenant_id">
             <Label htmlFor="tenant_id">
               세입자 <span className="text-danger">*</span>
             </Label>
@@ -225,7 +225,7 @@ export function LeaseForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-3">
-          <Field>
+          <Field name="start_date">
             <Label htmlFor="start_date">
               시작일 <span className="text-danger">*</span>
             </Label>
@@ -254,7 +254,7 @@ export function LeaseForm({
               placeholder="12"
             />
           </Field>
-          <Field>
+          <Field name="end_date">
             <Label htmlFor="end_date">
               종료일 <span className="text-danger">*</span>
             </Label>
@@ -270,7 +270,7 @@ export function LeaseForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="monthly_rent_krw">
             <Label htmlFor="monthly_rent_krw">
               월세 · 임차인 (₩) <span className="text-danger">*</span>
             </Label>
@@ -285,7 +285,7 @@ export function LeaseForm({
               placeholder="0"
             />
           </Field>
-          <Field>
+          <Field name="deposit_krw">
             <Label htmlFor="deposit_krw">
               보증금 · 임차인 (₩) <span className="text-danger">*</span>
             </Label>
@@ -303,7 +303,7 @@ export function LeaseForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="landlord_rent_krw">
             <Label htmlFor="landlord_rent_krw">월세 · 임대인 (₩)</Label>
             <Input
               id="landlord_rent_krw"
@@ -314,7 +314,7 @@ export function LeaseForm({
               placeholder="우리가 임대인에게 지급"
             />
           </Field>
-          <Field>
+          <Field name="landlord_deposit_krw">
             <Label htmlFor="landlord_deposit_krw">보증금 · 임대인 (₩)</Label>
             <Input
               id="landlord_deposit_krw"
@@ -328,7 +328,7 @@ export function LeaseForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="realty_fee_currency">
             <Label htmlFor="realty_fee">중개 수수료 (Realty fee)</Label>
             <div className="flex gap-2">
               <select
@@ -351,7 +351,7 @@ export function LeaseForm({
               />
             </div>
           </Field>
-          <Field>
+          <Field name="auto_renew">
             <Label htmlFor="auto_renew">자동 갱신</Label>
             <label className="flex h-8 items-center gap-2 text-sm">
               <input
@@ -370,7 +370,7 @@ export function LeaseForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="status">
             <Label htmlFor="status">상태</Label>
             <select
               id="status"
@@ -385,7 +385,7 @@ export function LeaseForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="notes">
             <Label htmlFor="notes">비고</Label>
             <Textarea
               id="notes"

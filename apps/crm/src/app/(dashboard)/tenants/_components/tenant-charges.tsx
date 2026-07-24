@@ -256,7 +256,7 @@ function SettleForm({
           </span>
         )}
       </div>
-      <Field>
+      <Field name="amount">
         <Label htmlFor="settle-amount">금액 (₩)</Label>
         <Input
           id="settle-amount"
@@ -268,7 +268,7 @@ function SettleForm({
         />
       </Field>
       <div className="grid grid-cols-2 gap-4">
-        <Field>
+        <Field name="payment_method">
           <Label htmlFor="settle-method">결제방법</Label>
           <select
             id="settle-method"
@@ -281,7 +281,7 @@ function SettleForm({
             <option value="transfer">계좌이체</option>
           </select>
         </Field>
-        <Field>
+        <Field name="payment_date">
           <Label htmlFor="settle-date">납부일</Label>
           <Input
             id="settle-date"
@@ -483,11 +483,11 @@ export function TenantCharges({
           </DialogHeader>
           <form action={handleAdd} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field>
+              <Field name="type">
                 <Label htmlFor="type">항목</Label>
                 <Input id="type" name="type" placeholder="예: 월세" required />
               </Field>
-              <Field>
+              <Field name="recurrence">
                 <Label htmlFor="recurrence">반복</Label>
                 <select
                   id="recurrence"
@@ -500,7 +500,7 @@ export function TenantCharges({
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field>
+              <Field name="currency">
                 <Label htmlFor="currency">통화</Label>
                 <select
                   id="currency"
@@ -511,7 +511,7 @@ export function TenantCharges({
                   <option value="USD">USD ($)</option>
                 </select>
               </Field>
-              <Field>
+              <Field name="amount">
                 <Label htmlFor="amount">금액</Label>
                 <Input
                   id="amount"
@@ -523,16 +523,16 @@ export function TenantCharges({
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field>
+              <Field name="billing_month">
                 <Label htmlFor="billing_month">청구월</Label>
                 <Input id="billing_month" name="billing_month" type="month" />
               </Field>
-              <Field>
+              <Field name="due_date">
                 <Label htmlFor="due_date">마감일</Label>
                 <Input id="due_date" name="due_date" type="date" />
               </Field>
             </div>
-            <Field>
+            <Field name="memo">
               <Label htmlFor="memo">메모</Label>
               <Input id="memo" name="memo" placeholder="메모 (선택)" />
             </Field>

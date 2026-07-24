@@ -99,7 +99,7 @@ export function PaymentForm({
     <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="lease_id">
             <Label htmlFor="lease_id">
               계약 <span className="text-danger">*</span>
             </Label>
@@ -120,7 +120,7 @@ export function PaymentForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="payment_type">
             <Label htmlFor="payment_type">
               유형 <span className="text-danger">*</span>
             </Label>
@@ -141,7 +141,7 @@ export function PaymentForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="billing_month">
             <Label htmlFor="billing_month">
               청구월 <span className="text-danger">*</span>
             </Label>
@@ -153,7 +153,7 @@ export function PaymentForm({
               defaultValue={defaultValues?.billing_month ?? ""}
             />
           </Field>
-          <Field>
+          <Field name="amount_krw">
             <Label htmlFor="amount_krw">
               금액 (₩) <span className="text-danger">*</span>
             </Label>
@@ -170,7 +170,7 @@ export function PaymentForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="currency_paid">
             <Label htmlFor="currency_paid">
               납부 통화 <span className="text-danger">*</span>
             </Label>
@@ -188,7 +188,7 @@ export function PaymentForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="amount_paid">
             <Label htmlFor="amount_paid">
               납부 금액 <span className="text-danger">*</span>
             </Label>
@@ -205,7 +205,7 @@ export function PaymentForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="payment_method">
             <Label htmlFor="payment_method">
               결제 방법 <span className="text-danger">*</span>
             </Label>
@@ -223,7 +223,7 @@ export function PaymentForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="payment_date">
             <Label htmlFor="payment_date">
               납부일 <span className="text-danger">*</span>
             </Label>
@@ -238,7 +238,7 @@ export function PaymentForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="status">
             <Label htmlFor="status">상태</Label>
             <select
               id="status"
@@ -253,7 +253,7 @@ export function PaymentForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="notes">
             <Label htmlFor="notes">비고</Label>
             <Textarea
               id="notes"

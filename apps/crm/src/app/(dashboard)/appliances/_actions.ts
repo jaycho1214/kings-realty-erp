@@ -5,37 +5,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/authz";
 import { ValidationError } from "@/lib/validation-error";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  applianceSchema,
+  applianceServiceRequestSchema,
+} from "@/lib/schemas/property";
 import { runAction, type FormState } from "@/lib/form-action";
-
-const OWNERS = new Set(["landlord", "office", "tenant"]);
-const STATUSES = new Set(["normal", "repair", "broken"]);
-
-function readApplianceForm(formData: FormData) {
-  const property_id = Number(formData.get("property_id") as string);
-  const name = (formData.get("name") as string)?.trim();
-  const ownerRaw = (formData.get("owner") as string) || "landlord";
-  const statusRaw = (formData.get("status") as string) || "normal";
-  return {
-    property_id,
-    name,
-    owner: OWNERS.has(ownerRaw) ? ownerRaw : "landlord",
-    status: STATUSES.has(statusRaw) ? statusRaw : "normal",
-    brand: (formData.get("brand") as string)?.trim() || null,
-    model_number: (formData.get("model_number") as string)?.trim() || null,
-    as_contact: (formData.get("as_contact") as string)?.trim() || null,
-    notes: (formData.get("notes") as string)?.trim() || null,
-  };
-}
 
 export async function createAppliance(formData: FormData): Promise<FormState> {
   return runAction(async () => {
     await requirePermission("property", "create");
     const db = getDb();
-    const v = readApplianceForm(formData);
-    if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
-      throw new ValidationError("매물을 선택해주세요.");
-    }
-    if (!v.name) throw new ValidationError("비품명을 입력해주세요.");
+    const v = parseForm(applianceSchema, formData);
 
     await db.insertInto("appliance").values(v).execute();
 
@@ -51,11 +32,7 @@ export async function updateAppliance(
   return runAction(async () => {
     await requirePermission("property", "update");
     const db = getDb();
-    const v = readApplianceForm(formData);
-    if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
-      throw new ValidationError("매물을 선택해주세요.");
-    }
-    if (!v.name) throw new ValidationError("비품명을 입력해주세요.");
+    const v = parseForm(applianceSchema, formData);
 
     await db
       .updateTable("appliance")
@@ -95,11 +72,10 @@ export async function createApplianceServiceRequest(
     const session = await requirePermission("service", "create");
     const db = getDb();
 
-    const title = (formData.get("title") as string)?.trim();
-    const description = (formData.get("description") as string)?.trim() || "";
-    const category =
-      (formData.get("category") as string)?.trim() || "appliance";
-    if (!title) throw new ValidationError("제목을 입력해주세요.");
+    const { title, description, category } = parseForm(
+      applianceServiceRequestSchema,
+      formData,
+    );
 
     const lease = await db
       .selectFrom("lease")
@@ -121,8 +97,8 @@ export async function createApplianceServiceRequest(
           lease_id: lease.id,
           appliance_id: applianceId,
           title,
-          description,
-          category,
+          description: description ?? "",
+          category: category ?? "appliance",
           logged_by: Number(session.user.id),
         })
         .returning("id")

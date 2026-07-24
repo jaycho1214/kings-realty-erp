@@ -77,7 +77,7 @@ export function ServiceAssignmentFields({
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {/* 담당자 — our staff, multiple */}
-      <Field>
+      <Field name="assignee_user_ids">
         <Label>담당자</Label>
         <input
           type="hidden"
@@ -164,7 +164,7 @@ export function ServiceAssignmentFields({
       </Field>
 
       {/* 외부 업체 — name with datalist autocomplete */}
-      <Field>
+      <Field name="vendor_name">
         <Label htmlFor="vendor_name">외부 업체</Label>
         <Input
           id="vendor_name"
@@ -183,7 +183,7 @@ export function ServiceAssignmentFields({
       </Field>
 
       {/* 업체 연락처 */}
-      <Field>
+      <Field name="vendor_phone">
         <Label htmlFor="vendor_phone">업체 연락처</Label>
         <Input
           id="vendor_phone"
@@ -196,7 +196,7 @@ export function ServiceAssignmentFields({
       </Field>
 
       {/* 임대인 직접 처리 */}
-      <Field>
+      <Field name="landlord_self">
         <Label>임대인 직접 처리</Label>
         <input
           type="hidden"

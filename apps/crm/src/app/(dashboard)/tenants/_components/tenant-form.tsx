@@ -142,7 +142,7 @@ export function TenantForm({
     <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="name">
             <Label htmlFor="name">
               이름 <span className="text-danger">*</span>
             </Label>
@@ -154,7 +154,7 @@ export function TenantForm({
               placeholder="세입자 이름"
             />
           </Field>
-          <Field>
+          <Field name="phone">
             <Label htmlFor="phone">
               전화번호 <span className="text-danger">*</span>
             </Label>
@@ -168,7 +168,7 @@ export function TenantForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="email">
             <Label htmlFor="email">이메일</Label>
             <Input
               id="email"
@@ -178,11 +178,11 @@ export function TenantForm({
               placeholder="email@example.com"
             />
           </Field>
-          <Field>
+          <Field name="sex">
             <Label>성별</Label>
             <SexToggle name="sex" defaultValue={defaultValues?.sex} />
           </Field>
-          <Field>
+          <Field name="birth">
             <Label htmlFor="birth">생년월일</Label>
             <Input
               id="birth"
@@ -194,7 +194,7 @@ export function TenantForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="branch">
             <Label htmlFor="branch">군종</Label>
             <select
               id="branch"
@@ -210,7 +210,7 @@ export function TenantForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="rank">
             <Label htmlFor="rank">계급</Label>
             <select
               id="rank"
@@ -230,7 +230,7 @@ export function TenantForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="unit">
             <Label htmlFor="unit">부대</Label>
             <Input
               id="unit"
@@ -242,7 +242,7 @@ export function TenantForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field>
+          <Field name="base_location_id">
             <Label htmlFor="base_location_id">
               기지 <span className="text-danger">*</span>
             </Label>
@@ -264,7 +264,7 @@ export function TenantForm({
               ))}
             </select>
           </Field>
-          <Field>
+          <Field name="deros">
             <Label htmlFor="deros">DEROS</Label>
             <Input
               id="deros"
@@ -276,7 +276,7 @@ export function TenantForm({
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>
+          <Field name="military_id">
             <Label htmlFor="military_id">군 ID / Sponsor</Label>
             <Input
               id="military_id"
@@ -285,7 +285,7 @@ export function TenantForm({
               placeholder="내부 식별용"
             />
           </Field>
-          <Field>
+          <Field name="dependent_status">
             <Label htmlFor="dependent_status">부양가족</Label>
             <select
               id="dependent_status"
@@ -298,7 +298,7 @@ export function TenantForm({
               <option value="without">비동반 (without dependents)</option>
             </select>
           </Field>
-          <Field>
+          <Field name="dependent_count">
             <Label htmlFor="dependent_count">부양가족 수</Label>
             <Input
               id="dependent_count"

@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { redirect } from "next/navigation";
 import { runAction, ValidationError, isValidationError } from "./form-action";
-import { parseCustomerIntake } from "./customer-intake";
+import { customerIntakeSchema } from "./schemas/customer-intake";
+import { parseForm } from "./schemas/parse";
 
 // The reported bug: submitting 새 고객 without a 기지 threw out of the server
 // action, so production stripped the message and staff got a blank error card
@@ -14,10 +15,12 @@ test("새 고객 without 기지 reports the Korean message, not a digest", async
   fd.set("base_location_id", "");
 
   const state = await runAction(async () => {
-    parseCustomerIntake(fd, { today: "2026-07-24" });
+    parseForm(customerIntakeSchema({ today: "2026-07-24" }), fd);
   });
 
   assert.equal(state.error, "기지를 선택해주세요.");
+  // …and lands on the 기지 input itself, not just the summary line.
+  assert.equal(state.fieldErrors?.base_location_id, "기지를 선택해주세요.");
 });
 
 test("a ValidationError message reaches the caller verbatim", async () => {
