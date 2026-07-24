@@ -8,6 +8,7 @@
  * chain with sensible defaults for anything left blank.
  */
 import { addMonths } from "./date";
+import { ValidationError } from "./validation-error";
 
 export interface CustomerIntakePlan {
   tenant: {
@@ -59,10 +60,10 @@ export function parseCustomerIntake(
   // --- 고객 ---
   const name = str("name");
   const phone = str("phone");
-  if (!name) throw new Error("이름을 입력해주세요.");
-  if (!phone) throw new Error("전화번호를 입력해주세요.");
+  if (!name) throw new ValidationError("이름을 입력해주세요.");
+  if (!phone) throw new ValidationError("전화번호를 입력해주세요.");
   const baseLocationId = posInt("base_location_id");
-  if (!baseLocationId) throw new Error("기지를 선택해주세요.");
+  if (!baseLocationId) throw new ValidationError("기지를 선택해주세요.");
 
   // --- 주거 (주소가 스위치) ---
   const address = str("address");
@@ -76,7 +77,7 @@ export function parseCustomerIntake(
       const landlordName = str("landlord_name");
       // property.landlord_id is NOT NULL — a new property needs an owner.
       if (!landlordName) {
-        throw new Error(
+        throw new ValidationError(
           "집주인 이름을 입력해주세요. (주소를 입력할 때 필요합니다)",
         );
       }
@@ -90,24 +91,24 @@ export function parseCustomerIntake(
     const startDate = str("start_date") || opts.today;
     const endDate = str("end_date") || addMonths(startDate, 12);
     if (Number.isNaN(new Date(startDate).getTime())) {
-      throw new Error("계약 시작일을 올바르게 입력해주세요.");
+      throw new ValidationError("계약 시작일을 올바르게 입력해주세요.");
     }
     if (Number.isNaN(new Date(endDate).getTime())) {
-      throw new Error("계약 종료일을 올바르게 입력해주세요.");
+      throw new ValidationError("계약 종료일을 올바르게 입력해주세요.");
     }
     if (endDate <= startDate) {
-      throw new Error("계약 종료일은 시작일 이후여야 합니다.");
+      throw new ValidationError("계약 종료일은 시작일 이후여야 합니다.");
     }
 
     const monthlyRentKrw = str("monthly_rent_krw") || "0";
     const depositKrw = str("deposit_krw") || "0";
     const rentNum = Number(monthlyRentKrw);
     if (!Number.isFinite(rentNum) || rentNum < 0) {
-      throw new Error("월세를 0 이상의 숫자로 입력해주세요.");
+      throw new ValidationError("월세를 0 이상의 숫자로 입력해주세요.");
     }
     const depositNum = Number(depositKrw);
     if (!Number.isFinite(depositNum) || depositNum < 0) {
-      throw new Error("보증금을 0 이상의 숫자로 입력해주세요.");
+      throw new ValidationError("보증금을 0 이상의 숫자로 입력해주세요.");
     }
 
     housing = {
@@ -128,7 +129,7 @@ export function parseCustomerIntake(
     posInt("landlord_id")
   ) {
     // Contract fields without an address would be silently lost — refuse.
-    throw new Error("계약 정보를 입력하려면 주소를 입력해주세요.");
+    throw new ValidationError("계약 정보를 입력하려면 주소를 입력해주세요.");
   }
 
   return {

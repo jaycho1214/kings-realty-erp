@@ -10,6 +10,7 @@ import { PhoneInput } from "@/components/phone-input";
 import { BankSelect } from "@/components/bank-select";
 import { SexToggle } from "@/components/sex-toggle";
 import { createLandlord, updateLandlord } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface LandlordFormProps {
   defaultValues?: {
@@ -45,7 +46,7 @@ export function LandlordForm({
     : createLandlord;
 
   const content = (
-    <form action={formAction}>
+    <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
@@ -197,7 +198,7 @@ export function LandlordForm({
           <SubmitButton label={landlordId ? "저장" : "등록"} />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 
   if (variant === "plain") return content;

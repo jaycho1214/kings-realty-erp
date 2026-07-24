@@ -21,6 +21,7 @@ import { parseSnapshot } from "@/lib/inspection/parse";
 import { compareInspections } from "@/lib/inspection/compare";
 import { STATUS_LABEL } from "@/lib/inspection/labels";
 import { createInspectionDraft, deleteInspection } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface InspectionRow {
   id: number;
@@ -113,7 +114,9 @@ export function Inspections({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={insp.type === "move_in" ? "default" : "secondary"}
+                      variant={
+                        insp.type === "move_in" ? "default" : "secondary"
+                      }
                     >
                       {insp.type === "move_in" ? "입주 점검" : "퇴거 점검"}
                     </Badge>
@@ -212,7 +215,7 @@ export function Inspections({
           <DialogHeader>
             <DialogTitle>점검 추가</DialogTitle>
           </DialogHeader>
-          <form action={createAction} className="space-y-4">
+          <ActionForm action={createAction} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="type">점검 유형</Label>
               <select id="type" name="type" className={selectClassName}>
@@ -222,7 +225,12 @@ export function Inspections({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="inspected_at">점검 일시</Label>
-              <Input id="inspected_at" name="inspected_at" type="date" required />
+              <Input
+                id="inspected_at"
+                name="inspected_at"
+                type="date"
+                required
+              />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button
@@ -234,7 +242,7 @@ export function Inspections({
               </Button>
               <SubmitButton label="작성 시작" />
             </div>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
     </div>

@@ -4,6 +4,8 @@ import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/authz";
+import { ValidationError } from "@/lib/validation-error";
+import { runAction, type FormState } from "@/lib/form-action";
 
 const OWNERS = new Set(["landlord", "office", "tenant"]);
 const STATUSES = new Set(["normal", "repair", "broken"]);
@@ -25,38 +27,45 @@ function readApplianceForm(formData: FormData) {
   };
 }
 
-export async function createAppliance(formData: FormData) {
-  await requirePermission("property", "create");
-  const db = getDb();
-  const v = readApplianceForm(formData);
-  if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
-    throw new Error("매물을 선택해주세요.");
-  }
-  if (!v.name) throw new Error("비품명을 입력해주세요.");
+export async function createAppliance(formData: FormData): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("property", "create");
+    const db = getDb();
+    const v = readApplianceForm(formData);
+    if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
+      throw new ValidationError("매물을 선택해주세요.");
+    }
+    if (!v.name) throw new ValidationError("비품명을 입력해주세요.");
 
-  await db.insertInto("appliance").values(v).execute();
+    await db.insertInto("appliance").values(v).execute();
 
-  revalidatePath("/appliances");
-  redirect("/appliances");
+    revalidatePath("/appliances");
+    redirect("/appliances");
+  });
 }
 
-export async function updateAppliance(id: number, formData: FormData) {
-  await requirePermission("property", "update");
-  const db = getDb();
-  const v = readApplianceForm(formData);
-  if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
-    throw new Error("매물을 선택해주세요.");
-  }
-  if (!v.name) throw new Error("비품명을 입력해주세요.");
+export async function updateAppliance(
+  id: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("property", "update");
+    const db = getDb();
+    const v = readApplianceForm(formData);
+    if (!Number.isInteger(v.property_id) || v.property_id <= 0) {
+      throw new ValidationError("매물을 선택해주세요.");
+    }
+    if (!v.name) throw new ValidationError("비품명을 입력해주세요.");
 
-  await db
-    .updateTable("appliance")
-    .set({ ...v, updated_at: new Date() })
-    .where("id", "=", id)
-    .execute();
+    await db
+      .updateTable("appliance")
+      .set({ ...v, updated_at: new Date() })
+      .where("id", "=", id)
+      .execute();
 
-  revalidatePath("/appliances");
-  redirect(`/appliances/${id}`);
+    revalidatePath("/appliances");
+    redirect(`/appliances/${id}`);
+  });
 }
 
 export async function deleteAppliance(id: number) {
@@ -81,50 +90,55 @@ export async function createApplianceServiceRequest(
   applianceId: number,
   propertyId: number,
   formData: FormData,
-) {
-  const session = await requirePermission("service", "create");
-  const db = getDb();
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("service", "create");
+    const db = getDb();
 
-  const title = (formData.get("title") as string)?.trim();
-  const description = (formData.get("description") as string)?.trim() || "";
-  const category = (formData.get("category") as string)?.trim() || "appliance";
-  if (!title) throw new Error("제목을 입력해주세요.");
+    const title = (formData.get("title") as string)?.trim();
+    const description = (formData.get("description") as string)?.trim() || "";
+    const category =
+      (formData.get("category") as string)?.trim() || "appliance";
+    if (!title) throw new ValidationError("제목을 입력해주세요.");
 
-  const lease = await db
-    .selectFrom("lease")
-    .select("id")
-    .where("property_id", "=", propertyId)
-    .where("status", "=", "active")
-    .orderBy("start_date", "desc")
-    .executeTakeFirst();
-  if (!lease) {
-    throw new Error("활성 계약이 있는 매물만 수리 요청을 등록할 수 있습니다.");
-  }
+    const lease = await db
+      .selectFrom("lease")
+      .select("id")
+      .where("property_id", "=", propertyId)
+      .where("status", "=", "active")
+      .orderBy("start_date", "desc")
+      .executeTakeFirst();
+    if (!lease) {
+      throw new ValidationError(
+        "활성 계약이 있는 매물만 수리 요청을 등록할 수 있습니다.",
+      );
+    }
 
-  await db.transaction().execute(async (trx) => {
-    const sr = await trx
-      .insertInto("service_request")
-      .values({
-        lease_id: lease.id,
-        appliance_id: applianceId,
-        title,
-        description,
-        category,
-        logged_by: Number(session.user.id),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+    await db.transaction().execute(async (trx) => {
+      const sr = await trx
+        .insertInto("service_request")
+        .values({
+          lease_id: lease.id,
+          appliance_id: applianceId,
+          title,
+          description,
+          category,
+          logged_by: Number(session.user.id),
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
 
-    await trx
-      .insertInto("service_request_status_log")
-      .values({
-        service_request_id: sr.id,
-        status: "received",
-        changed_by: Number(session.user.id),
-      })
-      .execute();
+      await trx
+        .insertInto("service_request_status_log")
+        .values({
+          service_request_id: sr.id,
+          status: "received",
+          changed_by: Number(session.user.id),
+        })
+        .execute();
+    });
+
+    revalidatePath(`/appliances/${applianceId}`);
+    revalidatePath("/services");
   });
-
-  revalidatePath(`/appliances/${applianceId}`);
-  revalidatePath("/services");
 }

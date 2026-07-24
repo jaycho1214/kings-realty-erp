@@ -19,6 +19,7 @@ import {
   updateServiceCategory,
   deleteServiceCategory,
 } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface ServiceCategoryRow {
   id: number;
@@ -43,7 +44,10 @@ export function ServiceCategories({
   const [editLabel, setEditLabel] = useState("");
 
   const addAction = async (formData: FormData) => {
-    await addServiceCategory(formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await addServiceCategory(formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -139,7 +143,7 @@ export function ServiceCategories({
                       </Button>
                     )}
                     {!cat.is_default && !isEditing && (
-                      <form action={deleteAction}>
+                      <ActionForm action={deleteAction}>
                         <Button
                           type="submit"
                           variant="ghost"
@@ -154,7 +158,7 @@ export function ServiceCategories({
                         >
                           <Trash2 className="size-4" />
                         </Button>
-                      </form>
+                      </ActionForm>
                     )}
                   </div>
                 </TableCell>
@@ -164,7 +168,11 @@ export function ServiceCategories({
         </TableBody>
       </Table>
       <div className="border-t p-3">
-        <form ref={formRef} action={addAction} className="flex items-end gap-3">
+        <ActionForm
+          ref={formRef}
+          action={addAction}
+          className="flex items-end gap-3"
+        >
           <Input
             name="value"
             required
@@ -178,7 +186,7 @@ export function ServiceCategories({
             className="w-44"
           />
           <SubmitButton label="추가" />
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

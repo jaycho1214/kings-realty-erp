@@ -11,6 +11,7 @@ import { PhoneInput } from "@/components/phone-input";
 import { SexToggle } from "@/components/sex-toggle";
 import { Trash2, Plus } from "lucide-react";
 import { createTenant, updateTenant } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const BRANCHES = [
   { value: "army", label: "Army" },
@@ -138,7 +139,7 @@ export function TenantForm({
   };
 
   const content = (
-    <form action={formAction}>
+    <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
@@ -242,10 +243,15 @@ export function TenantForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
-            <Label htmlFor="base_location_id">기지</Label>
+            <Label htmlFor="base_location_id">
+              기지 <span className="text-danger">*</span>
+            </Label>
+            {/* tenant.base_location_id is NOT NULL — leaving this on "선택" used
+                to fail server-side with a message the browser never showed. */}
             <select
               id="base_location_id"
               name="base_location_id"
+              required
               defaultValue={defaultValues?.base_location_id ?? ""}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
             >
@@ -448,7 +454,7 @@ export function TenantForm({
           <SubmitButton label={tenantId ? "저장" : "등록"} />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 
   if (variant === "plain") return content;

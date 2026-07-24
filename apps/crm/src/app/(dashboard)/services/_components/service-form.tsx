@@ -26,6 +26,7 @@ import {
   type UserOption,
   type VendorOption,
 } from "./service-assignment-fields";
+import { ActionForm } from "@/components/action-form";
 
 const STATUSES = [
   { value: "received", label: "접수" },
@@ -97,7 +98,6 @@ export function ServiceForm({
   users = [],
   vendors = [],
 }: ServiceFormProps) {
-  const isEditMode = !!serviceId;
   const router = useRouter();
   const { close: closeDialog } = useCreateDialog();
   const [selectedLeaseId, setSelectedLeaseId] = useState<number | "">(
@@ -269,8 +269,8 @@ export function ServiceForm({
     </div>
   );
 
-  const content = isEditMode ? (
-    <form action={editAction}>
+  const content = editAction ? (
+    <ActionForm action={editAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
@@ -451,7 +451,7 @@ export function ServiceForm({
           <SubmitButton label="저장" />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   ) : (
     <form action={handleCreateSubmit}>
       <FieldGroup>

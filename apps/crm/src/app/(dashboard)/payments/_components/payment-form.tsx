@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { seoulDateString } from "@/lib/date";
 import { createPayment, updatePayment } from "../_actions";
 import { useChargeTypes } from "@/components/charge-types-provider";
+import { ActionForm, type FormAction } from "@/components/action-form";
 
 const selectClassName =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
@@ -51,7 +52,7 @@ interface PaymentFormProps {
    * action — used by the tenant 납부 내역 dialog so saving stays on the page and
    * closes the dialog instead of redirecting to the payment detail.
    */
-  action?: (formData: FormData) => void | Promise<void>;
+  action?: FormAction;
   submitLabel?: string;
   /** @deprecated 유형 options now come from the shared charge-type catalog
    *  (ChargeTypeProvider); accepted for back-compat but no longer used. */
@@ -95,7 +96,7 @@ export function PaymentForm({
   }
 
   const content = (
-    <form action={formAction}>
+    <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
@@ -268,7 +269,7 @@ export function PaymentForm({
           <SubmitButton label={submitLabel ?? (paymentId ? "저장" : "등록")} />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 
   if (variant === "plain") return content;

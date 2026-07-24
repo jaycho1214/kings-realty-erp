@@ -4,6 +4,7 @@ import { useFormStatus } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { setExchangeRate } from "../exchange-rate/_actions";
+import { ActionForm } from "@/components/action-form";
 
 function QuickSubmit() {
   const { pending } = useFormStatus();
@@ -29,7 +30,10 @@ export function ExchangeRateQuick({
   rate20?: string;
 }) {
   return (
-    <form action={setExchangeRate} className="flex items-end gap-2 px-3.5 py-3">
+    <ActionForm
+      action={setExchangeRate}
+      className="flex items-end gap-2 px-3.5 py-3"
+    >
       <input type="hidden" name="date" value={today} />
       <div className="space-y-1">
         <span className="tabular block text-[11px] text-muted-foreground">
@@ -60,6 +64,6 @@ export function ExchangeRateQuick({
         />
       </div>
       <QuickSubmit />
-    </form>
+    </ActionForm>
   );
 }

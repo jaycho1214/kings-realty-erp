@@ -55,6 +55,9 @@ export function InspectionEditor(props: {
     "idle",
   );
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  // finalizeInspection reports "점검 기록을 찾을 수 없습니다." as state; without
+  // this the editor would navigate away as though the finalize had succeeded.
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   // Items the user opted to expand for a note/photo (beyond the auto-shown ones).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const finalized = props.status === "finalized";
@@ -159,9 +162,18 @@ export function InspectionEditor(props: {
 
   function handleFinalize() {
     finalizing.current = true;
+    setFinalizeError(null);
     startTransition(async () => {
       await persist();
-      await finalizeInspection(props.inspectionId, props.tenantId);
+      const result = await finalizeInspection(
+        props.inspectionId,
+        props.tenantId,
+      );
+      if (result?.error) {
+        finalizing.current = false;
+        setFinalizeError(result.error);
+        return;
+      }
       router.push(listHref);
       router.refresh();
     });
@@ -445,6 +457,11 @@ export function InspectionEditor(props: {
             {damageCount > 0 && (
               <span className="tabular-nums text-danger">
                 파손 {damageCount}
+              </span>
+            )}
+            {finalizeError && (
+              <span role="alert" className="text-danger">
+                {finalizeError}
               </span>
             )}
             <span className="text-muted-foreground/70">

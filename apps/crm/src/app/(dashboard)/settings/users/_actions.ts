@@ -5,43 +5,47 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { ValidationError } from "@/lib/validation-error";
+import { runAction, type FormState } from "@/lib/form-action";
 
 /** Roles an admin can assign through the UI. */
 export type AssignableRole = "admin" | "staff" | "accounting" | "pending";
 
-export async function createUser(formData: FormData) {
-  const session = await requireAdmin();
+export async function createUser(formData: FormData): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireAdmin();
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const name = formData.get("name") as string;
-  const role = (formData.get("role") as string) || "staff";
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    const name = formData.get("name") as string;
+    const role = (formData.get("role") as string) || "staff";
 
-  if (!email?.trim() || !password?.trim() || !name?.trim()) {
-    throw new Error("필수 항목을 입력해주세요.");
-  }
+    if (!email?.trim() || !password?.trim() || !name?.trim()) {
+      throw new ValidationError("필수 항목을 입력해주세요.");
+    }
 
-  const created = (await auth.api.createUser({
-    body: {
-      email,
-      password,
-      name,
-      role: role as AssignableRole,
-    },
-    headers: await headers(),
-  })) as { user?: { id?: string | number } };
+    const created = (await auth.api.createUser({
+      body: {
+        email,
+        password,
+        name,
+        role: role as AssignableRole,
+      },
+      headers: await headers(),
+    })) as { user?: { id?: string | number } };
 
-  const createdId = created?.user?.id;
+    const createdId = created?.user?.id;
 
-  await logAudit({
-    actorId: Number(session.user.id),
-    action: "user.create",
-    entityType: "user",
-    entityId: createdId != null ? Number(createdId) : null,
-    detail: { email, name, role },
+    await logAudit({
+      actorId: Number(session.user.id),
+      action: "user.create",
+      entityType: "user",
+      entityId: createdId != null ? Number(createdId) : null,
+      detail: { email, name, role },
+    });
+
+    revalidatePath("/settings/users");
   });
-
-  revalidatePath("/settings/users");
 }
 
 export async function approveUser(userId: string) {

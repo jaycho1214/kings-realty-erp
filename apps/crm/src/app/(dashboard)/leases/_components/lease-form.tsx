@@ -9,6 +9,7 @@ import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { Combobox } from "@/components/combobox";
 import { createLease, updateLease } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const selectClassName =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
@@ -181,7 +182,7 @@ export function LeaseForm({
   }));
 
   const content = (
-    <form action={formAction}>
+    <ActionForm action={formAction}>
       <FieldGroup>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
@@ -400,7 +401,7 @@ export function LeaseForm({
           <SubmitButton label={leaseId ? "저장" : "등록"} />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 
   if (variant === "plain") return content;

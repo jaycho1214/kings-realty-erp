@@ -130,16 +130,19 @@ export function TaskDialog({
     const linkInputs = links.map((l) => ({ type: l.type, id: l.id }));
     start(async () => {
       try {
+        // These report "제목을 입력하세요." as returned state — a throw would
+        // reach the browser with its message stripped in production.
         if (editing && task) {
-          await updateTask(task.id, {
+          const result = await updateTask(task.id, {
             title,
             notes,
             dueDate: due || null,
             links: linkInputs,
           });
+          if (result?.error) return setError(result.error);
           await setAssignees(task.id, ids);
         } else {
-          await createTask({
+          const result = await createTask({
             title,
             notes,
             dueDate: due || null,
@@ -149,6 +152,7 @@ export function TaskDialog({
             refEntityType: draft?.refEntityType ?? null,
             refEntityId: draft?.refEntityId ?? null,
           });
+          if (result?.error) return setError(result.error);
         }
         onOpenChange(false);
         onSaved?.();

@@ -20,6 +20,7 @@ import {
   updateBillPreset,
   deleteBillPreset,
 } from "../_preset-actions";
+import { ActionForm } from "@/components/action-form";
 
 interface BillPresetRow {
   id: number;
@@ -100,7 +101,10 @@ export function BillPresets({ presets }: { presets: BillPresetRow[] }) {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const addAction = async (formData: FormData) => {
-    await createBillPreset(formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await createBillPreset(formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -206,14 +210,14 @@ export function BillPresets({ presets }: { presets: BillPresetRow[] }) {
         </TableBody>
       </Table>
       <div className="border-t p-3">
-        <form
+        <ActionForm
           ref={formRef}
           action={addAction}
           className="flex flex-wrap items-end gap-2"
         >
           <PresetFields />
           <SubmitButton label="추가" />
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { AddressSearch } from "@/components/address-search";
 import { createProperty, updateProperty } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface PropertyFormProps {
   propertyId?: number;
@@ -51,7 +52,7 @@ export function PropertyForm({
   const [hasAddress, setHasAddress] = useState(!!defaultValues?.address);
 
   const content = (
-    <form action={action}>
+    <ActionForm action={action}>
       <FieldGroup>
         {/* Row 1-2: 주소 검색 (Postcodify) */}
         <AddressSearch
@@ -282,7 +283,7 @@ export function PropertyForm({
           <SubmitButton disabled={!hasAddress} />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 
   if (variant === "plain") return content;

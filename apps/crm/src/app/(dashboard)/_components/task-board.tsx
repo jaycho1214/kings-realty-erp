@@ -315,10 +315,18 @@ export function TaskBoard({
   function handleDelete(id: number) {
     const prev = tasks;
     setTasks((ts) => ts.filter((t) => t.id !== id));
-    deleteTask(id).catch(() => {
-      setTasks(prev);
-      setError("삭제하지 못했습니다.");
-    });
+    // A refusal ("작성자 또는 관리자만 삭제할 수 있습니다.") comes back as state,
+    // so roll the optimistic removal back and say why.
+    deleteTask(id)
+      .then((result) => {
+        if (!result?.error) return;
+        setTasks(prev);
+        setError(result.error);
+      })
+      .catch(() => {
+        setTasks(prev);
+        setError("삭제하지 못했습니다.");
+      });
   }
 
   function mark(key: string, on: boolean) {

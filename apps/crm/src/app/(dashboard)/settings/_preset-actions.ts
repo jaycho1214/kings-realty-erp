@@ -3,6 +3,8 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { ValidationError } from "@/lib/validation-error";
+import { runAction, type FormState } from "@/lib/form-action";
 
 /**
  * CRUD for the shared bill/payment type catalog (`bill_preset`). Used by both
@@ -12,7 +14,7 @@ import { requireAdmin } from "@/lib/authz";
 
 function parsePresetForm(formData: FormData) {
   const label = (formData.get("label") as string)?.trim();
-  if (!label) throw new Error("이름을 입력해주세요.");
+  if (!label) throw new ValidationError("이름을 입력해주세요.");
   const type = (formData.get("type") as string)?.trim() || label;
   const isVariable = formData.get("is_variable") === "on";
   const dueDayRaw = Number(formData.get("default_due_day"));
@@ -26,7 +28,7 @@ function parsePresetForm(formData: FormData) {
     default_amount != null &&
     (!Number.isFinite(default_amount) || default_amount < 0)
   ) {
-    throw new Error("금액을 올바르게 입력해주세요.");
+    throw new ValidationError("금액을 올바르게 입력해주세요.");
   }
   const currency = formData.get("default_currency") === "USD" ? "USD" : "KRW";
   const variant = (formData.get("variant") as string)?.trim() || "outline";
@@ -41,40 +43,51 @@ function parsePresetForm(formData: FormData) {
   };
 }
 
-export async function createBillPreset(formData: FormData) {
-  await requireAdmin();
-  const db = getDb();
-  const fields = parsePresetForm(formData);
+export async function createBillPreset(formData: FormData): Promise<FormState> {
+  return runAction(async () => {
+    await requireAdmin();
+    const db = getDb();
+    const fields = parsePresetForm(formData);
 
-  const maxOrder = await db
-    .selectFrom("bill_preset")
-    .select(({ fn }) => fn.max("sort_order").as("m"))
-    .executeTakeFirst();
+    const maxOrder = await db
+      .selectFrom("bill_preset")
+      .select(({ fn }) => fn.max("sort_order").as("m"))
+      .executeTakeFirst();
 
-  await db
-    .insertInto("bill_preset")
-    .values({ ...fields, sort_order: Number(maxOrder?.m ?? 0) + 1 })
-    .execute();
+    await db
+      .insertInto("bill_preset")
+      .values({ ...fields, sort_order: Number(maxOrder?.m ?? 0) + 1 })
+      .execute();
 
-  revalidatePath("/settings");
-  revalidatePath("/payments/new");
+    revalidatePath("/settings");
+    revalidatePath("/payments/new");
+  });
 }
 
-export async function updateBillPreset(id: number, formData: FormData) {
-  await requireAdmin();
-  const db = getDb();
-  const fields = parsePresetForm(formData);
-  const row = await db
-    .selectFrom("bill_preset")
-    .select(["is_builtin", "type"])
-    .where("id", "=", id)
-    .executeTakeFirst();
-  // Builtins keep their stable type key (code writes it directly); label/amount/
-  // color stay editable.
-  const patch = row?.is_builtin ? { ...fields, type: row.type } : fields;
-  await db.updateTable("bill_preset").set(patch).where("id", "=", id).execute();
-  revalidatePath("/settings");
-  revalidatePath("/payments/new");
+export async function updateBillPreset(
+  id: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireAdmin();
+    const db = getDb();
+    const fields = parsePresetForm(formData);
+    const row = await db
+      .selectFrom("bill_preset")
+      .select(["is_builtin", "type"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+    // Builtins keep their stable type key (code writes it directly); label/amount/
+    // color stay editable.
+    const patch = row?.is_builtin ? { ...fields, type: row.type } : fields;
+    await db
+      .updateTable("bill_preset")
+      .set(patch)
+      .where("id", "=", id)
+      .execute();
+    revalidatePath("/settings");
+    revalidatePath("/payments/new");
+  });
 }
 
 export async function deleteBillPreset(id: number) {

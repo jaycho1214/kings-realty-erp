@@ -15,6 +15,7 @@ import {
 import { SubmitButton } from "@/components/submit-button";
 import { DataPanel } from "@/components/data-panel";
 import { addPet, deletePet } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const SPECIES = [
   { value: "dog", label: "개" },
@@ -52,7 +53,10 @@ export function TenantPets({ tenantId, pets }: TenantPetsProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const addAction = async (formData: FormData) => {
-    await addPet(tenantId, formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await addPet(tenantId, formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -121,7 +125,7 @@ export function TenantPets({ tenantId, pets }: TenantPetsProps) {
         </Table>
       </DataPanel>
       <div className="rounded-xl bg-muted/40 p-3">
-        <form
+        <ActionForm
           ref={formRef}
           action={addAction}
           className="flex flex-wrap items-end gap-3"
@@ -157,7 +161,7 @@ export function TenantPets({ tenantId, pets }: TenantPetsProps) {
           </select>
           <Input name="notes" placeholder="비고" className="w-28" />
           <SubmitButton label="추가" />
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import type { FormState } from "@/lib/form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,7 +36,12 @@ export function ConfirmActionButton({
   confirmLabel,
   ariaLabel,
 }: {
-  action: () => Promise<void>;
+  /**
+   * Returns `{ error }` when the action is refused ("계약·원장 내역이 있는
+   * 세입자는 삭제할 수 없습니다."). The dialog stays open and shows why —
+   * throwing instead would reach the browser with its message stripped.
+   */
+  action: () => Promise<FormState | void>;
   /** Trigger button text. Pass "" for an icon-only trigger (set `ariaLabel`). */
   label: string;
   icon?: ReactNode;
@@ -55,7 +61,18 @@ export function ConfirmActionButton({
   const [pending, startTransition] = useTransition();
   const [confirmText, setConfirmText] = useState("");
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const confirmed = confirmText.trim() === confirmWord;
+
+  function run() {
+    setError(null);
+    startTransition(async () => {
+      const result = await action();
+      // A refusal keeps the dialog open with the reason; success unmounts it
+      // (the action redirects or revalidates).
+      if (result?.error) setError(result.error);
+    });
+  }
 
   return (
     <>
@@ -76,7 +93,10 @@ export function ConfirmActionButton({
         open={open}
         onOpenChange={(next: boolean) => {
           setOpen(next);
-          if (!next) setConfirmText("");
+          if (!next) {
+            setConfirmText("");
+            setError(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -99,17 +119,22 @@ export function ConfirmActionButton({
               autoComplete="off"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && confirmed && !pending) {
-                  startTransition(() => action());
+                  run();
                 }
               }}
             />
+            {error && (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <Button
               variant={variant}
               disabled={!confirmed || pending}
-              onClick={() => startTransition(() => action())}
+              onClick={run}
             >
               {pending ? pendingLabel : confirmLabel || label || confirmWord}
             </Button>

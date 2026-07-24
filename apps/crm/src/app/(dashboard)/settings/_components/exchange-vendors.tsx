@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
 import { addExchangeVendor, deleteExchangeVendor } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface ExchangeVendorRow {
   id: number;
@@ -27,7 +28,10 @@ export function ExchangeVendors({ vendors }: { vendors: ExchangeVendorRow[] }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const addAction = async (formData: FormData) => {
-    await addExchangeVendor(formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await addExchangeVendor(formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -83,7 +87,7 @@ export function ExchangeVendors({ vendors }: { vendors: ExchangeVendorRow[] }) {
         </TableBody>
       </Table>
 
-      <form
+      <ActionForm
         ref={formRef}
         action={addAction}
         className="grid grid-cols-2 gap-2 border-t border-border/60 p-3 lg:grid-cols-5"
@@ -93,7 +97,7 @@ export function ExchangeVendors({ vendors }: { vendors: ExchangeVendorRow[] }) {
         <Input name="default_rate" type="number" placeholder="기본 환율" />
         <Input name="phone" placeholder="연락처" />
         <SubmitButton label="추가" />
-      </form>
+      </ActionForm>
     </div>
   );
 }

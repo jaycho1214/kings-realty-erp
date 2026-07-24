@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
 import { updateRealtyFeeDefault } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface RealtyFeeRow {
   currency: string;
@@ -18,7 +19,7 @@ export function RealtyFeeDefaults({ rows }: { rows: RealtyFeeRow[] }) {
       </p>
       <div className="space-y-2">
         {rows.map((r) => (
-          <form
+          <ActionForm
             key={r.currency}
             action={updateRealtyFeeDefault}
             className="flex items-end gap-2"
@@ -35,7 +36,7 @@ export function RealtyFeeDefaults({ rows }: { rows: RealtyFeeRow[] }) {
               className="w-40"
             />
             <SubmitButton label="저장" />
-          </form>
+          </ActionForm>
         ))}
       </div>
     </div>

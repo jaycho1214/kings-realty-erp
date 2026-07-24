@@ -12,6 +12,8 @@ import type {
   LinkEntityType,
   TaskLinkView,
 } from "@/lib/tasks/types";
+import { ValidationError } from "@/lib/validation-error";
+import { runAction, type FormState } from "@/lib/form-action";
 
 export interface LinkInput {
   type: LinkEntityType;
@@ -77,56 +79,58 @@ export interface CreateTaskInput {
   refEntityId?: number | null;
 }
 
-export async function createTask(input: CreateTaskInput): Promise<void> {
-  const session = await requireUser();
-  const title = input.title?.trim();
-  if (!title) throw new Error("제목을 입력하세요.");
+export async function createTask(input: CreateTaskInput): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const title = input.title?.trim();
+    if (!title) throw new ValidationError("제목을 입력하세요.");
 
-  let planned = input.plannedDate ?? null;
-  if (planned == null && input.suggestionKey && input.dueDate) {
-    const today = seoulDateString();
-    const weekEnd = seoulWeekEnd(today);
-    planned =
-      input.dueDate < today
-        ? today
-        : input.dueDate <= weekEnd
-          ? input.dueDate
-          : null;
-  }
-
-  const db = getDb();
-  await db.transaction().execute(async (trx) => {
-    if (input.suggestionKey) {
-      const existing = await trx
-        .selectFrom("task")
-        .select(["id"])
-        .where("suggestion_key", "=", input.suggestionKey)
-        .where("status", "!=", "done")
-        .executeTakeFirst();
-      if (existing) return; // already added — don't duplicate
+    let planned = input.plannedDate ?? null;
+    if (planned == null && input.suggestionKey && input.dueDate) {
+      const today = seoulDateString();
+      const weekEnd = seoulWeekEnd(today);
+      planned =
+        input.dueDate < today
+          ? today
+          : input.dueDate <= weekEnd
+            ? input.dueDate
+            : null;
     }
-    const sort_order = await nextSortOrder(trx);
-    const task = await trx
-      .insertInto("task")
-      .values({
-        title,
-        notes: input.notes?.trim() || null,
-        status: "todo",
-        planned_date: planned,
-        due_date: input.dueDate ?? null,
-        sort_order,
-        source: input.suggestionKey ? "suggestion" : "manual",
-        suggestion_key: input.suggestionKey ?? null,
-        ref_entity_type: input.refEntityType ?? null,
-        ref_entity_id: input.refEntityId ?? null,
-        created_by: Number(session.user.id),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    await insertAssignees(trx, task.id, input.assigneeIds ?? []);
-    await insertLinks(trx, task.id, input.links ?? []);
+
+    const db = getDb();
+    await db.transaction().execute(async (trx) => {
+      if (input.suggestionKey) {
+        const existing = await trx
+          .selectFrom("task")
+          .select(["id"])
+          .where("suggestion_key", "=", input.suggestionKey)
+          .where("status", "!=", "done")
+          .executeTakeFirst();
+        if (existing) return; // already added — don't duplicate
+      }
+      const sort_order = await nextSortOrder(trx);
+      const task = await trx
+        .insertInto("task")
+        .values({
+          title,
+          notes: input.notes?.trim() || null,
+          status: "todo",
+          planned_date: planned,
+          due_date: input.dueDate ?? null,
+          sort_order,
+          source: input.suggestionKey ? "suggestion" : "manual",
+          suggestion_key: input.suggestionKey ?? null,
+          ref_entity_type: input.refEntityType ?? null,
+          ref_entity_id: input.refEntityId ?? null,
+          created_by: Number(session.user.id),
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+      await insertAssignees(trx, task.id, input.assigneeIds ?? []);
+      await insertLinks(trx, task.id, input.links ?? []);
+    });
+    revalidatePath("/");
   });
-  revalidatePath("/");
 }
 
 export interface UpdateTaskInput {
@@ -139,25 +143,27 @@ export interface UpdateTaskInput {
 export async function updateTask(
   id: number,
   input: UpdateTaskInput,
-): Promise<void> {
-  await requireUser();
-  const db = getDb();
-  const patch: Record<string, unknown> = { updated_at: new Date() };
-  if (input.title !== undefined) {
-    const t = input.title.trim();
-    if (!t) throw new Error("제목을 입력하세요.");
-    patch.title = t;
-  }
-  if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
-  if (input.dueDate !== undefined) patch.due_date = input.dueDate;
-  await db.transaction().execute(async (trx) => {
-    await trx.updateTable("task").set(patch).where("id", "=", id).execute();
-    if (input.links !== undefined) {
-      await trx.deleteFrom("task_link").where("task_id", "=", id).execute();
-      await insertLinks(trx, id, input.links);
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireUser();
+    const db = getDb();
+    const patch: Record<string, unknown> = { updated_at: new Date() };
+    if (input.title !== undefined) {
+      const t = input.title.trim();
+      if (!t) throw new ValidationError("제목을 입력하세요.");
+      patch.title = t;
     }
+    if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
+    if (input.dueDate !== undefined) patch.due_date = input.dueDate;
+    await db.transaction().execute(async (trx) => {
+      await trx.updateTable("task").set(patch).where("id", "=", id).execute();
+      if (input.links !== undefined) {
+        await trx.deleteFrom("task_link").where("task_id", "=", id).execute();
+        await insertLinks(trx, id, input.links);
+      }
+    });
+    revalidatePath("/");
   });
-  revalidatePath("/");
 }
 
 /** Persist a drag/drop: target status, planned_date and new sort_order. */
@@ -183,23 +189,25 @@ export async function moveTask(
   revalidatePath("/");
 }
 
-export async function deleteTask(id: number): Promise<void> {
-  const session = await requireUser();
-  const db = getDb();
-  const row = await db
-    .selectFrom("task")
-    .select(["created_by"])
-    .where("id", "=", id)
-    .executeTakeFirst();
-  if (!row) return;
-  if (
-    row.created_by !== Number(session.user.id) &&
-    !isAdmin(session.user.role)
-  ) {
-    throw new Error("작성자 또는 관리자만 삭제할 수 있습니다.");
-  }
-  await db.deleteFrom("task").where("id", "=", id).execute();
-  revalidatePath("/");
+export async function deleteTask(id: number): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const db = getDb();
+    const row = await db
+      .selectFrom("task")
+      .select(["created_by"])
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (!row) return;
+    if (
+      row.created_by !== Number(session.user.id) &&
+      !isAdmin(session.user.role)
+    ) {
+      throw new ValidationError("작성자 또는 관리자만 삭제할 수 있습니다.");
+    }
+    await db.deleteFrom("task").where("id", "=", id).execute();
+    revalidatePath("/");
+  });
 }
 
 async function upsertDismissal(

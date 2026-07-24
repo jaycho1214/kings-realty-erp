@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldGroup } from "@/components/ui/field";
 import { SubmitButton } from "@/components/submit-button";
 import { createAppliance, updateAppliance } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const selectClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
@@ -36,7 +37,7 @@ export function ApplianceForm({
     : createAppliance;
 
   return (
-    <form action={action}>
+    <ActionForm action={action}>
       <FieldGroup>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
@@ -152,6 +153,6 @@ export function ApplianceForm({
           <SubmitButton />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 }

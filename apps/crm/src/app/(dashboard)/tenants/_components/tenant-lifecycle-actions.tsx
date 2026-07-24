@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { restoreTenant, purgeTenant } from "../_actions";
@@ -16,9 +16,17 @@ export function TenantLifecycleActions({
   deleted: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  // purgeTenant refuses while 계약·원장 내역 exist — show that reason rather than
+  // letting it surface as a message-less server error.
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-1.5">
+      {error && (
+        <p role="alert" className="mr-auto text-sm text-danger">
+          {error}
+        </p>
+      )}
       <Button
         type="button"
         variant="outline"
@@ -41,7 +49,9 @@ export function TenantLifecycleActions({
             if (
               confirm("이 세입자를 영구 삭제하시겠습니까? 되돌릴 수 없습니다.")
             ) {
-              startTransition(() => purgeTenant(tenantId));
+              startTransition(async () => {
+                setError((await purgeTenant(tenantId))?.error ?? null);
+              });
             }
           }}
         >

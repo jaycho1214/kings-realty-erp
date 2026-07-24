@@ -19,6 +19,7 @@ import {
   updateUtilityType,
   deleteUtilityType,
 } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface UtilityTypeRow {
   id: number;
@@ -37,7 +38,10 @@ export function UtilityTypes({ types, usageMap }: UtilityTypesProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const addAction = async (formData: FormData) => {
-    await addUtilityType(formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await addUtilityType(formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -110,7 +114,7 @@ export function UtilityTypes({ types, usageMap }: UtilityTypesProps) {
                       <Pencil className="size-4" />
                     </Button>
                     {!type.is_default && (
-                      <form action={deleteAction}>
+                      <ActionForm action={deleteAction}>
                         <Button
                           type="submit"
                           variant="ghost"
@@ -125,7 +129,7 @@ export function UtilityTypes({ types, usageMap }: UtilityTypesProps) {
                         >
                           <Trash2 className="size-4" />
                         </Button>
-                      </form>
+                      </ActionForm>
                     )}
                   </div>
                 </TableCell>
@@ -135,7 +139,11 @@ export function UtilityTypes({ types, usageMap }: UtilityTypesProps) {
         </TableBody>
       </Table>
       <div className="border-t p-3">
-        <form ref={formRef} action={addAction} className="flex items-end gap-3">
+        <ActionForm
+          ref={formRef}
+          action={addAction}
+          className="flex items-end gap-3"
+        >
           <Input
             name="name"
             required
@@ -143,7 +151,7 @@ export function UtilityTypes({ types, usageMap }: UtilityTypesProps) {
             className="w-48"
           />
           <SubmitButton label="추가" />
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

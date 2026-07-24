@@ -30,6 +30,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { ApplianceForm } from "../_components/appliance-form";
 import { deleteAppliance, createApplianceServiceRequest } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const OWNER_LABEL: Record<string, string> = {
   landlord: "집주인",
@@ -271,7 +272,7 @@ export default async function ApplianceDetailPage({
               <div className="flex justify-end">
                 {hasActiveLease ? (
                   <CreateDialog title="수리 요청" buttonLabel="수리 요청">
-                    <form action={serviceForm}>
+                    <ActionForm action={serviceForm}>
                       <FieldGroup>
                         <Field>
                           <Label htmlFor="sr-title">제목</Label>
@@ -310,7 +311,7 @@ export default async function ApplianceDetailPage({
                           <SubmitButton label="요청 등록" />
                         </div>
                       </FieldGroup>
-                    </form>
+                    </ActionForm>
                   </CreateDialog>
                 ) : (
                   <p className="text-sm text-muted-foreground">

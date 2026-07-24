@@ -4,6 +4,7 @@ import { getDb, type DB, type Transaction } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/authz";
+import { runAction, type FormState } from "@/lib/form-action";
 
 function parseAssigneeIds(raw: FormDataEntryValue | null): number[] {
   if (typeof raw !== "string" || !raw) return [];
@@ -123,103 +124,109 @@ export async function createServiceRequest(formData: FormData) {
   return String(result.id);
 }
 
-export async function updateServiceRequest(id: number, formData: FormData) {
-  const session = await requirePermission("service", "update");
+export async function updateServiceRequest(
+  id: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("service", "update");
 
-  const db = getDb();
-  const title = formData.get("title") as string;
-  const description = formData.get("description") as string;
-  const category = formData.get("category") as string;
-  const status = formData.get("status") as string;
-  const location = (formData.get("location") as string)?.trim() || null;
-  const bearer = (formData.get("bearer") as string) || null;
-  const scheduled_date = (formData.get("scheduled_date") as string) || null;
-  const estimated_cost = (formData.get("estimated_cost") as string) || null;
-  const actual_cost = (formData.get("actual_cost") as string) || null;
-  const postpone_reason =
-    (formData.get("postpone_reason") as string)?.trim() || null;
-  const escalated_to_landlord =
-    formData.get("escalated_to_landlord") === "true";
-  const notes = (formData.get("notes") as string) || null;
-  const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
-  const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
-  const vendor_phone = (formData.get("vendor_phone") as string)?.trim() || null;
-  const landlord_self = formData.get("landlord_self") === "true";
+    const db = getDb();
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const category = formData.get("category") as string;
+    const status = formData.get("status") as string;
+    const location = (formData.get("location") as string)?.trim() || null;
+    const bearer = (formData.get("bearer") as string) || null;
+    const scheduled_date = (formData.get("scheduled_date") as string) || null;
+    const estimated_cost = (formData.get("estimated_cost") as string) || null;
+    const actual_cost = (formData.get("actual_cost") as string) || null;
+    const postpone_reason =
+      (formData.get("postpone_reason") as string)?.trim() || null;
+    const escalated_to_landlord =
+      formData.get("escalated_to_landlord") === "true";
+    const notes = (formData.get("notes") as string) || null;
+    const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
+    const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
+    const vendor_phone =
+      (formData.get("vendor_phone") as string)?.trim() || null;
+    const landlord_self = formData.get("landlord_self") === "true";
 
-  const existing = await db
-    .selectFrom("service_request")
-    .select(["resolved_at", "status"])
-    .where("id", "=", id)
-    .executeTakeFirst();
-  const isDone = status === "completed";
-  const resolved_at = isDone ? (existing?.resolved_at ?? new Date()) : null;
-  const statusChanged = !!existing && existing.status !== status;
-
-  await db.transaction().execute(async (trx) => {
-    const vendor_id = await resolveVendor(trx, vendor_name, vendor_phone);
-
-    await trx
-      .updateTable("service_request")
-      .set({
-        title,
-        description,
-        category,
-        status,
-        location,
-        bearer,
-        vendor_id,
-        landlord_self,
-        scheduled_date,
-        estimated_cost,
-        actual_cost,
-        completed_date: isDone ? new Date() : null,
-        postpone_reason,
-        // Keep the legacy canonical cost in sync only when an actual cost was
-        // actually entered; a blank 실제 비용 must NOT wipe a previously
-        // recorded cost_krw.
-        ...(actual_cost != null ? { cost_krw: actual_cost } : {}),
-        escalated_to_landlord,
-        resolved_at,
-        notes,
-        updated_at: new Date(),
-      })
+    const existing = await db
+      .selectFrom("service_request")
+      .select(["resolved_at", "status"])
       .where("id", "=", id)
-      .execute();
+      .executeTakeFirst();
+    const isDone = status === "completed";
+    const resolved_at = isDone ? (existing?.resolved_at ?? new Date()) : null;
+    const statusChanged = !!existing && existing.status !== status;
 
-    // Editing the request can also change its status; record that transition
-    // in the status log so the 변경 이력 timeline never contradicts the record
-    // (mirrors changeServiceRequestStatus).
-    if (statusChanged) {
+    await db.transaction().execute(async (trx) => {
+      const vendor_id = await resolveVendor(trx, vendor_name, vendor_phone);
+
       await trx
-        .insertInto("service_request_status_log")
-        .values({
-          service_request_id: id,
+        .updateTable("service_request")
+        .set({
+          title,
+          description,
+          category,
           status,
-          changed_by: Number(session.user.id),
+          location,
+          bearer,
+          vendor_id,
+          landlord_self,
+          scheduled_date,
+          estimated_cost,
+          actual_cost,
+          completed_date: isDone ? new Date() : null,
+          postpone_reason,
+          // Keep the legacy canonical cost in sync only when an actual cost was
+          // actually entered; a blank 실제 비용 must NOT wipe a previously
+          // recorded cost_krw.
+          ...(actual_cost != null ? { cost_krw: actual_cost } : {}),
+          escalated_to_landlord,
+          resolved_at,
+          notes,
+          updated_at: new Date(),
         })
+        .where("id", "=", id)
         .execute();
-    }
 
-    // Replace the assignee set wholesale so removals persist.
-    await trx
-      .deleteFrom("service_request_assignee")
-      .where("service_request_id", "=", id)
-      .execute();
-    if (assigneeIds.length > 0) {
-      await trx
-        .insertInto("service_request_assignee")
-        .values(
-          assigneeIds.map((user_id) => ({
+      // Editing the request can also change its status; record that transition
+      // in the status log so the 변경 이력 timeline never contradicts the record
+      // (mirrors changeServiceRequestStatus).
+      if (statusChanged) {
+        await trx
+          .insertInto("service_request_status_log")
+          .values({
             service_request_id: id,
-            user_id,
-          })),
-        )
-        .execute();
-    }
-  });
+            status,
+            changed_by: Number(session.user.id),
+          })
+          .execute();
+      }
 
-  revalidatePath("/services");
-  redirect(`/services/${id}`);
+      // Replace the assignee set wholesale so removals persist.
+      await trx
+        .deleteFrom("service_request_assignee")
+        .where("service_request_id", "=", id)
+        .execute();
+      if (assigneeIds.length > 0) {
+        await trx
+          .insertInto("service_request_assignee")
+          .values(
+            assigneeIds.map((user_id) => ({
+              service_request_id: id,
+              user_id,
+            })),
+          )
+          .execute();
+      }
+    });
+
+    revalidatePath("/services");
+    redirect(`/services/${id}`);
+  });
 }
 
 export async function changeServiceRequestStatus(

@@ -189,7 +189,12 @@ function SectionCard({ section }: { section: SectionRow }) {
         className="flex flex-wrap items-end gap-2 border-t border-border/60 p-2.5"
       >
         <Input name="subgroup_ko" className="w-28" placeholder="그룹(선택)" />
-        <Input name="label_ko" required className="w-40" placeholder="항목 (한글)" />
+        <Input
+          name="label_ko"
+          required
+          className="w-40"
+          placeholder="항목 (한글)"
+        />
         <Input name="label_en" className="w-40" placeholder="EN (선택)" />
         <Button type="submit" variant="outline" size="sm" className="gap-1.5">
           <Plus className="size-3.5" /> 항목

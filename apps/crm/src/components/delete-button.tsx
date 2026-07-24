@@ -2,13 +2,15 @@
 
 import { Trash2 } from "lucide-react";
 import { ConfirmActionButton } from "@/components/confirm-action-button";
+import type { FormState } from "@/lib/form-action";
 
 export function DeleteButton({
   action,
   title = "정말 삭제하시겠습니까?",
   description = "이 작업은 되돌릴 수 없습니다.",
 }: {
-  action: () => Promise<void>;
+  /** Refusals ("…삭제할 수 없습니다.") come back as `{ error }`, not a throw. */
+  action: () => Promise<FormState | void>;
   title?: string;
   description?: string;
 }) {

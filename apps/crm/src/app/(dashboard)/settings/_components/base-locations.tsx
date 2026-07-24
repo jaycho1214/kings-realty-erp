@@ -17,6 +17,7 @@ import {
   createBaseLocation,
   deleteBaseLocation,
 } from "@/app/(dashboard)/tenants/_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface BaseLocationRow {
   id: number;
@@ -34,7 +35,10 @@ export function BaseLocations({ locations, usageMap }: BaseLocationsProps) {
   const formRef = useRef<HTMLFormElement>(null);
 
   const addAction = async (formData: FormData) => {
-    await createBaseLocation(formData);
+    // Only clear the row once the server accepted it; a refusal
+    // flows back to <ActionForm> and shows beside the button.
+    const result = await createBaseLocation(formData);
+    if (result?.error) return result;
     formRef.current?.reset();
   };
 
@@ -83,7 +87,11 @@ export function BaseLocations({ locations, usageMap }: BaseLocationsProps) {
         </TableBody>
       </Table>
       <div className="border-t p-3">
-        <form ref={formRef} action={addAction} className="flex items-end gap-3">
+        <ActionForm
+          ref={formRef}
+          action={addAction}
+          className="flex items-end gap-3"
+        >
           <Input
             name="name"
             required
@@ -92,7 +100,7 @@ export function BaseLocations({ locations, usageMap }: BaseLocationsProps) {
           />
           <Input name="name_ko" placeholder="한글 이름" className="w-40" />
           <SubmitButton label="추가" />
-        </form>
+        </ActionForm>
       </div>
     </div>
   );

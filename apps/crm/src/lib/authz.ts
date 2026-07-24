@@ -5,6 +5,7 @@ import {
   accountingRole,
   pendingRole,
 } from "./permissions";
+import { ValidationError } from "./validation-error";
 
 /**
  * Authorization helpers.
@@ -76,10 +77,10 @@ type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
 export async function requireUser(): Promise<Session> {
   const session = await getSession();
   if (!session?.user?.id) {
-    throw new Error("인증이 필요합니다.");
+    throw new ValidationError("인증이 필요합니다.");
   }
   if (!isStaffOrAdmin(session.user.role)) {
-    throw new Error("권한이 없습니다.");
+    throw new ValidationError("권한이 없습니다.");
   }
   return session;
 }
@@ -92,7 +93,7 @@ export async function requireUser(): Promise<Session> {
 export async function requireAdmin(): Promise<Session> {
   const session = await requireUser();
   if (!isAdmin(session.user.role)) {
-    throw new Error("권한이 없습니다.");
+    throw new ValidationError("권한이 없습니다.");
   }
   return session;
 }
@@ -104,7 +105,7 @@ export async function requireAdmin(): Promise<Session> {
 export async function requireSensitiveAccess(): Promise<Session> {
   const session = await requireUser();
   if (!canViewSensitive(session.user.role)) {
-    throw new Error("권한이 없습니다.");
+    throw new ValidationError("권한이 없습니다.");
   }
   return session;
 }
@@ -149,7 +150,7 @@ export async function requirePermission(
 ): Promise<Session> {
   const session = await requireUser();
   if (!can(session.user.role, resource, action)) {
-    throw new Error("권한이 없습니다.");
+    throw new ValidationError("권한이 없습니다.");
   }
   return session;
 }

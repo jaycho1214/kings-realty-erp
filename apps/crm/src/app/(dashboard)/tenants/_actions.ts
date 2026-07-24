@@ -23,75 +23,161 @@ import {
 } from "@/lib/customer-intake";
 import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
 import { sanitizeNoteHtml, extractMentions } from "@/lib/notes/sanitize";
+import { ValidationError } from "@/lib/validation-error";
+import { runAction, type FormState } from "@/lib/form-action";
 
-export async function createTenant(formData: FormData) {
-  const session = await requirePermission("tenant", "create");
+export async function createTenant(formData: FormData): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("tenant", "create");
 
-  const db = getDb();
+    const db = getDb();
 
-  const name = formData.get("name") as string;
-  const phone = formData.get("phone") as string;
-  const email = (formData.get("email") as string) || null;
-  const sex = (formData.get("sex") as string) || null;
-  const birth = (formData.get("birth") as string) || null;
-  const branch = (formData.get("branch") as string) || null;
-  const rank = (formData.get("rank") as string) || null;
-  const unit = (formData.get("unit") as string) || null;
-  const deros = (formData.get("deros") as string) || null;
-  const military_id = (formData.get("military_id") as string)?.trim() || null;
-  const dependent_status = (formData.get("dependent_status") as string) || null;
-  const dependentCountRaw = (formData.get("dependent_count") as string)?.trim();
-  const dependent_count = dependentCountRaw ? Number(dependentCountRaw) : null;
-  const baseLocationId = formData.get("base_location_id") as string;
-  const baseLocationIdNum = Number(baseLocationId);
-  if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
-    throw new Error("기지를 선택해주세요.");
-  }
+    const name = formData.get("name") as string;
+    const phone = formData.get("phone") as string;
+    const email = (formData.get("email") as string) || null;
+    const sex = (formData.get("sex") as string) || null;
+    const birth = (formData.get("birth") as string) || null;
+    const branch = (formData.get("branch") as string) || null;
+    const rank = (formData.get("rank") as string) || null;
+    const unit = (formData.get("unit") as string) || null;
+    const deros = (formData.get("deros") as string) || null;
+    const military_id = (formData.get("military_id") as string)?.trim() || null;
+    const dependent_status =
+      (formData.get("dependent_status") as string) || null;
+    const dependentCountRaw = (
+      formData.get("dependent_count") as string
+    )?.trim();
+    const dependent_count = dependentCountRaw
+      ? Number(dependentCountRaw)
+      : null;
+    const baseLocationId = formData.get("base_location_id") as string;
+    const baseLocationIdNum = Number(baseLocationId);
+    if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
+      throw new ValidationError("기지를 선택해주세요.");
+    }
 
-  // Parse family members from indexed form data
-  const familyMembers: {
-    name: string;
-    relationship: string;
-    sex: string | null;
-    phone: string | null;
-    notes: string | null;
-  }[] = [];
-  for (let i = 0; ; i++) {
-    const fName = formData.get(`family[${i}].name`) as string | null;
-    if (fName === null) break;
-    familyMembers.push({
-      name: fName,
-      relationship: formData.get(`family[${i}].relationship`) as string,
-      sex: (formData.get(`family[${i}].sex`) as string) || null,
-      phone: (formData.get(`family[${i}].phone`) as string) || null,
-      notes: (formData.get(`family[${i}].notes`) as string) || null,
+    // Parse family members from indexed form data
+    const familyMembers: {
+      name: string;
+      relationship: string;
+      sex: string | null;
+      phone: string | null;
+      notes: string | null;
+    }[] = [];
+    for (let i = 0; ; i++) {
+      const fName = formData.get(`family[${i}].name`) as string | null;
+      if (fName === null) break;
+      familyMembers.push({
+        name: fName,
+        relationship: formData.get(`family[${i}].relationship`) as string,
+        sex: (formData.get(`family[${i}].sex`) as string) || null,
+        phone: (formData.get(`family[${i}].phone`) as string) || null,
+        notes: (formData.get(`family[${i}].notes`) as string) || null,
+      });
+    }
+
+    // Parse pets from indexed form data
+    const pets: {
+      name: string;
+      species: string;
+      breed: string | null;
+      size: string | null;
+      notes: string | null;
+    }[] = [];
+    for (let i = 0; ; i++) {
+      const pName = formData.get(`pet[${i}].name`) as string | null;
+      if (pName === null) break;
+      pets.push({
+        name: pName,
+        species: formData.get(`pet[${i}].species`) as string,
+        breed: (formData.get(`pet[${i}].breed`) as string) || null,
+        size: (formData.get(`pet[${i}].size`) as string) || null,
+        notes: (formData.get(`pet[${i}].notes`) as string) || null,
+      });
+    }
+
+    await db.transaction().execute(async (trx) => {
+      const result = await trx
+        .insertInto("tenant")
+        .values({
+          name,
+          phone,
+          email,
+          sex,
+          birth,
+          branch,
+          rank,
+          unit,
+          deros,
+          military_id,
+          dependent_status,
+          dependent_count,
+          base_location_id: baseLocationIdNum,
+          created_by: Number(session.user.id),
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+
+      const tenantId = result.id;
+
+      // Insert family members
+      for (const member of familyMembers) {
+        await trx
+          .insertInto("tenant_family_member")
+          .values({ tenant_id: tenantId, ...member })
+          .execute();
+      }
+
+      // Insert pets
+      for (const pet of pets) {
+        await trx
+          .insertInto("tenant_pet")
+          .values({ tenant_id: tenantId, ...pet })
+          .execute();
+      }
     });
-  }
 
-  // Parse pets from indexed form data
-  const pets: {
-    name: string;
-    species: string;
-    breed: string | null;
-    size: string | null;
-    notes: string | null;
-  }[] = [];
-  for (let i = 0; ; i++) {
-    const pName = formData.get(`pet[${i}].name`) as string | null;
-    if (pName === null) break;
-    pets.push({
-      name: pName,
-      species: formData.get(`pet[${i}].species`) as string,
-      breed: (formData.get(`pet[${i}].breed`) as string) || null,
-      size: (formData.get(`pet[${i}].size`) as string) || null,
-      notes: (formData.get(`pet[${i}].notes`) as string) || null,
-    });
-  }
+    revalidatePath("/tenants");
+    redirect("/tenants");
+  });
+}
 
-  await db.transaction().execute(async (trx) => {
-    const result = await trx
-      .insertInto("tenant")
-      .values({
+export async function updateTenant(
+  id: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("tenant", "update");
+
+    const db = getDb();
+
+    const name = formData.get("name") as string;
+    const phone = formData.get("phone") as string;
+    const email = (formData.get("email") as string) || null;
+    const sex = (formData.get("sex") as string) || null;
+    const birth = (formData.get("birth") as string) || null;
+    const branch = (formData.get("branch") as string) || null;
+    const rank = (formData.get("rank") as string) || null;
+    const unit = (formData.get("unit") as string) || null;
+    const deros = (formData.get("deros") as string) || null;
+    const military_id = (formData.get("military_id") as string)?.trim() || null;
+    const dependent_status =
+      (formData.get("dependent_status") as string) || null;
+    const dependentCountRaw = (
+      formData.get("dependent_count") as string
+    )?.trim();
+    const dependent_count = dependentCountRaw
+      ? Number(dependentCountRaw)
+      : null;
+    const baseLocationId = formData.get("base_location_id") as string;
+    const baseLocationIdNum = Number(baseLocationId);
+    if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
+      throw new ValidationError("기지를 선택해주세요.");
+    }
+
+    await db
+      .updateTable("tenant")
+      .set({
         name,
         phone,
         email,
@@ -104,156 +190,98 @@ export async function createTenant(formData: FormData) {
         military_id,
         dependent_status,
         dependent_count,
-        base_location_id: baseLocationIdNum,
-        created_by: Number(session.user.id),
+        base_location_id: Number(baseLocationId),
+        updated_at: new Date(),
       })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+      .where("id", "=", id)
+      .execute();
 
-    const tenantId = result.id;
+    revalidatePath("/tenants");
+    redirect(`/tenants/${id}`);
+  });
+}
 
-    // Insert family members
-    for (const member of familyMembers) {
-      await trx
-        .insertInto("tenant_family_member")
-        .values({ tenant_id: tenantId, ...member })
-        .execute();
+export async function deleteTenant(id: number): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("tenant", "delete");
+
+    const db = getDb();
+
+    // lease.tenant_id (RESTRICT) and ledger_entry.tenant_id (NO ACTION) block a
+    // bare delete with an opaque FK error. Refuse with a clear message and never
+    // silently drop financial history. No lease ⇒ no payments/bills/services/
+    // inspections (all keyed by lease_id), so these two checks cover them.
+    const [leases, ledger] = await Promise.all([
+      db
+        .selectFrom("lease")
+        .select(({ fn }) => fn.countAll<number>().as("c"))
+        .where("tenant_id", "=", id)
+        .executeTakeFirst(),
+      db
+        .selectFrom("ledger_entry")
+        .select(({ fn }) => fn.countAll<number>().as("c"))
+        .where("tenant_id", "=", id)
+        .executeTakeFirst(),
+    ]);
+    if (Number(leases?.c ?? 0) > 0 || Number(ledger?.c ?? 0) > 0) {
+      throw new ValidationError(
+        "계약·원장 내역이 있는 세입자는 삭제할 수 없습니다.",
+      );
     }
 
-    // Insert pets
-    for (const pet of pets) {
+    await db.transaction().execute(async (trx) => {
+      await trx.deleteFrom("tenant_pet").where("tenant_id", "=", id).execute();
       await trx
-        .insertInto("tenant_pet")
-        .values({ tenant_id: tenantId, ...pet })
+        .deleteFrom("tenant_family_member")
+        .where("tenant_id", "=", id)
         .execute();
-    }
+      // calendar_event.tenant_id is a nullable FK with no cascade — detach any
+      // reminders so they survive and don't block the delete. tenant_note and
+      // charge_item cascade automatically.
+      await trx
+        .updateTable("calendar_event")
+        .set({ tenant_id: null })
+        .where("tenant_id", "=", id)
+        .execute();
+      await trx.deleteFrom("tenant").where("id", "=", id).execute();
+    });
+
+    revalidatePath("/tenants");
+    redirect("/tenants");
   });
-
-  revalidatePath("/tenants");
-  redirect("/tenants");
 }
 
-export async function updateTenant(id: number, formData: FormData) {
-  await requirePermission("tenant", "update");
+export async function addFamilyMember(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("tenant", "update");
 
-  const db = getDb();
+    const db = getDb();
 
-  const name = formData.get("name") as string;
-  const phone = formData.get("phone") as string;
-  const email = (formData.get("email") as string) || null;
-  const sex = (formData.get("sex") as string) || null;
-  const birth = (formData.get("birth") as string) || null;
-  const branch = (formData.get("branch") as string) || null;
-  const rank = (formData.get("rank") as string) || null;
-  const unit = (formData.get("unit") as string) || null;
-  const deros = (formData.get("deros") as string) || null;
-  const military_id = (formData.get("military_id") as string)?.trim() || null;
-  const dependent_status = (formData.get("dependent_status") as string) || null;
-  const dependentCountRaw = (formData.get("dependent_count") as string)?.trim();
-  const dependent_count = dependentCountRaw ? Number(dependentCountRaw) : null;
-  const baseLocationId = formData.get("base_location_id") as string;
-  const baseLocationIdNum = Number(baseLocationId);
-  if (!Number.isInteger(baseLocationIdNum) || baseLocationIdNum <= 0) {
-    throw new Error("기지를 선택해주세요.");
-  }
+    const name = formData.get("name") as string;
+    const relationship = formData.get("relationship") as string;
+    const sex = (formData.get("sex") as string) || null;
+    const birth = (formData.get("birth") as string) || null;
+    const phone = (formData.get("phone") as string) || null;
+    const notes = (formData.get("notes") as string) || null;
 
-  await db
-    .updateTable("tenant")
-    .set({
-      name,
-      phone,
-      email,
-      sex,
-      birth,
-      branch,
-      rank,
-      unit,
-      deros,
-      military_id,
-      dependent_status,
-      dependent_count,
-      base_location_id: Number(baseLocationId),
-      updated_at: new Date(),
-    })
-    .where("id", "=", id)
-    .execute();
-
-  revalidatePath("/tenants");
-  redirect(`/tenants/${id}`);
-}
-
-export async function deleteTenant(id: number) {
-  await requirePermission("tenant", "delete");
-
-  const db = getDb();
-
-  // lease.tenant_id (RESTRICT) and ledger_entry.tenant_id (NO ACTION) block a
-  // bare delete with an opaque FK error. Refuse with a clear message and never
-  // silently drop financial history. No lease ⇒ no payments/bills/services/
-  // inspections (all keyed by lease_id), so these two checks cover them.
-  const [leases, ledger] = await Promise.all([
-    db
-      .selectFrom("lease")
-      .select(({ fn }) => fn.countAll<number>().as("c"))
-      .where("tenant_id", "=", id)
-      .executeTakeFirst(),
-    db
-      .selectFrom("ledger_entry")
-      .select(({ fn }) => fn.countAll<number>().as("c"))
-      .where("tenant_id", "=", id)
-      .executeTakeFirst(),
-  ]);
-  if (Number(leases?.c ?? 0) > 0 || Number(ledger?.c ?? 0) > 0) {
-    throw new Error("계약·원장 내역이 있는 세입자는 삭제할 수 없습니다.");
-  }
-
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("tenant_pet").where("tenant_id", "=", id).execute();
-    await trx
-      .deleteFrom("tenant_family_member")
-      .where("tenant_id", "=", id)
+    await db
+      .insertInto("tenant_family_member")
+      .values({
+        tenant_id: tenantId,
+        name,
+        relationship,
+        sex,
+        birth,
+        phone,
+        notes,
+      })
       .execute();
-    // calendar_event.tenant_id is a nullable FK with no cascade — detach any
-    // reminders so they survive and don't block the delete. tenant_note and
-    // charge_item cascade automatically.
-    await trx
-      .updateTable("calendar_event")
-      .set({ tenant_id: null })
-      .where("tenant_id", "=", id)
-      .execute();
-    await trx.deleteFrom("tenant").where("id", "=", id).execute();
+
+    revalidatePath(`/tenants/${tenantId}`);
   });
-
-  revalidatePath("/tenants");
-  redirect("/tenants");
-}
-
-export async function addFamilyMember(tenantId: number, formData: FormData) {
-  await requirePermission("tenant", "update");
-
-  const db = getDb();
-
-  const name = formData.get("name") as string;
-  const relationship = formData.get("relationship") as string;
-  const sex = (formData.get("sex") as string) || null;
-  const birth = (formData.get("birth") as string) || null;
-  const phone = (formData.get("phone") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
-
-  await db
-    .insertInto("tenant_family_member")
-    .values({
-      tenant_id: tenantId,
-      name,
-      relationship,
-      sex,
-      birth,
-      phone,
-      notes,
-    })
-    .execute();
-
-  revalidatePath(`/tenants/${tenantId}`);
 }
 
 export async function deleteFamilyMember(id: number, tenantId: number) {
@@ -266,23 +294,28 @@ export async function deleteFamilyMember(id: number, tenantId: number) {
   revalidatePath(`/tenants/${tenantId}`);
 }
 
-export async function addPet(tenantId: number, formData: FormData) {
-  await requirePermission("tenant", "update");
+export async function addPet(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("tenant", "update");
 
-  const db = getDb();
+    const db = getDb();
 
-  const name = formData.get("name") as string;
-  const species = formData.get("species") as string;
-  const breed = (formData.get("breed") as string) || null;
-  const size = (formData.get("size") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
+    const name = formData.get("name") as string;
+    const species = formData.get("species") as string;
+    const breed = (formData.get("breed") as string) || null;
+    const size = (formData.get("size") as string) || null;
+    const notes = (formData.get("notes") as string) || null;
 
-  await db
-    .insertInto("tenant_pet")
-    .values({ tenant_id: tenantId, name, species, breed, size, notes })
-    .execute();
+    await db
+      .insertInto("tenant_pet")
+      .values({ tenant_id: tenantId, name, species, breed, size, notes })
+      .execute();
 
-  revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 export async function deletePet(id: number, tenantId: number) {
@@ -303,46 +336,48 @@ export async function updateTenantStatus(
   // Move-out date as a Seoul "YYYY-MM-DD" string; defaults to now. Ignored when
   // returning to active.
   movedOutOn?: string | null,
-) {
-  await requirePermission("tenant", "update");
+): Promise<FormState> {
+  return runAction(async () => {
+    await requirePermission("tenant", "update");
 
-  if (status !== "active" && status !== "inactive") {
-    throw new Error("올바르지 않은 상태입니다.");
-  }
-
-  // Moving out archives the tenant (starts the 보관→휴지통 retention clock);
-  // returning to active un-archives them. Anchor the picked calendar date to
-  // noon Seoul so it reads as the same day whether the server formats in UTC
-  // or KST.
-  let archivedAt: Date | null = null;
-  if (status === "inactive") {
-    if (movedOutOn) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(movedOutOn)) {
-        throw new Error("올바르지 않은 날짜입니다.");
-      }
-      archivedAt = new Date(`${movedOutOn}T12:00:00+09:00`);
-      if (Number.isNaN(archivedAt.getTime())) {
-        throw new Error("올바르지 않은 날짜입니다.");
-      }
-    } else {
-      archivedAt = new Date();
+    if (status !== "active" && status !== "inactive") {
+      throw new ValidationError("올바르지 않은 상태입니다.");
     }
-  }
 
-  const db = getDb();
+    // Moving out archives the tenant (starts the 보관→휴지통 retention clock);
+    // returning to active un-archives them. Anchor the picked calendar date to
+    // noon Seoul so it reads as the same day whether the server formats in UTC
+    // or KST.
+    let archivedAt: Date | null = null;
+    if (status === "inactive") {
+      if (movedOutOn) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(movedOutOn)) {
+          throw new ValidationError("올바르지 않은 날짜입니다.");
+        }
+        archivedAt = new Date(`${movedOutOn}T12:00:00+09:00`);
+        if (Number.isNaN(archivedAt.getTime())) {
+          throw new ValidationError("올바르지 않은 날짜입니다.");
+        }
+      } else {
+        archivedAt = new Date();
+      }
+    }
 
-  await db
-    .updateTable("tenant")
-    .set({
-      status,
-      archived_at: archivedAt,
-      updated_at: new Date(),
-    })
-    .where("id", "=", id)
-    .execute();
+    const db = getDb();
 
-  revalidatePath(`/tenants/${id}`);
-  revalidatePath("/tenants");
+    await db
+      .updateTable("tenant")
+      .set({
+        status,
+        archived_at: archivedAt,
+        updated_at: new Date(),
+      })
+      .where("id", "=", id)
+      .execute();
+
+    revalidatePath(`/tenants/${id}`);
+    revalidatePath("/tenants");
+  });
 }
 
 // --- Tenant lifecycle (soft-delete / purge) ---
@@ -365,114 +400,121 @@ export async function restoreTenant(id: number) {
 
 /** Permanently delete a tenant and personal dependents. Admin only. Blocked
  *  while leases exist (financial history must be detached first). */
-export async function purgeTenant(id: number) {
-  await requireAdmin();
-  const db = getDb();
+export async function purgeTenant(id: number): Promise<FormState> {
+  return runAction(async () => {
+    await requireAdmin();
+    const db = getDb();
 
-  const [leaseCount, ledgerCount] = await Promise.all([
-    db
-      .selectFrom("lease")
-      .select(({ fn }) => fn.countAll<number>().as("c"))
-      .where("tenant_id", "=", id)
-      .executeTakeFirst(),
-    db
-      .selectFrom("ledger_entry")
-      .select(({ fn }) => fn.countAll<number>().as("c"))
-      .where("tenant_id", "=", id)
-      .executeTakeFirst(),
-  ]);
-  if (Number(leaseCount?.c ?? 0) > 0 || Number(ledgerCount?.c ?? 0) > 0) {
-    throw new Error(
-      "계약·원장 내역이 있는 세입자는 영구삭제할 수 없습니다. 먼저 내역을 정리하세요.",
-    );
-  }
+    const [leaseCount, ledgerCount] = await Promise.all([
+      db
+        .selectFrom("lease")
+        .select(({ fn }) => fn.countAll<number>().as("c"))
+        .where("tenant_id", "=", id)
+        .executeTakeFirst(),
+      db
+        .selectFrom("ledger_entry")
+        .select(({ fn }) => fn.countAll<number>().as("c"))
+        .where("tenant_id", "=", id)
+        .executeTakeFirst(),
+    ]);
+    if (Number(leaseCount?.c ?? 0) > 0 || Number(ledgerCount?.c ?? 0) > 0) {
+      throw new ValidationError(
+        "계약·원장 내역이 있는 세입자는 영구삭제할 수 없습니다. 먼저 내역을 정리하세요.",
+      );
+    }
 
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("tenant_pet").where("tenant_id", "=", id).execute();
-    await trx
-      .deleteFrom("tenant_family_member")
-      .where("tenant_id", "=", id)
-      .execute();
-    await trx.deleteFrom("tenant_note").where("tenant_id", "=", id).execute();
-    // calendar_event.tenant_id is a nullable FK with no cascade — detach before
-    // delete so reminders survive and don't raise an FK error.
-    await trx
-      .updateTable("calendar_event")
-      .set({ tenant_id: null })
-      .where("tenant_id", "=", id)
-      .execute();
-    await trx.deleteFrom("tenant").where("id", "=", id).execute();
+    await db.transaction().execute(async (trx) => {
+      await trx.deleteFrom("tenant_pet").where("tenant_id", "=", id).execute();
+      await trx
+        .deleteFrom("tenant_family_member")
+        .where("tenant_id", "=", id)
+        .execute();
+      await trx.deleteFrom("tenant_note").where("tenant_id", "=", id).execute();
+      // calendar_event.tenant_id is a nullable FK with no cascade — detach before
+      // delete so reminders survive and don't raise an FK error.
+      await trx
+        .updateTable("calendar_event")
+        .set({ tenant_id: null })
+        .where("tenant_id", "=", id)
+        .execute();
+      await trx.deleteFrom("tenant").where("id", "=", id).execute();
+    });
+    revalidatePath("/tenants");
   });
-  revalidatePath("/tenants");
 }
 
 // --- Tenant Ledger (원장) — manual entries ---
 
 /** Add a manual receipt/disbursement to a tenant's ledger. Admin/accounting. */
-export async function addLedgerEntry(tenantId: number, formData: FormData) {
-  const session = await requireSensitiveAccess();
-  const db = getDb();
+export async function addLedgerEntry(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireSensitiveAccess();
+    const db = getDb();
 
-  const direction =
-    formData.get("direction") === "disbursement" ? "disbursement" : "receipt";
-  const entry_date = new Date(formData.get("entry_date") as string);
-  const category = (formData.get("category") as string)?.trim() || "기타";
-  const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-  const amount = Number(formData.get("amount"));
-  const rate = formData.get("exchange_rate")
-    ? Number(formData.get("exchange_rate"))
-    : null;
-  const denomination = formData.get("denomination")
-    ? Number(formData.get("denomination"))
-    : null;
-  const vendorRaw = formData.get("exchange_vendor_id") as string;
-  const exchange_vendor_id = vendorRaw ? Number(vendorRaw) : null;
-  const description =
-    (formData.get("description") as string)?.trim() || category;
+    const direction =
+      formData.get("direction") === "disbursement" ? "disbursement" : "receipt";
+    const entry_date = new Date(formData.get("entry_date") as string);
+    const category = (formData.get("category") as string)?.trim() || "기타";
+    const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
+    const amount = Number(formData.get("amount"));
+    const rate = formData.get("exchange_rate")
+      ? Number(formData.get("exchange_rate"))
+      : null;
+    const denomination = formData.get("denomination")
+      ? Number(formData.get("denomination"))
+      : null;
+    const vendorRaw = formData.get("exchange_vendor_id") as string;
+    const exchange_vendor_id = vendorRaw ? Number(vendorRaw) : null;
+    const description =
+      (formData.get("description") as string)?.trim() || category;
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("금액을 올바르게 입력해주세요.");
-  }
-  if (Number.isNaN(entry_date.getTime())) {
-    throw new Error("날짜를 올바르게 입력해주세요.");
-  }
-  if (
-    currency === "USD" &&
-    (rate == null || !Number.isFinite(rate) || rate <= 0)
-  ) {
-    throw new Error("환율을 올바르게 입력해주세요.");
-  }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError("금액을 올바르게 입력해주세요.");
+    }
+    if (Number.isNaN(entry_date.getTime())) {
+      throw new ValidationError("날짜를 올바르게 입력해주세요.");
+    }
+    if (
+      currency === "USD" &&
+      (rate == null || !Number.isFinite(rate) || rate <= 0)
+    ) {
+      throw new ValidationError("환율을 올바르게 입력해주세요.");
+    }
 
-  const amount_krw =
-    currency === "USD" && rate ? Math.round(amount * rate) : amount;
+    const amount_krw =
+      currency === "USD" && rate ? Math.round(amount * rate) : amount;
 
-  const lease = await db
-    .selectFrom("lease")
-    .select("id")
-    .where("tenant_id", "=", tenantId)
-    .orderBy("start_date", "desc")
-    .executeTakeFirst();
+    const lease = await db
+      .selectFrom("lease")
+      .select("id")
+      .where("tenant_id", "=", tenantId)
+      .orderBy("start_date", "desc")
+      .executeTakeFirst();
 
-  await db
-    .insertInto("ledger_entry")
-    .values({
-      entry_type: direction === "receipt" ? "income" : "expense",
-      direction,
-      category,
-      amount_krw: String(amount_krw),
-      description,
-      entry_date,
-      tenant_id: tenantId,
-      lease_id: lease?.id ?? null,
-      currency,
-      denomination,
-      exchange_rate: rate != null ? String(rate) : null,
-      exchange_vendor_id,
-      recorded_by: Number(session.user.id),
-    })
-    .execute();
+    await db
+      .insertInto("ledger_entry")
+      .values({
+        entry_type: direction === "receipt" ? "income" : "expense",
+        direction,
+        category,
+        amount_krw: String(amount_krw),
+        description,
+        entry_date,
+        tenant_id: tenantId,
+        lease_id: lease?.id ?? null,
+        currency,
+        denomination,
+        exchange_rate: rate != null ? String(rate) : null,
+        exchange_vendor_id,
+        recorded_by: Number(session.user.id),
+      })
+      .execute();
 
-  revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 /** Delete a manual ledger entry. Admin/accounting. */
@@ -500,66 +542,73 @@ const CHARGE_STATUSES = new Set([
 ]);
 
 /** Add a manual charge (one-time or monthly) for a tenant. */
-export async function addCharge(tenantId: number, formData: FormData) {
-  const session = await requireUser();
-  const db = getDb();
+export async function addCharge(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const db = getDb();
 
-  const type = (formData.get("type") as string)?.trim() || "기타";
-  const recurrence =
-    formData.get("recurrence") === "monthly" ? "monthly" : "one_time";
-  const amount = Number(formData.get("amount"));
-  const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-  const billingMonthRaw = (formData.get("billing_month") as string)?.trim();
-  const dueRaw = (formData.get("due_date") as string)?.trim();
-  const memo = (formData.get("memo") as string)?.trim() || null;
+    const type = (formData.get("type") as string)?.trim() || "기타";
+    const recurrence =
+      formData.get("recurrence") === "monthly" ? "monthly" : "one_time";
+    const amount = Number(formData.get("amount"));
+    const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
+    const billingMonthRaw = (formData.get("billing_month") as string)?.trim();
+    const dueRaw = (formData.get("due_date") as string)?.trim();
+    const memo = (formData.get("memo") as string)?.trim() || null;
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("금액을 올바르게 입력해주세요.");
-  }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError("금액을 올바르게 입력해주세요.");
+    }
 
-  const lease = await db
-    .selectFrom("lease")
-    .select("id")
-    .where("tenant_id", "=", tenantId)
-    .orderBy("start_date", "desc")
-    .executeTakeFirst();
+    const lease = await db
+      .selectFrom("lease")
+      .select("id")
+      .where("tenant_id", "=", tenantId)
+      .orderBy("start_date", "desc")
+      .executeTakeFirst();
 
-  await db
-    .insertInto("charge_item")
-    .values({
-      tenant_id: tenantId,
-      lease_id: lease?.id ?? null,
-      type,
-      recurrence,
-      billing_month: billingMonthRaw ? `${billingMonthRaw}-01` : null,
-      amount: String(amount),
-      currency,
-      due_date: dueRaw || null,
-      status: "billed",
-      memo,
-      created_by: Number(session.user.id),
-    })
-    .execute();
+    await db
+      .insertInto("charge_item")
+      .values({
+        tenant_id: tenantId,
+        lease_id: lease?.id ?? null,
+        type,
+        recurrence,
+        billing_month: billingMonthRaw ? `${billingMonthRaw}-01` : null,
+        amount: String(amount),
+        currency,
+        due_date: dueRaw || null,
+        status: "billed",
+        memo,
+        created_by: Number(session.user.id),
+      })
+      .execute();
 
-  revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 export async function updateChargeStatus(
   id: number,
   tenantId: number,
   status: string,
-) {
-  await requireUser();
-  if (!CHARGE_STATUSES.has(status))
-    throw new Error("올바르지 않은 상태입니다.");
-  const db = getDb();
-  await db
-    .updateTable("charge_item")
-    .set({ status, updated_at: new Date() })
-    .where("id", "=", id)
-    .where("tenant_id", "=", tenantId)
-    .execute();
-  revalidatePath(`/tenants/${tenantId}`);
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireUser();
+    if (!CHARGE_STATUSES.has(status))
+      throw new ValidationError("올바르지 않은 상태입니다.");
+    const db = getDb();
+    await db
+      .updateTable("charge_item")
+      .set({ status, updated_at: new Date() })
+      .where("id", "=", id)
+      .where("tenant_id", "=", tenantId)
+      .execute();
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 export async function deleteCharge(id: number, tenantId: number) {
@@ -578,21 +627,23 @@ export async function setChargeAmount(
   id: number,
   tenantId: number,
   amount: number,
-) {
-  await requireUser();
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("금액을 올바르게 입력해주세요.");
-  }
-  const db = getDb();
-  await db
-    .updateTable("charge_item")
-    .set({ amount: String(amount), updated_at: new Date() })
-    .where("id", "=", id)
-    .where("tenant_id", "=", tenantId)
-    .where("paid_by_payment_id", "is", null)
-    .execute();
-  await recomputeChargeStatus([id], seoulDateString());
-  revalidatePath(`/tenants/${tenantId}`);
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireUser();
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError("금액을 올바르게 입력해주세요.");
+    }
+    const db = getDb();
+    await db
+      .updateTable("charge_item")
+      .set({ amount: String(amount), updated_at: new Date() })
+      .where("id", "=", id)
+      .where("tenant_id", "=", tenantId)
+      .where("paid_by_payment_id", "is", null)
+      .execute();
+    await recomputeChargeStatus([id], seoulDateString());
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 /**
@@ -605,80 +656,86 @@ export async function settleCharge(
   chargeId: number,
   tenantId: number,
   formData: FormData,
-) {
-  const session = await requireUser();
-  const amount = Number(formData.get("amount"));
-  const method = (formData.get("payment_method") as string) || "cash";
-  const date = (formData.get("payment_date") as string) || seoulDateString();
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("금액을 올바르게 입력해주세요.");
-  }
-
-  const db = getDb();
-  await db.transaction().execute(async (trx) => {
-    const charge = await trx
-      .selectFrom("charge_item")
-      .select([
-        "id",
-        "lease_id",
-        "type",
-        "memo",
-        "currency",
-        "billing_month",
-        "paid_by_payment_id",
-      ])
-      .where("id", "=", chargeId)
-      .where("tenant_id", "=", tenantId)
-      .forUpdate()
-      .executeTakeFirst();
-    if (!charge) throw new Error("청구 항목을 찾을 수 없습니다.");
-    if (charge.paid_by_payment_id != null) return; // already settled — no-op
-    if (!charge.lease_id) {
-      throw new Error("계약이 연결되지 않은 청구는 수납할 수 없습니다.");
-    }
-    if (charge.currency !== "KRW") {
-      throw new Error("외화 청구는 수납 등록 페이지에서 처리해주세요.");
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const amount = Number(formData.get("amount"));
+    const method = (formData.get("payment_method") as string) || "cash";
+    const date = (formData.get("payment_date") as string) || seoulDateString();
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new ValidationError("금액을 올바르게 입력해주세요.");
     }
 
-    // charge.billing_month is first-of-month; fall back to the payment date's
-    // month for a one-time charge with no billing period.
-    const billingMonth = charge.billing_month
-      ? new Date(charge.billing_month).toISOString().slice(0, 10)
-      : `${date.slice(0, 7)}-01`;
+    const db = getDb();
+    await db.transaction().execute(async (trx) => {
+      const charge = await trx
+        .selectFrom("charge_item")
+        .select([
+          "id",
+          "lease_id",
+          "type",
+          "memo",
+          "currency",
+          "billing_month",
+          "paid_by_payment_id",
+        ])
+        .where("id", "=", chargeId)
+        .where("tenant_id", "=", tenantId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!charge) throw new ValidationError("청구 항목을 찾을 수 없습니다.");
+      if (charge.paid_by_payment_id != null) return; // already settled — no-op
+      if (!charge.lease_id) {
+        throw new ValidationError(
+          "계약이 연결되지 않은 청구는 수납할 수 없습니다.",
+        );
+      }
+      if (charge.currency !== "KRW") {
+        throw new ValidationError(
+          "외화 청구는 수납 등록 페이지에서 처리해주세요.",
+        );
+      }
 
-    const inserted = await trx
-      .insertInto("payment")
-      .values({
-        lease_id: charge.lease_id,
-        payment_type: charge.type,
-        label: charge.memo ?? null,
-        billing_month: billingMonth,
-        amount_krw: String(amount),
-        currency_paid: "KRW",
-        amount_paid: String(amount),
-        payment_method: method,
-        payment_date: date,
-        status: "paid",
-        received_by: Number(session.user.id),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+      // charge.billing_month is first-of-month; fall back to the payment date's
+      // month for a one-time charge with no billing period.
+      const billingMonth = charge.billing_month
+        ? new Date(charge.billing_month).toISOString().slice(0, 10)
+        : `${date.slice(0, 7)}-01`;
 
-    await trx
-      .updateTable("charge_item")
-      .set({
-        paid_by_payment_id: inserted.id,
-        status: "paid",
-        updated_at: new Date(),
-      })
-      .where("id", "=", chargeId)
-      .where("paid_by_payment_id", "is", null)
-      .execute();
+      const inserted = await trx
+        .insertInto("payment")
+        .values({
+          lease_id: charge.lease_id,
+          payment_type: charge.type,
+          label: charge.memo ?? null,
+          billing_month: billingMonth,
+          amount_krw: String(amount),
+          currency_paid: "KRW",
+          amount_paid: String(amount),
+          payment_method: method,
+          payment_date: date,
+          status: "paid",
+          received_by: Number(session.user.id),
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+
+      await trx
+        .updateTable("charge_item")
+        .set({
+          paid_by_payment_id: inserted.id,
+          status: "paid",
+          updated_at: new Date(),
+        })
+        .where("id", "=", chargeId)
+        .where("paid_by_payment_id", "is", null)
+        .execute();
+    });
+
+    revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath("/payments");
+    revalidatePath("/");
   });
-
-  revalidatePath(`/tenants/${tenantId}`);
-  revalidatePath("/payments");
-  revalidatePath("/");
 }
 
 /** 면제: forgive an outstanding charge — not collected, not revenue, drops out
@@ -718,7 +775,7 @@ export async function voidCharge(chargeId: number, tenantId: number) {
 
 function parseRecurringForm(formData: FormData) {
   const label = (formData.get("label") as string)?.trim();
-  if (!label) throw new Error("항목 이름을 입력해주세요.");
+  if (!label) throw new ValidationError("항목 이름을 입력해주세요.");
   const type = (formData.get("type") as string)?.trim() || "custom";
   const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
   const dueDayRaw = Number(formData.get("due_day"));
@@ -729,7 +786,7 @@ function parseRecurringForm(formData: FormData) {
   const amountRaw = (formData.get("amount") as string)?.trim();
   const amount = amountRaw ? Number(amountRaw) : null; // null = 변동(월마다 입력)
   if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
-    throw new Error("금액을 올바르게 입력해주세요.");
+    throw new ValidationError("금액을 올바르게 입력해주세요.");
   }
   const startRaw = (formData.get("start_month") as string)?.trim();
   const endRaw = (formData.get("end_month") as string)?.trim();
@@ -745,19 +802,24 @@ function parseRecurringForm(formData: FormData) {
 }
 
 /** Add a recurring-bill definition for a tenant (optionally seeded from a preset). */
-export async function addRecurringCharge(tenantId: number, formData: FormData) {
-  const session = await requireUser();
-  const db = getDb();
-  const fields = parseRecurringForm(formData);
-  await db
-    .insertInto("recurring_charge")
-    .values({
-      tenant_id: tenantId,
-      ...fields,
-      created_by: Number(session.user.id),
-    })
-    .execute();
-  revalidatePath(`/tenants/${tenantId}`);
+export async function addRecurringCharge(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const db = getDb();
+    const fields = parseRecurringForm(formData);
+    await db
+      .insertInto("recurring_charge")
+      .values({
+        tenant_id: tenantId,
+        ...fields,
+        created_by: Number(session.user.id),
+      })
+      .execute();
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 /** Update a definition. Amount changes apply to FUTURE generated charges only. */
@@ -765,17 +827,19 @@ export async function updateRecurringCharge(
   id: number,
   tenantId: number,
   formData: FormData,
-) {
-  await requireUser();
-  const db = getDb();
-  const fields = parseRecurringForm(formData);
-  await db
-    .updateTable("recurring_charge")
-    .set({ ...fields, updated_at: new Date() })
-    .where("id", "=", id)
-    .where("tenant_id", "=", tenantId)
-    .execute();
-  revalidatePath(`/tenants/${tenantId}`);
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireUser();
+    const db = getDb();
+    const fields = parseRecurringForm(formData);
+    await db
+      .updateTable("recurring_charge")
+      .set({ ...fields, updated_at: new Date() })
+      .where("id", "=", id)
+      .where("tenant_id", "=", tenantId)
+      .execute();
+    revalidatePath(`/tenants/${tenantId}`);
+  });
 }
 
 export async function toggleRecurringChargeActive(
@@ -875,99 +939,108 @@ async function notifyMentions(
     .execute();
 }
 
-export async function addTenantNote(tenantId: number, formData: FormData) {
-  const session = await requirePermission("tenant", "update");
+export async function addTenantNote(
+  tenantId: number,
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("tenant", "update");
 
-  const raw = (formData.get("content") as string) ?? "";
-  const content = sanitizeNoteHtml(raw).trim();
-  if (!content || content === "<p><br></p>") return;
+    const raw = (formData.get("content") as string) ?? "";
+    const content = sanitizeNoteHtml(raw).trim();
+    if (!content || content === "<p><br></p>") return;
 
-  const db = getDb();
-  const authorId = Number(session.user.id);
+    const db = getDb();
+    const authorId = Number(session.user.id);
 
-  const inserted = await db
-    .insertInto("tenant_note")
-    .values({
-      tenant_id: tenantId,
-      content,
-      created_by: authorId,
-    })
-    .returning("id")
-    .executeTakeFirstOrThrow();
+    const inserted = await db
+      .insertInto("tenant_note")
+      .values({
+        tenant_id: tenantId,
+        content,
+        created_by: authorId,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
 
-  const tenant = await db
-    .selectFrom("tenant")
-    .select("name")
-    .where("id", "=", tenantId)
-    .executeTakeFirst();
+    const tenant = await db
+      .selectFrom("tenant")
+      .select("name")
+      .where("id", "=", tenantId)
+      .executeTakeFirst();
 
-  await notifyMentions(db, {
-    tenantId,
-    noteId: inserted.id,
-    html: content,
-    authorId,
-    authorName: session.user.name ?? "동료",
-    tenantName: tenant?.name ?? "세입자",
+    await notifyMentions(db, {
+      tenantId,
+      noteId: inserted.id,
+      html: content,
+      authorId,
+      authorName: session.user.name ?? "동료",
+      tenantName: tenant?.name ?? "세입자",
+    });
+
+    revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath("/notifications");
   });
-
-  revalidatePath(`/tenants/${tenantId}`);
-  revalidatePath("/notifications");
 }
 
 export async function editTenantNote(
   noteId: number,
   tenantId: number,
   formData: FormData,
-) {
-  const session = await requirePermission("tenant", "update");
-  const db = getDb();
-  const authorId = Number(session.user.id);
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("tenant", "update");
+    const db = getDb();
+    const authorId = Number(session.user.id);
 
-  const existing = await db
-    .selectFrom("tenant_note")
-    .select(["created_by", "content"])
-    .where("id", "=", noteId)
-    .where("tenant_id", "=", tenantId)
-    .executeTakeFirst();
-  if (!existing) return;
-  if (existing.created_by !== authorId) {
-    throw new Error("본인이 작성한 메모만 수정할 수 있습니다.");
-  }
-
-  const raw = (formData.get("content") as string) ?? "";
-  const content = sanitizeNoteHtml(raw).trim();
-  if (!content || content === "<p><br></p>") return;
-
-  await db
-    .updateTable("tenant_note")
-    .set({ content, updated_at: new Date() })
-    .where("id", "=", noteId)
-    .execute();
-
-  // Only newly added mentions should notify.
-  const before = extractMentions(existing.content);
-  const after = extractMentions(content);
-  const newUserIds = after.userIds.filter((id) => !before.userIds.includes(id));
-  const everyoneIsNew = after.everyone && !before.everyone;
-  if (newUserIds.length > 0 || everyoneIsNew) {
-    const tenant = await db
-      .selectFrom("tenant")
-      .select("name")
-      .where("id", "=", tenantId)
+    const existing = await db
+      .selectFrom("tenant_note")
+      .select(["created_by", "content"])
+      .where("id", "=", noteId)
+      .where("tenant_id", "=", tenantId)
       .executeTakeFirst();
-    await notifyMentions(db, {
-      tenantId,
-      noteId,
-      html: content,
-      authorId,
-      authorName: session.user.name ?? "동료",
-      tenantName: tenant?.name ?? "세입자",
-      onlyUserIds: everyoneIsNew ? [...newUserIds, -1] : newUserIds,
-    });
-  }
+    if (!existing) return;
+    if (existing.created_by !== authorId) {
+      throw new ValidationError("본인이 작성한 메모만 수정할 수 있습니다.");
+    }
 
-  revalidatePath(`/tenants/${tenantId}`);
-  revalidatePath("/notifications");
+    const raw = (formData.get("content") as string) ?? "";
+    const content = sanitizeNoteHtml(raw).trim();
+    if (!content || content === "<p><br></p>") return;
+
+    await db
+      .updateTable("tenant_note")
+      .set({ content, updated_at: new Date() })
+      .where("id", "=", noteId)
+      .execute();
+
+    // Only newly added mentions should notify.
+    const before = extractMentions(existing.content);
+    const after = extractMentions(content);
+    const newUserIds = after.userIds.filter(
+      (id) => !before.userIds.includes(id),
+    );
+    const everyoneIsNew = after.everyone && !before.everyone;
+    if (newUserIds.length > 0 || everyoneIsNew) {
+      const tenant = await db
+        .selectFrom("tenant")
+        .select("name")
+        .where("id", "=", tenantId)
+        .executeTakeFirst();
+      await notifyMentions(db, {
+        tenantId,
+        noteId,
+        html: content,
+        authorId,
+        authorName: session.user.name ?? "동료",
+        tenantName: tenant?.name ?? "세입자",
+        onlyUserIds: everyoneIsNew ? [...newUserIds, -1] : newUserIds,
+      });
+    }
+
+    revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath("/notifications");
+  });
 }
 
 export async function toggleTenantNoteResolved(
@@ -1010,32 +1083,36 @@ export async function deleteTenantNote(id: number, tenantId: number) {
 
 // --- Base Locations ---
 
-export async function createBaseLocation(formData: FormData) {
-  await requireAdmin();
+export async function createBaseLocation(
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireAdmin();
 
-  const name = formData.get("name") as string;
-  const nameKo = (formData.get("name_ko") as string) || null;
+    const name = formData.get("name") as string;
+    const nameKo = (formData.get("name_ko") as string) || null;
 
-  if (!name?.trim()) return;
+    if (!name?.trim()) return;
 
-  const db = getDb();
+    const db = getDb();
 
-  const maxOrder = await db
-    .selectFrom("base_location")
-    .select(({ fn }) => fn.max("sort_order").as("max_order"))
-    .executeTakeFirst();
+    const maxOrder = await db
+      .selectFrom("base_location")
+      .select(({ fn }) => fn.max("sort_order").as("max_order"))
+      .executeTakeFirst();
 
-  await db
-    .insertInto("base_location")
-    .values({
-      name: name.trim(),
-      name_ko: nameKo?.trim() || null,
-      sort_order: ((maxOrder?.max_order as number) ?? 0) + 1,
-    })
-    .execute();
+    await db
+      .insertInto("base_location")
+      .values({
+        name: name.trim(),
+        name_ko: nameKo?.trim() || null,
+        sort_order: ((maxOrder?.max_order as number) ?? 0) + 1,
+      })
+      .execute();
 
-  revalidatePath("/tenants");
-  revalidatePath("/settings");
+    revalidatePath("/tenants");
+    revalidatePath("/settings");
+  });
 }
 
 export async function deleteBaseLocation(id: number) {
@@ -1072,61 +1149,70 @@ export async function createInspectionDraft(
   leaseId: number,
   propertyId: number,
   formData: FormData,
-) {
-  const session = await requireUser();
-  const db = getDb();
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requireUser();
+    const db = getDb();
 
-  const type = formData.get("type") === "move_out" ? "move_out" : "move_in";
-  const dateRaw = formData.get("inspected_at") as string | null;
-  const inspected_at = dateRaw ? new Date(dateRaw) : new Date();
+    const type = formData.get("type") === "move_out" ? "move_out" : "move_in";
+    const dateRaw = formData.get("inspected_at") as string | null;
+    const inspected_at = dateRaw ? new Date(dateRaw) : new Date();
 
-  const [sections, items, property] = await Promise.all([
-    db
-      .selectFrom("inspection_section")
-      .select(["id", "key", "label_ko", "label_en", "repeatable", "sort_order"])
-      .orderBy("sort_order", "asc")
-      .execute(),
-    db
-      .selectFrom("inspection_item")
-      .select([
-        "id",
-        "section_id",
-        "subgroup_ko",
-        "subgroup_en",
-        "label_ko",
-        "label_en",
-        "sort_order",
-      ])
-      .orderBy("sort_order", "asc")
-      .execute(),
-    db
-      .selectFrom("property")
-      .select(["rooms", "bathrooms"])
-      .where("id", "=", propertyId)
-      .executeTakeFirst(),
-  ]);
+    const [sections, items, property] = await Promise.all([
+      db
+        .selectFrom("inspection_section")
+        .select([
+          "id",
+          "key",
+          "label_ko",
+          "label_en",
+          "repeatable",
+          "sort_order",
+        ])
+        .orderBy("sort_order", "asc")
+        .execute(),
+      db
+        .selectFrom("inspection_item")
+        .select([
+          "id",
+          "section_id",
+          "subgroup_ko",
+          "subgroup_en",
+          "label_ko",
+          "label_en",
+          "sort_order",
+        ])
+        .orderBy("sort_order", "asc")
+        .execute(),
+      db
+        .selectFrom("property")
+        .select(["rooms", "bathrooms"])
+        .where("id", "=", propertyId)
+        .executeTakeFirst(),
+    ]);
 
-  const snapshot = buildInspectionSnapshot(sections, items, {
-    rooms: property?.rooms ?? null,
-    bathrooms: property?.bathrooms ?? null,
+    const snapshot = buildInspectionSnapshot(sections, items, {
+      rooms: property?.rooms ?? null,
+      bathrooms: property?.bathrooms ?? null,
+    });
+
+    const inserted = await db
+      .insertInto("inspection")
+      .values({
+        lease_id: leaseId,
+        property_id: propertyId,
+        type,
+        inspected_at,
+        status: "draft",
+        checklist: JSON.stringify(snapshot),
+        created_by: Number(session.user.id),
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+
+    revalidatePath(`/tenants/${tenantId}`);
+    redirect(`/inspections/${inserted.id}`);
   });
-
-  const inserted = await db
-    .insertInto("inspection")
-    .values({
-      lease_id: leaseId,
-      property_id: propertyId,
-      type,
-      inspected_at,
-      status: "draft",
-      checklist: JSON.stringify(snapshot),
-      created_by: Number(session.user.id),
-    })
-    .returning("id")
-    .executeTakeFirstOrThrow();
-
-  revalidatePath(`/tenants/${tenantId}`);
-  redirect(`/inspections/${inserted.id}`);
 }
 
 export async function saveInspection(
@@ -1150,52 +1236,57 @@ export async function saveInspection(
   revalidatePath(`/tenants/${tenantId}`);
 }
 
-export async function finalizeInspection(id: number, tenantId: number) {
-  await requireUser();
-  const db = getDb();
+export async function finalizeInspection(
+  id: number,
+  tenantId: number,
+): Promise<FormState> {
+  return runAction(async () => {
+    await requireUser();
+    const db = getDb();
 
-  const insp = await db
-    .selectFrom("inspection")
-    .select(["type", "property_id", "inspected_at"])
-    .where("id", "=", id)
-    .executeTakeFirst();
-  if (!insp) throw new Error("점검 기록을 찾을 수 없습니다.");
-
-  await db.transaction().execute(async (trx) => {
-    await trx
-      .updateTable("inspection")
-      .set({ status: "finalized", updated_at: new Date() })
+    const insp = await db
+      .selectFrom("inspection")
+      .select(["type", "property_id", "inspected_at"])
       .where("id", "=", id)
-      .execute();
+      .executeTakeFirst();
+    if (!insp) throw new ValidationError("점검 기록을 찾을 수 없습니다.");
 
-    if (insp.type === "move_in") {
+    await db.transaction().execute(async (trx) => {
       await trx
-        .updateTable("property")
-        .set({ status: "occupied", updated_at: new Date() })
-        .where("id", "=", insp.property_id)
+        .updateTable("inspection")
+        .set({ status: "finalized", updated_at: new Date() })
+        .where("id", "=", id)
         .execute();
-    } else {
-      const moveoutDate = seoulDateString(
-        insp.inspected_at instanceof Date
-          ? insp.inspected_at
-          : new Date(insp.inspected_at),
-      );
-      await trx
-        .updateTable("property")
-        .set({
-          status: "move_out",
-          moveout_date: moveoutDate,
-          updated_at: new Date(),
-        })
-        .where("id", "=", insp.property_id)
-        .execute();
-    }
+
+      if (insp.type === "move_in") {
+        await trx
+          .updateTable("property")
+          .set({ status: "occupied", updated_at: new Date() })
+          .where("id", "=", insp.property_id)
+          .execute();
+      } else {
+        const moveoutDate = seoulDateString(
+          insp.inspected_at instanceof Date
+            ? insp.inspected_at
+            : new Date(insp.inspected_at),
+        );
+        await trx
+          .updateTable("property")
+          .set({
+            status: "move_out",
+            moveout_date: moveoutDate,
+            updated_at: new Date(),
+          })
+          .where("id", "=", insp.property_id)
+          .execute();
+      }
+    });
+
+    revalidatePath(`/tenants/${tenantId}`);
+    revalidatePath(`/inspections/${id}`);
+    revalidatePath("/properties");
+    revalidatePath(`/properties/${insp.property_id}`);
   });
-
-  revalidatePath(`/tenants/${tenantId}`);
-  revalidatePath(`/inspections/${id}`);
-  revalidatePath("/properties");
-  revalidatePath(`/properties/${insp.property_id}`);
 }
 
 async function deleteInspectionBlobs(
@@ -1262,164 +1353,168 @@ export async function deleteInspectionPhoto(
  * 만들고, 주소가 있으면 집주인→매물→계약까지 한 트랜잭션으로 생성한다. 기존
  * 집주인(전화 일치)·매물(주소 일치)은 재사용한다.
  */
-export async function createCustomerIntake(formData: FormData) {
-  const session = await requirePermission("tenant", "create");
-  const plan = parseCustomerIntake(formData, { today: seoulDateString() });
-  if (plan.housing) {
-    await requirePermission("lease", "create");
-    await requirePermission("property", "create");
-    if (plan.housing.landlord.mode === "new") {
-      await requirePermission("landlord", "create");
-    }
-  }
-
-  const db = getDb();
-  const userId = Number(session.user.id);
-  let tenantId = 0;
-
-  await db.transaction().execute(async (trx) => {
-    const H = plan.housing;
-
-    // 1. 매물 재사용 조회 — 기존 매물이면 그 집주인을 그대로 쓴다.
-    let propertyId = 0;
-    if (H) {
-      const matches = await trx
-        .selectFrom("property")
-        .select(["id"])
-        .where((eb) =>
-          H.addressJibeon
-            ? eb("address_jibeon", "=", H.addressJibeon)
-            : eb("address", "=", H.address),
-        )
-        .where((eb) =>
-          H.addressDetail
-            ? eb("address_detail", "=", H.addressDetail)
-            : eb.or([
-                eb("address_detail", "is", null),
-                eb("address_detail", "=", ""),
-              ]),
-        )
-        .execute();
-      if (matches.length === 1) propertyId = matches[0].id;
-    }
-
-    // 2. 집주인 (새 매물일 때만 필요)
-    let landlordId = 0;
-    if (H && !propertyId) {
-      if (H.landlord.mode === "existing") {
-        landlordId = H.landlord.landlordId;
-      } else {
-        if (H.landlord.phone) {
-          const digits = normalizePhone(H.landlord.phone);
-          if (digits) {
-            const all = await trx
-              .selectFrom("landlord")
-              .select(["id", "phone"])
-              .execute();
-            const hits = all.filter(
-              (l) => l.phone && normalizePhone(l.phone) === digits,
-            );
-            if (hits.length === 1) landlordId = hits[0].id;
-          }
-        }
-        if (!landlordId) {
-          const ins = await trx
-            .insertInto("landlord")
-            .values({
-              name: H.landlord.name,
-              phone: H.landlord.phone ?? "",
-              created_by: userId,
-            })
-            .returning("id")
-            .executeTakeFirstOrThrow();
-          landlordId = ins.id;
-        }
+export async function createCustomerIntake(
+  formData: FormData,
+): Promise<FormState> {
+  return runAction(async () => {
+    const session = await requirePermission("tenant", "create");
+    const plan = parseCustomerIntake(formData, { today: seoulDateString() });
+    if (plan.housing) {
+      await requirePermission("lease", "create");
+      await requirePermission("property", "create");
+      if (plan.housing.landlord.mode === "new") {
+        await requirePermission("landlord", "create");
       }
     }
 
-    // 3. 매물 생성 (재사용 안 된 경우)
-    if (H && !propertyId) {
-      const ins = await trx
-        .insertInto("property")
+    const db = getDb();
+    const userId = Number(session.user.id);
+    let tenantId = 0;
+
+    await db.transaction().execute(async (trx) => {
+      const H = plan.housing;
+
+      // 1. 매물 재사용 조회 — 기존 매물이면 그 집주인을 그대로 쓴다.
+      let propertyId = 0;
+      if (H) {
+        const matches = await trx
+          .selectFrom("property")
+          .select(["id"])
+          .where((eb) =>
+            H.addressJibeon
+              ? eb("address_jibeon", "=", H.addressJibeon)
+              : eb("address", "=", H.address),
+          )
+          .where((eb) =>
+            H.addressDetail
+              ? eb("address_detail", "=", H.addressDetail)
+              : eb.or([
+                  eb("address_detail", "is", null),
+                  eb("address_detail", "=", ""),
+                ]),
+          )
+          .execute();
+        if (matches.length === 1) propertyId = matches[0].id;
+      }
+
+      // 2. 집주인 (새 매물일 때만 필요)
+      let landlordId = 0;
+      if (H && !propertyId) {
+        if (H.landlord.mode === "existing") {
+          landlordId = H.landlord.landlordId;
+        } else {
+          if (H.landlord.phone) {
+            const digits = normalizePhone(H.landlord.phone);
+            if (digits) {
+              const all = await trx
+                .selectFrom("landlord")
+                .select(["id", "phone"])
+                .execute();
+              const hits = all.filter(
+                (l) => l.phone && normalizePhone(l.phone) === digits,
+              );
+              if (hits.length === 1) landlordId = hits[0].id;
+            }
+          }
+          if (!landlordId) {
+            const ins = await trx
+              .insertInto("landlord")
+              .values({
+                name: H.landlord.name,
+                phone: H.landlord.phone ?? "",
+                created_by: userId,
+              })
+              .returning("id")
+              .executeTakeFirstOrThrow();
+            landlordId = ins.id;
+          }
+        }
+      }
+
+      // 3. 매물 생성 (재사용 안 된 경우)
+      if (H && !propertyId) {
+        const ins = await trx
+          .insertInto("property")
+          .values({
+            address: H.address,
+            address_jibeon: H.addressJibeon,
+            address_detail: H.addressDetail,
+            address_en: H.addressEn,
+            property_type: "apartment",
+            monthly_rent_krw: H.monthlyRentKrw,
+            deposit_krw: H.depositKrw,
+            status: "occupied",
+            landlord_id: landlordId,
+            created_by: userId,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        propertyId = ins.id;
+      }
+
+      // 4. 고객
+      const T = plan.tenant;
+      const tIns = await trx
+        .insertInto("tenant")
         .values({
-          address: H.address,
-          address_jibeon: H.addressJibeon,
-          address_detail: H.addressDetail,
-          address_en: H.addressEn,
-          property_type: "apartment",
-          monthly_rent_krw: H.monthlyRentKrw,
-          deposit_krw: H.depositKrw,
-          status: "occupied",
-          landlord_id: landlordId,
+          name: T.name,
+          phone: T.phone,
+          rank: T.rank,
+          unit: T.unit,
+          base_location_id: T.baseLocationId,
+          status: "active",
           created_by: userId,
         })
         .returning("id")
         .executeTakeFirstOrThrow();
-      propertyId = ins.id;
-    }
+      tenantId = tIns.id;
 
-    // 4. 고객
-    const T = plan.tenant;
-    const tIns = await trx
-      .insertInto("tenant")
-      .values({
-        name: T.name,
-        phone: T.phone,
-        rank: T.rank,
-        unit: T.unit,
-        base_location_id: T.baseLocationId,
-        status: "active",
-        created_by: userId,
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    tenantId = tIns.id;
-
-    // 5. 계약 + 부수효과 (기존 createLease와 동일한 규칙)
-    if (H) {
-      await trx
-        .insertInto("lease")
-        .values({
-          property_id: propertyId,
-          tenant_id: tenantId,
-          start_date: new Date(H.startDate),
-          end_date: new Date(H.endDate),
-          monthly_rent_krw: H.monthlyRentKrw,
-          deposit_krw: H.depositKrw,
-          status: "active",
-          created_by: userId,
-        })
-        .execute();
-      await trx
-        .updateTable("property")
-        .set({ status: "occupied", updated_at: new Date() })
-        .where("id", "=", propertyId)
-        .execute();
-      if (Number(H.monthlyRentKrw) > 0) {
-        await syncTenantRentDef(trx, {
-          tenantId,
-          monthlyRentKrw: H.monthlyRentKrw,
-          startDate: new Date(H.startDate),
-          endDate: new Date(H.endDate),
-          active: true,
-          createdBy: userId,
-        });
+      // 5. 계약 + 부수효과 (기존 createLease와 동일한 규칙)
+      if (H) {
+        await trx
+          .insertInto("lease")
+          .values({
+            property_id: propertyId,
+            tenant_id: tenantId,
+            start_date: new Date(H.startDate),
+            end_date: new Date(H.endDate),
+            monthly_rent_krw: H.monthlyRentKrw,
+            deposit_krw: H.depositKrw,
+            status: "active",
+            created_by: userId,
+          })
+          .execute();
+        await trx
+          .updateTable("property")
+          .set({ status: "occupied", updated_at: new Date() })
+          .where("id", "=", propertyId)
+          .execute();
+        if (Number(H.monthlyRentKrw) > 0) {
+          await syncTenantRentDef(trx, {
+            tenantId,
+            monthlyRentKrw: H.monthlyRentKrw,
+            startDate: new Date(H.startDate),
+            endDate: new Date(H.endDate),
+            active: true,
+            createdBy: userId,
+          });
+        }
       }
-    }
 
-    // 6. 메모 → 카드의 메모(노트)로
-    if (plan.memo) {
-      const html = sanitizeNoteHtml(
-        `<p>${escapeHtml(plan.memo).replace(/\n/g, "<br />")}</p>`,
-      );
-      await trx
-        .insertInto("tenant_note")
-        .values({ tenant_id: tenantId, content: html, created_by: userId })
-        .execute();
-    }
+      // 6. 메모 → 카드의 메모(노트)로
+      if (plan.memo) {
+        const html = sanitizeNoteHtml(
+          `<p>${escapeHtml(plan.memo).replace(/\n/g, "<br />")}</p>`,
+        );
+        await trx
+          .insertInto("tenant_note")
+          .values({ tenant_id: tenantId, content: html, created_by: userId })
+          .execute();
+      }
+    });
+
+    revalidatePath("/tenants");
+    revalidatePath("/properties");
+    redirect(`/tenants/${tenantId}`);
   });
-
-  revalidatePath("/tenants");
-  revalidatePath("/properties");
-  redirect(`/tenants/${tenantId}`);
 }

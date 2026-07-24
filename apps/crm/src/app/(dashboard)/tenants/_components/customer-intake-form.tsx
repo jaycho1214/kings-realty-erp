@@ -10,6 +10,7 @@ import { AutocompleteCreate } from "@/components/autocomplete-create";
 import { AddressField } from "@/components/address-field";
 import { addMonths, monthsBetween, seoulDateString } from "@/lib/date";
 import { createCustomerIntake } from "../_actions";
+import { ActionForm } from "@/components/action-form";
 
 const selectClassName =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm";
@@ -39,7 +40,7 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
   }));
 
   return (
-    <form
+    <ActionForm
       action={createCustomerIntake}
       onKeyDown={(e) => {
         const target = e.target as HTMLElement;
@@ -78,10 +79,13 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
               <Input id="unit" name="unit" />
             </Field>
             <Field>
-              <Label htmlFor="base_location_id">기지</Label>
+              <Label htmlFor="base_location_id">
+                기지 <span className="text-danger">*</span>
+              </Label>
               <select
                 id="base_location_id"
                 name="base_location_id"
+                required
                 defaultValue={
                   baseLocations[0] ? String(baseLocations[0].id) : ""
                 }
@@ -187,6 +191,6 @@ export function CustomerIntakeForm({ landlords, baseLocations }: Props) {
           <SubmitButton label="등록" />
         </div>
       </FieldGroup>
-    </form>
+    </ActionForm>
   );
 }

@@ -34,6 +34,8 @@ export function TenantStatusButton({
   // (defaults to today) instead of always stamping "now".
   const [open, setOpen] = useState(false);
   const [movedOutOn, setMovedOutOn] = useState(() => seoulDateString());
+  // "올바르지 않은 날짜입니다." arrives as returned state, not a throw.
+  const [error, setError] = useState<string | null>(null);
   const valid = /^\d{4}-\d{2}-\d{2}$/.test(movedOutOn);
 
   if (isActive) {
@@ -74,6 +76,11 @@ export function TenantStatusButton({
                 onChange={(e) => setMovedOutOn(e.target.value)}
               />
             </Field>
+            {error && (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel>취소</AlertDialogCancel>
               <Button
@@ -81,7 +88,12 @@ export function TenantStatusButton({
                 disabled={!valid || isPending}
                 onClick={() =>
                   startTransition(async () => {
-                    await updateTenantStatus(tenantId, "inactive", movedOutOn);
+                    const result = await updateTenantStatus(
+                      tenantId,
+                      "inactive",
+                      movedOutOn,
+                    );
+                    if (result?.error) return setError(result.error);
                     setOpen(false);
                   })
                 }

@@ -13,6 +13,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { OHA_GROUPS } from "@/lib/oha-groups";
 import { formatKRW, cn } from "@/lib/utils";
 import { updateOhaRates } from "@/app/(dashboard)/settings/_actions";
+import { ActionForm } from "@/components/action-form";
 
 interface OhaAmounts {
   with: string;
@@ -37,7 +38,7 @@ export function OhaRateTable({
   editable,
 }: OhaRateTableProps) {
   return (
-    <form action={updateOhaRates} className="space-y-2.5">
+    <ActionForm action={updateOhaRates} className="space-y-2.5">
       <Table>
         <TableHeader>
           <TableRow>
@@ -53,10 +54,7 @@ export function OhaRateTable({
             return (
               <TableRow key={g.code} className={cn(on && "bg-brand-weak/60")}>
                 <TableCell
-                  className={cn(
-                    "font-medium",
-                    on && "border-l-2 border-brand",
-                  )}
+                  className={cn("font-medium", on && "border-l-2 border-brand")}
                 >
                   <div className="flex flex-col">
                     <span className="flex items-center gap-1.5">
@@ -100,6 +98,6 @@ export function OhaRateTable({
           <SubmitButton label="저장" />
         </div>
       )}
-    </form>
+    </ActionForm>
   );
 }

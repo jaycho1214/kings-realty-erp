@@ -101,8 +101,14 @@ function PlaceholderAmount({
 }) {
   const [value, setValue] = useState("");
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      {error && (
+        <p role="alert" className="w-full text-right text-xs text-danger">
+          {error}
+        </p>
+      )}
       <Input
         type="number"
         min={0}
@@ -118,7 +124,12 @@ function PlaceholderAmount({
         aria-label="금액 저장"
         onClick={() =>
           startTransition(async () => {
-            await setChargeAmount(chargeId, tenantId, Number(value));
+            const result = await setChargeAmount(
+              chargeId,
+              tenantId,
+              Number(value),
+            );
+            setError(result?.error ?? null);
           })
         }
       >
@@ -219,7 +230,10 @@ function SettleForm({
   function action(formData: FormData) {
     startTransition(async () => {
       try {
-        await settleCharge(charge.id, tenantId, formData);
+        // "외화 청구는 수납 등록 페이지에서 처리해주세요." comes back as state:
+        // a thrown message would be stripped before it reached the browser.
+        const result = await settleCharge(charge.id, tenantId, formData);
+        if (result?.error) return setError(result.error);
         onDone();
       } catch (e) {
         setError(e instanceof Error ? e.message : "오류가 발생했습니다.");

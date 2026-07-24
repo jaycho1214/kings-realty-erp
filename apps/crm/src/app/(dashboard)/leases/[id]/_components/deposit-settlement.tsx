@@ -63,6 +63,9 @@ export function DepositSettlement({
       : "",
   );
   const [pending, startTransition] = useTransition();
+  // The actions report expected failures ("확정된 정산은 수정할 수 없습니다.") as
+  // returned state — throwing would reach the browser stripped of its message.
+  const [error, setError] = useState<string | null>(null);
 
   const deposit = settlement ? Number(settlement.deposit_amount) : depositKrw;
   const deductionTotal = deductions.reduce(
@@ -89,7 +92,9 @@ export function DepositSettlement({
     fd.set("deductions", JSON.stringify(deductions));
     fd.set("refund_method", refundMethod);
     fd.set("refunded_date", refundedDate);
-    startTransition(() => saveDepositSettlement(leaseId, fd));
+    startTransition(async () => {
+      setError((await saveDepositSettlement(leaseId, fd))?.error ?? null);
+    });
   }
 
   function handleConfirm() {
@@ -98,7 +103,9 @@ export function DepositSettlement({
         "보증금 정산을 확정하시겠습니까? 확정 후에는 수정할 수 없으며 환급이 원장에 기록됩니다.",
       )
     ) {
-      startTransition(() => confirmDepositSettlement(leaseId));
+      startTransition(async () => {
+        setError((await confirmDepositSettlement(leaseId))?.error ?? null);
+      });
     }
   }
 
@@ -211,7 +218,12 @@ export function DepositSettlement({
       </div>
 
       {!confirmed && (
-        <div className="flex justify-end gap-2 border-t border-border/60 pt-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+          {error && (
+            <p role="alert" className="mr-auto text-sm text-danger">
+              {error}
+            </p>
+          )}
           <Button variant="outline" onClick={handleSave} disabled={pending}>
             저장
           </Button>

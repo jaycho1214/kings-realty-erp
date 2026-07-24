@@ -18,6 +18,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { ArrowLeftRight } from "lucide-react";
 import { seoulDateString, addDays } from "@/lib/date";
 import { setExchangeRate } from "./_actions";
+import { ActionForm } from "@/components/action-form";
 
 const DENOMINATIONS = [100, 50, 20, 10, 5, 1] as const;
 
@@ -119,7 +120,7 @@ export default async function ExchangeRatePage() {
           <CardTitle className="text-sm font-medium">환율 등록</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={setExchangeRate} className="space-y-4">
+          <ActionForm action={setExchangeRate} className="space-y-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div className="max-w-xs space-y-1.5">
                 <Label htmlFor="date">
@@ -152,7 +153,7 @@ export default async function ExchangeRatePage() {
                 </div>
               ))}
             </div>
-          </form>
+          </ActionForm>
         </CardContent>
       </Card>
 
