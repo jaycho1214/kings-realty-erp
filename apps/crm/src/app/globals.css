@@ -340,3 +340,15 @@
     backdrop-filter: none !important;
   }
 }
+
+/* Roster rail rows.
+   All 100+ rows stay in the DOM so ↑/↓ navigation and scrollIntoView keep
+   working — a virtualized list would break both, since they look rows up by
+   [data-tenant-id]. content-visibility lets the browser skip layout and paint
+   for rows scrolled out of view instead, which is where the cost actually is.
+   The `auto` keyword makes it remember each row's real height after first
+   render, so the scrollbar doesn't jump around. */
+.roster-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 53px;
+}
