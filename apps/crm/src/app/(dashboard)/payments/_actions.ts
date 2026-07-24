@@ -12,6 +12,8 @@ import {
 import { seoulDateString } from "@/lib/date";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
+import { parseForm } from "@/lib/schemas/parse";
+import { paymentSchema } from "@/lib/schemas/lease";
 
 export async function createPayment(formData: FormData): Promise<FormState> {
   return runAction(async () => {
@@ -19,34 +21,20 @@ export async function createPayment(formData: FormData): Promise<FormState> {
 
     const db = getDb();
 
-    const lease_id = Number(formData.get("lease_id") as string);
-    const payment_type = formData.get("payment_type") as string;
-    const billing_month = new Date(
-      (formData.get("billing_month") as string) + "-01",
-    );
-    const amount_krw = formData.get("amount_krw") as string;
-    const currency_paid = formData.get("currency_paid") as string;
-    const amount_paid = formData.get("amount_paid") as string;
-    const exchange_rate_id_raw =
-      (formData.get("exchange_rate_id") as string) || null;
-    const exchange_rate_id = exchange_rate_id_raw
-      ? Number(exchange_rate_id_raw)
-      : null;
-    const payment_method = formData.get("payment_method") as string;
-    const payment_date = new Date(formData.get("payment_date") as string);
-
-    if (!Number.isInteger(lease_id) || lease_id <= 0) {
-      throw new ValidationError("계약을 선택해주세요.");
-    }
-    if (
-      Number.isNaN(billing_month.getTime()) ||
-      Number.isNaN(payment_date.getTime())
-    ) {
-      throw new ValidationError("청구 월과 납부일을 올바르게 입력해주세요.");
-    }
-
-    const status = (formData.get("status") as string) || "pending";
-    const notes = (formData.get("notes") as string) || null;
+    const v = parseForm(paymentSchema, formData);
+    const {
+      lease_id,
+      payment_type,
+      currency_paid,
+      exchange_rate_id,
+      payment_method,
+      payment_date,
+      status,
+      notes,
+    } = v;
+    const billing_month = new Date(`${v.billing_month}-01`);
+    const amount_krw = String(v.amount_krw);
+    const amount_paid = String(v.amount_paid);
 
     await db.transaction().execute(async (trx) => {
       await trx
@@ -152,34 +140,20 @@ export async function updatePayment(
   return runAction(async () => {
     await requireUser();
 
-    const lease_id = Number(formData.get("lease_id") as string);
-    const payment_type = formData.get("payment_type") as string;
-    const billing_month = new Date(
-      (formData.get("billing_month") as string) + "-01",
-    );
-    const amount_krw = formData.get("amount_krw") as string;
-    const currency_paid = formData.get("currency_paid") as string;
-    const amount_paid = formData.get("amount_paid") as string;
-    const exchange_rate_id_raw =
-      (formData.get("exchange_rate_id") as string) || null;
-    const exchange_rate_id = exchange_rate_id_raw
-      ? Number(exchange_rate_id_raw)
-      : null;
-    const payment_method = formData.get("payment_method") as string;
-    const payment_date = new Date(formData.get("payment_date") as string);
-
-    if (!Number.isInteger(lease_id) || lease_id <= 0) {
-      throw new ValidationError("계약을 선택해주세요.");
-    }
-    if (
-      Number.isNaN(billing_month.getTime()) ||
-      Number.isNaN(payment_date.getTime())
-    ) {
-      throw new ValidationError("청구 월과 납부일을 올바르게 입력해주세요.");
-    }
-
-    const status = (formData.get("status") as string) || "pending";
-    const notes = (formData.get("notes") as string) || null;
+    const v = parseForm(paymentSchema, formData);
+    const {
+      lease_id,
+      payment_type,
+      currency_paid,
+      exchange_rate_id,
+      payment_method,
+      payment_date,
+      status,
+      notes,
+    } = v;
+    const billing_month = new Date(`${v.billing_month}-01`);
+    const amount_krw = String(v.amount_krw);
+    const amount_paid = String(v.amount_paid);
 
     await writePaymentUpdate(id, {
       lease_id,
@@ -225,38 +199,28 @@ export async function updateTenantPayment(
   return runAction(async () => {
     await requireUser();
 
-    const lease_id = Number(formData.get("lease_id") as string);
-    const payment_type = formData.get("payment_type") as string;
-    const billing_month = new Date(
-      (formData.get("billing_month") as string) + "-01",
-    );
-    const amount_krw = formData.get("amount_krw") as string;
-    const currency_paid = formData.get("currency_paid") as string;
-    const amount_paid = formData.get("amount_paid") as string;
-    const exchange_rate_id_raw =
-      (formData.get("exchange_rate_id") as string) || null;
-    const exchange_rate_id = exchange_rate_id_raw
-      ? Number(exchange_rate_id_raw)
-      : null;
-    const payment_method = formData.get("payment_method") as string;
-    const payment_date = new Date(formData.get("payment_date") as string);
-    const status = (formData.get("status") as string) || "pending";
-    const notes = (formData.get("notes") as string) || null;
+    const v = parseForm(paymentSchema, formData);
+    const {
+      lease_id,
+      payment_type,
+      currency_paid,
+      exchange_rate_id,
+      payment_method,
+      payment_date,
+      status,
+      notes,
+    } = v;
+    const billing_month = new Date(`${v.billing_month}-01`);
+    const amount_krw = String(v.amount_krw);
+    const amount_paid = String(v.amount_paid);
 
-    if (!Number.isInteger(lease_id) || lease_id <= 0) {
-      throw new ValidationError("계약을 선택해주세요.");
-    }
+    // These two sets are populated from the DB catalog at runtime, so they stay
+    // outside the schema.
     if (!PAYMENT_TYPES.has(payment_type)) {
       throw new ValidationError("올바르지 않은 수납 유형입니다.");
     }
     if (!PAYMENT_STATUSES.has(status)) {
       throw new ValidationError("올바르지 않은 상태입니다.");
-    }
-    if (
-      Number.isNaN(billing_month.getTime()) ||
-      Number.isNaN(payment_date.getTime())
-    ) {
-      throw new ValidationError("청구 월과 납부일을 올바르게 입력해주세요.");
     }
 
     await writePaymentUpdate(id, {
@@ -293,38 +257,28 @@ export async function updatePropertyPayment(
   return runAction(async () => {
     await requireUser();
 
-    const lease_id = Number(formData.get("lease_id") as string);
-    const payment_type = formData.get("payment_type") as string;
-    const billing_month = new Date(
-      (formData.get("billing_month") as string) + "-01",
-    );
-    const amount_krw = formData.get("amount_krw") as string;
-    const currency_paid = formData.get("currency_paid") as string;
-    const amount_paid = formData.get("amount_paid") as string;
-    const exchange_rate_id_raw =
-      (formData.get("exchange_rate_id") as string) || null;
-    const exchange_rate_id = exchange_rate_id_raw
-      ? Number(exchange_rate_id_raw)
-      : null;
-    const payment_method = formData.get("payment_method") as string;
-    const payment_date = new Date(formData.get("payment_date") as string);
-    const status = (formData.get("status") as string) || "pending";
-    const notes = (formData.get("notes") as string) || null;
+    const v = parseForm(paymentSchema, formData);
+    const {
+      lease_id,
+      payment_type,
+      currency_paid,
+      exchange_rate_id,
+      payment_method,
+      payment_date,
+      status,
+      notes,
+    } = v;
+    const billing_month = new Date(`${v.billing_month}-01`);
+    const amount_krw = String(v.amount_krw);
+    const amount_paid = String(v.amount_paid);
 
-    if (!Number.isInteger(lease_id) || lease_id <= 0) {
-      throw new ValidationError("계약을 선택해주세요.");
-    }
+    // These two sets are populated from the DB catalog at runtime, so they stay
+    // outside the schema.
     if (!PAYMENT_TYPES.has(payment_type)) {
       throw new ValidationError("올바르지 않은 수납 유형입니다.");
     }
     if (!PAYMENT_STATUSES.has(status)) {
       throw new ValidationError("올바르지 않은 상태입니다.");
-    }
-    if (
-      Number.isNaN(billing_month.getTime()) ||
-      Number.isNaN(payment_date.getTime())
-    ) {
-      throw new ValidationError("청구 월과 납부일을 올바르게 입력해주세요.");
     }
 
     await writePaymentUpdate(id, {

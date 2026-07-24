@@ -3,7 +3,8 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
-import { ValidationError } from "@/lib/validation-error";
+import { parseForm } from "@/lib/schemas/parse";
+import { billPresetSchema } from "@/lib/schemas/settings";
 import { runAction, type FormState } from "@/lib/form-action";
 
 /**
@@ -13,33 +14,11 @@ import { runAction, type FormState } from "@/lib/form-action";
  */
 
 function parsePresetForm(formData: FormData) {
-  const label = (formData.get("label") as string)?.trim();
-  if (!label) throw new ValidationError("이름을 입력해주세요.");
-  const type = (formData.get("type") as string)?.trim() || label;
-  const isVariable = formData.get("is_variable") === "on";
-  const dueDayRaw = Number(formData.get("default_due_day"));
-  const default_due_day =
-    Number.isFinite(dueDayRaw) && dueDayRaw >= 1 && dueDayRaw <= 31
-      ? Math.floor(dueDayRaw)
-      : 10;
-  const amountRaw = (formData.get("default_amount") as string)?.trim();
-  const default_amount = isVariable || !amountRaw ? null : Number(amountRaw);
-  if (
-    default_amount != null &&
-    (!Number.isFinite(default_amount) || default_amount < 0)
-  ) {
-    throw new ValidationError("금액을 올바르게 입력해주세요.");
-  }
-  const currency = formData.get("default_currency") === "USD" ? "USD" : "KRW";
-  const variant = (formData.get("variant") as string)?.trim() || "outline";
+  const v = parseForm(billPresetSchema, formData);
   return {
-    label,
-    type,
-    is_variable: isVariable,
-    default_due_day,
-    default_amount: default_amount == null ? null : String(default_amount),
-    default_currency: currency,
-    variant,
+    ...v,
+    default_amount:
+      v.default_amount == null ? null : String(v.default_amount),
   };
 }
 

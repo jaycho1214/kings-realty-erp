@@ -56,7 +56,9 @@ export const depositSettlementSchema = z.object({
 export const paymentSchema = z.object({
   lease_id: f.id("계약을 선택해주세요."),
   payment_type: f.text("수납 유형을 선택해주세요."),
-  billing_month: f.date("청구 월과 납부일을 올바르게 입력해주세요."),
+  exchange_rate_id: f.optionalId(),
+  // <input type="month"> → "YYYY-MM"; the action appends "-01".
+  billing_month: f.month("청구 월과 납부일을 올바르게 입력해주세요."),
   amount_krw: f.amountOrZero("금액을 올바르게 입력해주세요."),
   currency_paid: f.enumWithDefault(["KRW", "USD"] as const, "KRW"),
   amount_paid: f.amountOrZero("납부 금액을 올바르게 입력해주세요."),
@@ -69,32 +71,18 @@ export const paymentSchema = z.object({
   notes: f.optionalText(),
 });
 
-export const exchangeRateSchema = z.object({
-  rate_date: f.ymd("날짜를 입력해주세요."),
-});
-
-export const utilityTypeSchema = z.object({
-  name: f.text("유형 이름을 입력해주세요."),
-});
-
-export const serviceCategorySchema = z.object({
-  value: f.text("카테고리 값과 이름을 입력해주세요."),
-  label: f.text("카테고리 값과 이름을 입력해주세요."),
-});
-
-export const exchangeVendorSchema = z.object({
-  name: f.text("환전업체 이름을 입력해주세요."),
-  base_rate: f.positiveAmount("기준 환율을 올바르게 입력해주세요."),
-});
-
-export const billPresetSchema = z.object({
-  label: f.text("이름을 입력해주세요."),
-  type: f.optionalText(),
-  amount: f.amountOrZero("금액을 올바르게 입력해주세요."),
-});
-
-export const taskSchema = z.object({
-  title: f.text("제목을 입력하세요."),
+/**
+ * The 수납 등록 collector's header. Its line items and per-denomination amounts
+ * are indexed (`items[0].amount_krw`, `usd100_rate`), which a flat object schema
+ * can't express — the action still loops over those itself.
+ */
+export const bulkPaymentHeaderSchema = z.object({
+  lease_id: f.id("세입자를 선택해주세요."),
+  billing_month: f.month("청구 월과 납부일을 올바르게 입력해주세요."),
+  payment_method: f.enumWithDefault(
+    ["cash", "card", "transfer"] as const,
+    "cash",
+  ),
+  payment_date: f.date("청구 월과 납부일을 올바르게 입력해주세요."),
   notes: f.optionalText(),
-  dueDate: f.optionalYmd("마감일을 올바르게 입력해주세요."),
 });

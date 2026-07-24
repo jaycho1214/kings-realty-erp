@@ -12,6 +12,12 @@ import {
 import { logAudit } from "@/lib/audit";
 import { seoulDateString } from "@/lib/date";
 import { syncTenantRentDef } from "@/lib/charges";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  leaseSchema,
+  utilityBillSchema,
+  depositSettlementSchema,
+} from "@/lib/schemas/lease";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
 
@@ -44,30 +50,17 @@ export async function createLease(formData: FormData): Promise<FormState> {
 
     const db = getDb();
 
-    const property_id = Number(formData.get("property_id") as string);
-    const tenant_id = Number(formData.get("tenant_id") as string);
-    const start_date = new Date(formData.get("start_date") as string);
-    const end_date = new Date(formData.get("end_date") as string);
-    const monthly_rent_krw = formData.get("monthly_rent_krw") as string;
-    const deposit_krw = formData.get("deposit_krw") as string;
-    const status = (formData.get("status") as string) || "active";
-    const notes = (formData.get("notes") as string) || null;
+    const {
+      property_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_rent_krw,
+      deposit_krw,
+      status,
+      notes,
+    } = parseForm(leaseSchema, formData);
     const contract = parseContractTerms(formData);
-
-    if (!Number.isInteger(property_id) || property_id <= 0) {
-      throw new ValidationError("매물을 선택해주세요.");
-    }
-    if (!Number.isInteger(tenant_id) || tenant_id <= 0) {
-      throw new ValidationError("세입자를 선택해주세요.");
-    }
-    if (
-      Number.isNaN(start_date.getTime()) ||
-      Number.isNaN(end_date.getTime())
-    ) {
-      throw new ValidationError(
-        "계약 시작일과 종료일을 올바르게 입력해주세요.",
-      );
-    }
 
     await db.transaction().execute(async (trx) => {
       await trx
@@ -103,7 +96,7 @@ export async function createLease(formData: FormData): Promise<FormState> {
       if (Number(monthly_rent_krw) > 0) {
         await syncTenantRentDef(trx, {
           tenantId: tenant_id,
-          monthlyRentKrw: monthly_rent_krw,
+          monthlyRentKrw: String(monthly_rent_krw),
           startDate: start_date,
           endDate: end_date,
           active: RENT_ACTIVE(status),
@@ -132,30 +125,17 @@ export async function updateLease(
 
     const db = getDb();
 
-    const property_id = Number(formData.get("property_id") as string);
-    const tenant_id = Number(formData.get("tenant_id") as string);
-    const start_date = new Date(formData.get("start_date") as string);
-    const end_date = new Date(formData.get("end_date") as string);
-    const monthly_rent_krw = formData.get("monthly_rent_krw") as string;
-    const deposit_krw = formData.get("deposit_krw") as string;
-    const status = (formData.get("status") as string) || "active";
-    const notes = (formData.get("notes") as string) || null;
+    const {
+      property_id,
+      tenant_id,
+      start_date,
+      end_date,
+      monthly_rent_krw,
+      deposit_krw,
+      status,
+      notes,
+    } = parseForm(leaseSchema, formData);
     const contract = parseContractTerms(formData);
-
-    if (!Number.isInteger(property_id) || property_id <= 0) {
-      throw new ValidationError("매물을 선택해주세요.");
-    }
-    if (!Number.isInteger(tenant_id) || tenant_id <= 0) {
-      throw new ValidationError("세입자를 선택해주세요.");
-    }
-    if (
-      Number.isNaN(start_date.getTime()) ||
-      Number.isNaN(end_date.getTime())
-    ) {
-      throw new ValidationError(
-        "계약 시작일과 종료일을 올바르게 입력해주세요.",
-      );
-    }
 
     await db
       .updateTable("lease")
@@ -179,7 +159,7 @@ export async function updateLease(
     if (Number(monthly_rent_krw) > 0) {
       await syncTenantRentDef(db, {
         tenantId: tenant_id,
-        monthlyRentKrw: monthly_rent_krw,
+        monthlyRentKrw: String(monthly_rent_krw),
         startDate: start_date,
         endDate: end_date,
         active: RENT_ACTIVE(status),
@@ -269,22 +249,8 @@ export async function addUtilityBill(
 
     const db = getDb();
 
-    const billing_month = new Date(formData.get("billing_month") as string);
-    const utility_type_id = Number(formData.get("utility_type_id") as string);
-    const amount_krw = formData.get("amount_krw") as string;
-    const bearer = (formData.get("bearer") as string) || "tenant";
-    const payee = (formData.get("payee") as string)?.trim() || null;
-    const notes = (formData.get("notes") as string) || null;
-
-    if (Number.isNaN(billing_month.getTime())) {
-      throw new ValidationError("청구 월을 올바르게 입력해주세요.");
-    }
-    if (!Number.isInteger(utility_type_id) || utility_type_id <= 0) {
-      throw new ValidationError("공과금 종류를 선택해주세요.");
-    }
-    if (!amount_krw || Number.isNaN(Number(amount_krw))) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
+    const { billing_month, utility_type_id, amount_krw, bearer, payee, notes } =
+      parseForm(utilityBillSchema, formData);
 
     await db
       .insertInto("utility_bill")
@@ -342,10 +308,16 @@ export async function saveDepositSettlement(
       .executeTakeFirst();
     if (!lease) throw new ValidationError("계약 정보를 찾을 수 없습니다.");
 
+    const settlement = parseForm(depositSettlementSchema, formData);
+    const refund_method = settlement.refund_method;
+    const refunded_date = settlement.refunded_date;
+
     const deposit_amount = Number(lease.deposit_krw) || 0;
+    // The deductions blob is built by the client editor; a malformed payload is
+    // treated as "no deductions" rather than failing the save.
     let deductions: { amount: number; reason: string }[] = [];
     try {
-      const parsed = JSON.parse((formData.get("deductions") as string) || "[]");
+      const parsed = JSON.parse(settlement.deductions ?? "[]");
       if (Array.isArray(parsed)) deductions = parsed;
     } catch {
       deductions = [];
@@ -355,9 +327,6 @@ export async function saveDepositSettlement(
       0,
     );
     const refund_amount = deposit_amount - deduction_total;
-    const refund_method =
-      (formData.get("refund_method") as string)?.trim() || null;
-    const refunded_date = (formData.get("refunded_date") as string) || null;
 
     const row = {
       deposit_amount: String(deposit_amount),

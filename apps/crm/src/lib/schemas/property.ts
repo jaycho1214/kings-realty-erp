@@ -18,7 +18,8 @@ export const propertySchema = z.object({
   address_jibeon: f.text(ADDRESS_MESSAGE),
   address_detail: f.optionalText(),
   address_en: f.optionalText(),
-  property_type: f.optionalText(),
+  // NOT NULL in the DB; the form always sends one, this is the backstop.
+  property_type: f.textWithDefault("apartment"),
   rooms: f.optionalCount("방 개수를 올바르게 입력해주세요."),
   bathrooms: f.optionalCount("욕실 개수를 올바르게 입력해주세요."),
   size_pyeong: z.preprocess(
@@ -63,8 +64,18 @@ export const landlordSchema = z.object({
 
 export const landlordSettlementSchema = z.object({
   amount: f.positiveAmount("금액을 올바르게 입력해주세요."),
-  settled_date: f.date("날짜를 올바르게 입력해주세요."),
-  memo: f.optionalText(),
+  date: f.date("날짜를 올바르게 입력해주세요."),
+  description: f.optionalText(),
+});
+
+/** 임대인 가족 — RRN is handled separately by the action (privileged only). */
+export const landlordFamilyMemberSchema = z.object({
+  name: f.text("이름을 입력해주세요."),
+  relationship: f.text("관계를 입력해주세요."),
+  sex: f.optionalText(),
+  phone: f.optionalText(),
+  notes: f.optionalText(),
+  rrn: f.optionalText(),
 });
 
 export const applianceSchema = z.object({
@@ -86,3 +97,37 @@ export const applianceServiceRequestSchema = z.object({
   description: f.optionalText(),
   category: f.optionalText(),
 });
+
+/**
+ * AS 요청 (service request). Costs stay strings — they land in Numeric columns
+ * and the form allows blank — and `landlord_self`/`escalated_to_landlord` post
+ * the literal "true" rather than a checkbox "on".
+ */
+const boolFromTrue = () =>
+  z.preprocess((v) => v === "true" || v === true, z.boolean());
+
+export const serviceRequestSchema = z.object({
+  lease_id: f.id("계약을 선택해주세요."),
+  title: f.text("제목을 입력해주세요."),
+  // NOT NULL columns; the form may legitimately leave the body blank.
+  description: f.textWithDefault(""),
+  category: f.text("카테고리를 선택해주세요."),
+  location: f.optionalText(),
+  bearer: f.optionalText(),
+  scheduled_date: f.optionalYmd("예정일을 올바르게 입력해주세요."),
+  estimated_cost: f.optionalText(),
+  notes: f.optionalText(),
+  vendor_name: f.optionalText(),
+  vendor_phone: f.optionalText(),
+  landlord_self: boolFromTrue(),
+});
+
+/** The edit form has no lease selector but adds status/outcome fields. */
+export const serviceRequestUpdateSchema = serviceRequestSchema
+  .omit({ lease_id: true })
+  .extend({
+    status: f.textWithDefault("received"),
+    actual_cost: f.optionalText(),
+    postpone_reason: f.optionalText(),
+    escalated_to_landlord: boolFromTrue(),
+  });

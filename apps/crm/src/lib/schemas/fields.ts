@@ -49,6 +49,13 @@ export const text = (message: string) =>
     z.string({ error: message }).min(1, message),
   );
 
+/** Free text with a fallback, for NOT NULL columns the form may leave blank. */
+export const textWithDefault = (fallback: string) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() ? v.trim() : fallback),
+    z.string(),
+  );
+
 /** Optional free text: blank → null, so it lands in a nullable column cleanly. */
 export const optionalText = () =>
   z.preprocess(
@@ -98,6 +105,13 @@ export const optionalYmd = (message: string) =>
     z.union([z.null(), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, message)], {
       error: message,
     }),
+  );
+
+/** A required "YYYY-MM" month (an <input type="month">). */
+export const month = (message: string) =>
+  z.preprocess(
+    (v) => (isBlank(v) ? undefined : trimmed(v)),
+    z.string({ error: message }).regex(/^\d{4}-\d{2}$/, message),
   );
 
 /** A "YYYY-MM" month; optional, blank → null. */

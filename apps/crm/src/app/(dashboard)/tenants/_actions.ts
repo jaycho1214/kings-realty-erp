@@ -23,7 +23,17 @@ import {
   escapeHtml,
 } from "@/lib/schemas/customer-intake";
 import { parseForm } from "@/lib/schemas/parse";
-import { tenantSchema } from "@/lib/schemas/tenant";
+import {
+  tenantSchema,
+  familyMemberSchema,
+  petSchema,
+  ledgerEntrySchema,
+  chargeSchema,
+  settleChargeSchema,
+  recurringChargeSchema,
+  baseLocationSchema,
+  inspectionDraftSchema,
+} from "@/lib/schemas/tenant";
 import { buildInspectionSnapshot } from "@/lib/inspection/snapshot";
 import { sanitizeNoteHtml, extractMentions } from "@/lib/notes/sanitize";
 import { ValidationError } from "@/lib/validation-error";
@@ -195,23 +205,11 @@ export async function addFamilyMember(
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const relationship = formData.get("relationship") as string;
-    const sex = (formData.get("sex") as string) || null;
-    const birth = (formData.get("birth") as string) || null;
-    const phone = (formData.get("phone") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
-
     await db
       .insertInto("tenant_family_member")
       .values({
         tenant_id: tenantId,
-        name,
-        relationship,
-        sex,
-        birth,
-        phone,
-        notes,
+        ...parseForm(familyMemberSchema, formData),
       })
       .execute();
 
@@ -238,15 +236,9 @@ export async function addPet(
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const species = formData.get("species") as string;
-    const breed = (formData.get("breed") as string) || null;
-    const size = (formData.get("size") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
-
     await db
       .insertInto("tenant_pet")
-      .values({ tenant_id: tenantId, name, species, breed, size, notes })
+      .values({ tenant_id: tenantId, ...parseForm(petSchema, formData) })
       .execute();
 
     revalidatePath(`/tenants/${tenantId}`);
@@ -389,35 +381,18 @@ export async function addLedgerEntry(
     const session = await requireSensitiveAccess();
     const db = getDb();
 
-    const direction =
-      formData.get("direction") === "disbursement" ? "disbursement" : "receipt";
-    const entry_date = new Date(formData.get("entry_date") as string);
-    const category = (formData.get("category") as string)?.trim() || "기타";
-    const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-    const amount = Number(formData.get("amount"));
-    const rate = formData.get("exchange_rate")
-      ? Number(formData.get("exchange_rate"))
-      : null;
-    const denomination = formData.get("denomination")
-      ? Number(formData.get("denomination"))
-      : null;
-    const vendorRaw = formData.get("exchange_vendor_id") as string;
-    const exchange_vendor_id = vendorRaw ? Number(vendorRaw) : null;
-    const description =
-      (formData.get("description") as string)?.trim() || category;
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
-    if (Number.isNaN(entry_date.getTime())) {
-      throw new ValidationError("날짜를 올바르게 입력해주세요.");
-    }
-    if (
-      currency === "USD" &&
-      (rate == null || !Number.isFinite(rate) || rate <= 0)
-    ) {
-      throw new ValidationError("환율을 올바르게 입력해주세요.");
-    }
+    const v = parseForm(ledgerEntrySchema, formData);
+    const {
+      direction,
+      entry_date,
+      currency,
+      amount,
+      denomination,
+      exchange_vendor_id,
+    } = v;
+    const category = v.category ?? "기타";
+    const description = v.description ?? category;
+    const rate = v.exchange_rate ? Number(v.exchange_rate) : null;
 
     const amount_krw =
       currency === "USD" && rate ? Math.round(amount * rate) : amount;
@@ -485,18 +460,11 @@ export async function addCharge(
     const session = await requireUser();
     const db = getDb();
 
-    const type = (formData.get("type") as string)?.trim() || "기타";
-    const recurrence =
-      formData.get("recurrence") === "monthly" ? "monthly" : "one_time";
-    const amount = Number(formData.get("amount"));
-    const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-    const billingMonthRaw = (formData.get("billing_month") as string)?.trim();
-    const dueRaw = (formData.get("due_date") as string)?.trim();
-    const memo = (formData.get("memo") as string)?.trim() || null;
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
+    const c = parseForm(chargeSchema, formData);
+    const { recurrence, amount, currency, memo } = c;
+    const type = c.type ?? "기타";
+    const billingMonthRaw = c.billing_month;
+    const dueRaw = c.due_date;
 
     const lease = await db
       .selectFrom("lease")
@@ -594,12 +562,10 @@ export async function settleCharge(
 ): Promise<FormState> {
   return runAction(async () => {
     const session = await requireUser();
-    const amount = Number(formData.get("amount"));
-    const method = (formData.get("payment_method") as string) || "cash";
-    const date = (formData.get("payment_date") as string) || seoulDateString();
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
+    const s = parseForm(settleChargeSchema, formData);
+    const amount = s.amount;
+    const method = s.payment_method;
+    const date = s.payment_date ?? seoulDateString();
 
     const db = getDb();
     await db.transaction().execute(async (trx) => {
@@ -709,30 +675,16 @@ export async function voidCharge(chargeId: number, tenantId: number) {
 // --- Recurring charges (정기 청구 정의) ---
 
 function parseRecurringForm(formData: FormData) {
-  const label = (formData.get("label") as string)?.trim();
-  if (!label) throw new ValidationError("항목 이름을 입력해주세요.");
-  const type = (formData.get("type") as string)?.trim() || "custom";
-  const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-  const dueDayRaw = Number(formData.get("due_day"));
-  const due_day =
-    Number.isFinite(dueDayRaw) && dueDayRaw >= 1 && dueDayRaw <= 31
-      ? Math.floor(dueDayRaw)
-      : 10;
-  const amountRaw = (formData.get("amount") as string)?.trim();
-  const amount = amountRaw ? Number(amountRaw) : null; // null = 변동(월마다 입력)
-  if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
-    throw new ValidationError("금액을 올바르게 입력해주세요.");
-  }
-  const startRaw = (formData.get("start_month") as string)?.trim();
-  const endRaw = (formData.get("end_month") as string)?.trim();
+  const v = parseForm(recurringChargeSchema, formData);
   return {
-    label,
-    type,
-    currency,
-    due_day,
-    amount: amount == null ? null : String(amount),
-    start_month: startRaw ? `${startRaw}-01` : null,
-    end_month: endRaw ? `${endRaw}-01` : null,
+    label: v.label,
+    type: v.type ?? "custom",
+    currency: v.currency,
+    due_day: v.due_day,
+    // null = 변동 (amount entered per month)
+    amount: v.amount == null ? null : String(v.amount),
+    start_month: v.start_month ? `${v.start_month}-01` : null,
+    end_month: v.end_month ? `${v.end_month}-01` : null,
   };
 }
 
@@ -881,6 +833,9 @@ export async function addTenantNote(
   return runAction(async () => {
     const session = await requirePermission("tenant", "update");
 
+    // Deliberately not schema-validated: sanitizeNoteHtml IS the validation for
+    // rich text, and an empty note is a silent no-op rather than an error the
+    // user should be shown.
     const raw = (formData.get("content") as string) ?? "";
     const content = sanitizeNoteHtml(raw).trim();
     if (!content || content === "<p><br></p>") return;
@@ -939,6 +894,9 @@ export async function editTenantNote(
       throw new ValidationError("본인이 작성한 메모만 수정할 수 있습니다.");
     }
 
+    // Deliberately not schema-validated: sanitizeNoteHtml IS the validation for
+    // rich text, and an empty note is a silent no-op rather than an error the
+    // user should be shown.
     const raw = (formData.get("content") as string) ?? "";
     const content = sanitizeNoteHtml(raw).trim();
     if (!content || content === "<p><br></p>") return;
@@ -1024,10 +982,7 @@ export async function createBaseLocation(
   return runAction(async () => {
     await requireAdmin();
 
-    const name = formData.get("name") as string;
-    const nameKo = (formData.get("name_ko") as string) || null;
-
-    if (!name?.trim()) return;
+    const { name, name_ko } = parseForm(baseLocationSchema, formData);
 
     const db = getDb();
 
@@ -1039,8 +994,8 @@ export async function createBaseLocation(
     await db
       .insertInto("base_location")
       .values({
-        name: name.trim(),
-        name_ko: nameKo?.trim() || null,
+        name,
+        name_ko,
         sort_order: ((maxOrder?.max_order as number) ?? 0) + 1,
       })
       .execute();
@@ -1089,9 +1044,9 @@ export async function createInspectionDraft(
     const session = await requireUser();
     const db = getDb();
 
-    const type = formData.get("type") === "move_out" ? "move_out" : "move_in";
-    const dateRaw = formData.get("inspected_at") as string | null;
-    const inspected_at = dateRaw ? new Date(dateRaw) : new Date();
+    const draft = parseForm(inspectionDraftSchema, formData);
+    const type = draft.type;
+    const inspected_at = draft.inspected_at ?? new Date();
 
     const [sections, items, property] = await Promise.all([
       db

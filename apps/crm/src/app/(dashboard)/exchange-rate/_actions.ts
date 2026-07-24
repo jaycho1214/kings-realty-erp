@@ -3,6 +3,8 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { parseForm } from "@/lib/schemas/parse";
+import { exchangeRateSchema } from "@/lib/schemas/settings";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
 
@@ -14,11 +16,7 @@ export async function setExchangeRate(formData: FormData): Promise<FormState> {
 
     const db = getDb();
 
-    const date = formData.get("date") as string;
-
-    if (!date) {
-      throw new ValidationError("날짜를 입력해주세요.");
-    }
+    const { date } = parseForm(exchangeRateSchema, formData);
 
     const entries: { denomination: number; rate: number }[] = [];
 

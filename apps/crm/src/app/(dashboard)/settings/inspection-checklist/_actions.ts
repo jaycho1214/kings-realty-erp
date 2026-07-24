@@ -3,26 +3,24 @@
 import { getDb, sql } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  inspectionSectionSchema,
+  inspectionItemSchema,
+} from "@/lib/schemas/settings";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
 
 const PATH = "/settings/inspection-checklist";
 
-function reqStr(fd: FormData, name: string): string {
-  const v = (fd.get(name) as string | null)?.trim();
-  if (!v) throw new ValidationError("필수 항목을 입력해주세요.");
-  return v;
-}
-function optStr(fd: FormData, name: string): string | null {
-  const v = (fd.get(name) as string | null)?.trim();
-  return v ? v : null;
-}
-
 export async function addSection(formData: FormData): Promise<FormState> {
   return runAction(async () => {
     await requireAdmin();
     const db = getDb();
-    const label_ko = reqStr(formData, "label_ko");
+    const { label_ko, label_en, repeatable } = parseForm(
+      inspectionSectionSchema,
+      formData,
+    );
     const max = await db
       .selectFrom("inspection_section")
       .select(sql<number>`coalesce(max(sort_order), -1)`.as("m"))
@@ -32,8 +30,8 @@ export async function addSection(formData: FormData): Promise<FormState> {
       .values({
         key: `custom_${Date.now()}`,
         label_ko,
-        label_en: optStr(formData, "label_en"),
-        repeatable: formData.get("repeatable") === "on",
+        label_en,
+        repeatable,
         sort_order: Number(max?.m ?? -1) + 1,
         is_builtin: false,
       })
@@ -52,9 +50,7 @@ export async function updateSection(
     await db
       .updateTable("inspection_section")
       .set({
-        label_ko: reqStr(formData, "label_ko"),
-        label_en: optStr(formData, "label_en"),
-        repeatable: formData.get("repeatable") === "on",
+        ...parseForm(inspectionSectionSchema, formData),
         updated_at: new Date(),
       })
       .where("id", "=", id)
@@ -99,10 +95,7 @@ export async function addItem(
       .insertInto("inspection_item")
       .values({
         section_id: sectionId,
-        label_ko: reqStr(formData, "label_ko"),
-        label_en: optStr(formData, "label_en"),
-        subgroup_ko: optStr(formData, "subgroup_ko"),
-        subgroup_en: optStr(formData, "subgroup_en"),
+        ...parseForm(inspectionItemSchema, formData),
         sort_order: Number(max?.m ?? -1) + 1,
       })
       .execute();
@@ -120,10 +113,7 @@ export async function updateItem(
     await db
       .updateTable("inspection_item")
       .set({
-        label_ko: reqStr(formData, "label_ko"),
-        label_en: optStr(formData, "label_en"),
-        subgroup_ko: optStr(formData, "subgroup_ko"),
-        subgroup_en: optStr(formData, "subgroup_en"),
+        ...parseForm(inspectionItemSchema, formData),
         updated_at: new Date(),
       })
       .where("id", "=", id)

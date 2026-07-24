@@ -1,5 +1,10 @@
 "use server";
 
+import { z } from "zod";
+import { parseForm } from "@/lib/schemas/parse";
+import { calendarEventSchema } from "@/lib/schemas/settings";
+import { isValidationError } from "@/lib/validation-error";
+
 import { revalidatePath } from "next/cache";
 import { requireUser, requirePermission } from "@/lib/authz";
 import { getDb } from "@kingsrealty/db";
@@ -22,24 +27,31 @@ export async function generateCalendarToken() {
 export async function createCalendarEvent(formData: FormData) {
   const session = await requirePermission("calendar", "create");
 
-  const title = formData.get("title") as string;
-  const date = formData.get("date") as string;
-  const endDate = formData.get("end_date") as string | null;
-  const description = formData.get("description") as string | null;
-  const category = (formData.get("category") as string) || "general";
-  const color = (formData.get("color") as string) || "primary";
-  const urgency = (formData.get("urgency") as string) || "normal";
-  const location = formData.get("location") as string | null;
-  const propertyId = formData.get("property_id") as string | null;
-  const tenantId = formData.get("tenant_id") as string | null;
-  const isAllDay = formData.get("is_all_day") !== "false";
-  const startTime = formData.get("start_time") as string | null;
-  const endTime = formData.get("end_time") as string | null;
-  const attendeesJson = formData.get("attendees") as string | null;
-
-  if (!title || !date) {
-    return { error: "제목과 날짜는 필수입니다." };
+  // This action returns its errors (it predates runAction), so surface the
+  // schema's message the same way rather than letting it throw.
+  let v: z.infer<typeof calendarEventSchema>;
+  try {
+    v = parseForm(calendarEventSchema, formData);
+  } catch (err) {
+    if (isValidationError(err)) return { error: err.message };
+    throw err;
   }
+  const {
+    title,
+    date,
+    end_date: endDate,
+    description,
+    category,
+    color,
+    urgency,
+    location,
+    property_id: propertyId,
+    tenant_id: tenantId,
+    is_all_day: isAllDay,
+    start_time: startTime,
+    end_time: endTime,
+    attendees: attendeesJson,
+  } = v;
 
   const db = getDb();
 

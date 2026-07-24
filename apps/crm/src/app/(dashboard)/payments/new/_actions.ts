@@ -3,6 +3,9 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
+import { parseForm } from "@/lib/schemas/parse";
+import { bulkPaymentHeaderSchema } from "@/lib/schemas/lease";
+import { isValidationError } from "@/lib/validation-error";
 import { isStaffOrAdmin } from "@/lib/authz";
 
 /**
@@ -39,13 +42,17 @@ export async function createBulkPayment(formData: FormData) {
 
   const db = getDb();
 
-  const lease_id = Number(formData.get("lease_id") as string);
-  const billing_month = new Date(
-    (formData.get("billing_month") as string) + "-01",
-  );
-  const payment_method = formData.get("payment_method") as string;
-  const payment_date = new Date(formData.get("payment_date") as string);
-  const notes = (formData.get("notes") as string) || null;
+  // This action reports failures as { success, error }, so translate the
+  // schema's rejection into that shape instead of letting it throw.
+  let header;
+  try {
+    header = parseForm(bulkPaymentHeaderSchema, formData);
+  } catch (err) {
+    if (isValidationError(err)) return { success: false, error: err.message };
+    throw err;
+  }
+  const { lease_id, payment_method, payment_date, notes } = header;
+  const billing_month = new Date(`${header.billing_month}-01`);
 
   // Parse line items. A line may carry `charge_id` when it was added from the
   // tenant's open charges — that charge is settled (수납완료) by this payment.

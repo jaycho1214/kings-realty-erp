@@ -10,6 +10,12 @@ import {
 } from "@/lib/authz";
 import { encryptRrn, decryptRrn, formatRrn } from "@/lib/rrn";
 import { logAudit } from "@/lib/audit";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  landlordSchema,
+  landlordSettlementSchema,
+  landlordFamilyMemberSchema,
+} from "@/lib/schemas/property";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
 
@@ -19,41 +25,17 @@ export async function createLandlord(formData: FormData): Promise<FormState> {
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
-    const email = (formData.get("email") as string) || null;
-    const address = (formData.get("address") as string) || null;
-    const business_type = (formData.get("business_type") as string) || null;
-    const sex = (formData.get("sex") as string) || null;
-    const birth = (formData.get("birth") as string) || null;
-    const bank_name = (formData.get("bank_name") as string) || null;
-    const bank_account = (formData.get("bank_account") as string) || null;
-    const account_holder = (formData.get("account_holder") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
+    const { rrn, ...columns } = parseForm(landlordSchema, formData);
 
     // RRN is only accepted from privileged users (admin/accounting).
     const canRrn = canViewSensitive(session.user.role);
-    const rrnRaw = formData.get("rrn");
-    const rrn_encrypted =
-      canRrn && typeof rrnRaw === "string" && rrnRaw.trim()
-        ? encryptRrn(rrnRaw)
-        : null;
+    const rrn_encrypted = canRrn && rrn ? encryptRrn(rrn) : null;
 
     await db
       .insertInto("landlord")
       .values({
-        name,
-        phone,
-        email,
-        address,
-        business_type,
-        sex,
-        birth,
-        bank_name,
-        bank_account,
-        account_holder,
+        ...columns,
         rrn_encrypted,
-        notes,
         created_by: Number(session.user.id),
       })
       .execute();
@@ -72,24 +54,17 @@ export async function updateLandlord(
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const phone = formData.get("phone") as string;
-    const email = (formData.get("email") as string) || null;
-    const address = (formData.get("address") as string) || null;
-    const business_type = (formData.get("business_type") as string) || null;
-    const sex = (formData.get("sex") as string) || null;
-    const birth = (formData.get("birth") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
+    const v = parseForm(landlordSchema, formData);
 
     const values: Record<string, unknown> = {
-      name,
-      phone,
-      email,
-      address,
-      business_type,
-      sex,
-      birth,
-      notes,
+      name: v.name,
+      phone: v.phone,
+      email: v.email,
+      address: v.address,
+      business_type: v.business_type,
+      sex: v.sex,
+      birth: v.birth,
+      notes: v.notes,
       updated_at: new Date(),
     };
 
@@ -97,10 +72,9 @@ export async function updateLandlord(
     // don't get the inputs, so never let them overwrite the stored values — only
     // apply bank fields when the caller may view/edit sensitive data.
     if (canViewSensitive(session.user.role)) {
-      values.bank_name = (formData.get("bank_name") as string) || null;
-      values.bank_account = (formData.get("bank_account") as string) || null;
-      values.account_holder =
-        (formData.get("account_holder") as string) || null;
+      values.bank_name = v.bank_name;
+      values.bank_account = v.bank_account;
+      values.account_holder = v.account_holder;
     }
 
     // Only privileged users can touch RRN. A non-empty value replaces it; a blank
@@ -207,20 +181,15 @@ export async function addLandlordFamilyMember(
 
     const db = getDb();
 
-    const name = formData.get("name") as string;
-    const relationship = formData.get("relationship") as string;
-    const sex = (formData.get("sex") as string) || null;
-    const phone = (formData.get("phone") as string) || null;
-    const notes = (formData.get("notes") as string) || null;
+    const { rrn, ...member } = parseForm(
+      landlordFamilyMemberSchema,
+      formData,
+    );
+    const { name, relationship, sex, phone, notes } = member;
 
     // RRN is only accepted from privileged users (admin/accounting).
-    const rrnRaw = formData.get("rrn");
     const rrn_encrypted =
-      canViewSensitive(session.user.role) &&
-      typeof rrnRaw === "string" &&
-      rrnRaw.trim()
-        ? encryptRrn(rrnRaw)
-        : null;
+      canViewSensitive(session.user.role) && rrn ? encryptRrn(rrn) : null;
 
     await db
       .insertInto("landlord_family_member")
@@ -263,17 +232,11 @@ export async function createLandlordSettlement(
 
     const db = getDb();
 
-    const amount = Number(formData.get("amount"));
-    const date = formData.get("date") as string;
-    const description =
-      (formData.get("description") as string) || "임대인 정산";
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
-    if (!date || Number.isNaN(new Date(date).getTime())) {
-      throw new ValidationError("날짜를 올바르게 입력해주세요.");
-    }
+    const { amount, date, description: memo } = parseForm(
+      landlordSettlementSchema,
+      formData,
+    );
+    const description = memo ?? "임대인 정산";
 
     await db
       .insertInto("ledger_entry")

@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/authz";
 import { runAction, type FormState } from "@/lib/form-action";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  serviceRequestSchema,
+  serviceRequestUpdateSchema,
+} from "@/lib/schemas/property";
 
 function parseAssigneeIds(raw: FormDataEntryValue | null): number[] {
   if (typeof raw !== "string" || !raw) return [];
@@ -56,23 +61,29 @@ export async function createServiceRequest(formData: FormData) {
   const session = await requirePermission("service", "create");
 
   const db = getDb();
-  const lease_id = Number(formData.get("lease_id") as string);
-  const title = formData.get("title") as string;
-  const description = formData.get("description") as string;
-  const category = formData.get("category") as string;
-  const location = (formData.get("location") as string)?.trim() || null;
-  const bearer = (formData.get("bearer") as string) || null;
-  const scheduled_date = (formData.get("scheduled_date") as string) || null;
-  const estimated_cost = (formData.get("estimated_cost") as string) || null;
-  const notes = (formData.get("notes") as string) || null;
-  const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
-  const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
-  const vendor_phone = (formData.get("vendor_phone") as string)?.trim() || null;
-  const landlord_self = formData.get("landlord_self") === "true";
-
-  if (!Number.isInteger(lease_id) || lease_id <= 0 || !category?.trim()) {
+  // This action returns the new id (or null) rather than FormState, so a
+  // rejection keeps the existing "returned null" contract the caller expects.
+  let v;
+  try {
+    v = parseForm(serviceRequestSchema, formData);
+  } catch {
     return null;
   }
+  const {
+    lease_id,
+    title,
+    description,
+    category,
+    location,
+    bearer,
+    scheduled_date,
+    estimated_cost,
+    notes,
+    vendor_name,
+    vendor_phone,
+    landlord_self,
+  } = v;
+  const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
 
   const result = await db.transaction().execute(async (trx) => {
     const vendor_id = await resolveVendor(trx, vendor_name, vendor_phone);
@@ -132,25 +143,24 @@ export async function updateServiceRequest(
     const session = await requirePermission("service", "update");
 
     const db = getDb();
-    const title = formData.get("title") as string;
-    const description = formData.get("description") as string;
-    const category = formData.get("category") as string;
-    const status = formData.get("status") as string;
-    const location = (formData.get("location") as string)?.trim() || null;
-    const bearer = (formData.get("bearer") as string) || null;
-    const scheduled_date = (formData.get("scheduled_date") as string) || null;
-    const estimated_cost = (formData.get("estimated_cost") as string) || null;
-    const actual_cost = (formData.get("actual_cost") as string) || null;
-    const postpone_reason =
-      (formData.get("postpone_reason") as string)?.trim() || null;
-    const escalated_to_landlord =
-      formData.get("escalated_to_landlord") === "true";
-    const notes = (formData.get("notes") as string) || null;
+    const {
+      title,
+      description,
+      category,
+      status,
+      location,
+      bearer,
+      scheduled_date,
+      estimated_cost,
+      actual_cost,
+      postpone_reason,
+      escalated_to_landlord,
+      notes,
+      vendor_name,
+      vendor_phone,
+      landlord_self,
+    } = parseForm(serviceRequestUpdateSchema, formData);
     const assigneeIds = parseAssigneeIds(formData.get("assignee_user_ids"));
-    const vendor_name = (formData.get("vendor_name") as string)?.trim() || null;
-    const vendor_phone =
-      (formData.get("vendor_phone") as string)?.trim() || null;
-    const landlord_self = formData.get("landlord_self") === "true";
 
     const existing = await db
       .selectFrom("service_request")

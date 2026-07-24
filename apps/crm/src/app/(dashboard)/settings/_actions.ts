@@ -3,6 +3,14 @@
 import { getDb } from "@kingsrealty/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { parseForm } from "@/lib/schemas/parse";
+import {
+  utilityTypeSchema,
+  serviceCategorySchema,
+  serviceCategoryLabelSchema,
+  exchangeVendorSchema,
+  realtyFeeDefaultSchema,
+} from "@/lib/schemas/settings";
 import { ValidationError } from "@/lib/validation-error";
 import { runAction, type FormState } from "@/lib/form-action";
 
@@ -66,11 +74,7 @@ export async function updateRealtyFeeDefault(
   return runAction(async () => {
     await requireAdmin();
     const db = getDb();
-    const currency = formData.get("currency") === "USD" ? "USD" : "KRW";
-    const amount = Number(formData.get("amount"));
-    if (!Number.isFinite(amount) || amount < 0) {
-      throw new ValidationError("금액을 올바르게 입력해주세요.");
-    }
+    const { currency, amount } = parseForm(realtyFeeDefaultSchema, formData);
     await db
       .updateTable("realty_fee_default")
       .set({ amount: String(amount), updated_at: new Date() })
@@ -89,25 +93,11 @@ export async function addExchangeVendor(
     await requireAdmin();
 
     const db = getDb();
-    const name = (formData.get("name") as string)?.trim();
-    const denominations =
-      (formData.get("denominations") as string)?.trim() || null;
-    const defaultRateRaw = (formData.get("default_rate") as string)?.trim();
-    const phone = (formData.get("phone") as string)?.trim() || null;
-    const memo = (formData.get("memo") as string)?.trim() || null;
-
-    if (!name) {
-      throw new ValidationError("환전업체 이름을 입력해주세요.");
-    }
-
-    let defaultRate: string | null = null;
-    if (defaultRateRaw) {
-      const rate = Number(defaultRateRaw);
-      if (!Number.isFinite(rate) || rate <= 0) {
-        throw new ValidationError("기준 환율을 올바르게 입력해주세요.");
-      }
-      defaultRate = String(rate);
-    }
+    const { name, denominations, default_rate, phone, memo } = parseForm(
+      exchangeVendorSchema,
+      formData,
+    );
+    const defaultRate = default_rate == null ? null : String(default_rate);
 
     await db
       .insertInto("exchange_vendor")
@@ -143,16 +133,12 @@ export async function addUtilityType(formData: FormData): Promise<FormState> {
     await requireAdmin();
 
     const db = getDb();
-    const name = formData.get("name") as string;
-
-    if (!name?.trim()) {
-      throw new ValidationError("유형 이름을 입력해주세요.");
-    }
+    const { name } = parseForm(utilityTypeSchema, formData);
 
     await db
       .insertInto("utility_type")
       .values({
-        name: name.trim(),
+        name,
         is_default: false,
       })
       .execute();
@@ -169,11 +155,7 @@ export async function updateUtilityType(
     await requireAdmin();
 
     const db = getDb();
-    const name = (formData.get("name") as string)?.trim();
-
-    if (!name) {
-      throw new ValidationError("유형 이름을 입력해주세요.");
-    }
+    const { name } = parseForm(utilityTypeSchema, formData);
 
     await db
       .updateTable("utility_type")
@@ -229,18 +211,13 @@ export async function addServiceCategory(
     await requireAdmin();
 
     const db = getDb();
-    const value = formData.get("value") as string;
-    const label = formData.get("label") as string;
-
-    if (!value?.trim() || !label?.trim()) {
-      throw new ValidationError("카테고리 값과 이름을 입력해주세요.");
-    }
+    const { value, label } = parseForm(serviceCategorySchema, formData);
 
     await db
       .insertInto("service_category")
       .values({
-        value: value.trim().toLowerCase().replace(/\s+/g, "_"),
-        label: label.trim(),
+        value: value.toLowerCase().replace(/\s+/g, "_"),
+        label,
         is_default: false,
       })
       .execute();
@@ -258,15 +235,11 @@ export async function updateServiceCategory(
     await requireAdmin();
 
     const db = getDb();
-    const label = formData.get("label") as string;
-
-    if (!label?.trim()) {
-      throw new ValidationError("카테고리 이름을 입력해주세요.");
-    }
+    const { label } = parseForm(serviceCategoryLabelSchema, formData);
 
     await db
       .updateTable("service_category")
-      .set({ label: label.trim() })
+      .set({ label })
       .where("id", "=", id)
       .execute();
 
