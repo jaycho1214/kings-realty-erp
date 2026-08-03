@@ -137,7 +137,16 @@ export async function generateRecurringChargesForMonth(
   tenantId?: number,
 ): Promise<number> {
   const db = getDb();
-  const monthDate = new Date(billingMonth);
+  // Every month comparison happens in SQL against `${billingMonth}::date`, never
+  // through a JS Date. A `date` column arrives from the driver as LOCAL midnight
+  // while `new Date("YYYY-MM-01")` is UTC midnight, so comparing the two in JS
+  // drifts by the server's UTC offset: east of UTC a def whose end_month IS the
+  // billing month reads as already expired, west of UTC one starting that month
+  // reads as not yet started — either way that tenant is silently skipped for
+  // the month. Vercel runs UTC so production read it correctly, but the same
+  // code run from Asia/Seoul dropped final-month 월세. Postgres compares
+  // date-to-date with no zone in play.
+  const month = sql<Date>`${billingMonth}::date`;
 
   let query = db
     .selectFrom("recurring_charge as rc")
@@ -172,9 +181,19 @@ export async function generateRecurringChargesForMonth(
             .selectFrom("charge_item")
             .select("charge_item.id")
             .whereRef("charge_item.recurring_charge_id", "=", "rc.id")
-            .where("charge_item.billing_month", "=", monthDate),
+            .where("charge_item.billing_month", "=", month),
         ),
       ),
+    )
+    // Within the definition's term. A null bound is open-ended on that side.
+    .where((eb) =>
+      eb.or([
+        eb("rc.start_month", "is", null),
+        eb("rc.start_month", "<=", month),
+      ]),
+    )
+    .where((eb) =>
+      eb.or([eb("rc.end_month", "is", null), eb("rc.end_month", ">=", month)]),
     );
 
   if (tenantId != null) {
@@ -183,12 +202,7 @@ export async function generateRecurringChargesForMonth(
 
   const defs = await query.execute();
 
-  const rows = defs.filter((d) => {
-    if (!d.lease_id) return false; // no current lease → don't bill
-    if (d.start_month && new Date(d.start_month) > monthDate) return false;
-    if (d.end_month && new Date(d.end_month) < monthDate) return false;
-    return true;
-  });
+  const rows = defs.filter((d) => d.lease_id); // no current lease → don't bill
   if (rows.length === 0) return 0;
 
   await db

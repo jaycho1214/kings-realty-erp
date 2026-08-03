@@ -31,11 +31,11 @@ import type { DB } from "./types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WRITE = process.argv.includes("--write");
-const TODAY = "2026-06-17";
+const TODAY = "2026-07-28";
 
 const CUSTOMERS_PATH =
-  process.env.CUSTOMERS || "/Users/jay/Downloads/Customers (1).xlsx";
-const SALES_PATH = process.env.SALES || "/Users/jay/Downloads/Sales (1).xlsx";
+  process.env.CUSTOMERS || "/Users/jay/Downloads/data/customers.xlsx";
+const SALES_PATH = process.env.SALES || "/Users/jay/Downloads/data/sales.xlsx";
 
 // ── generic helpers ──────────────────────────────────────────────────────
 function clean(v: unknown): string {
@@ -44,8 +44,24 @@ function clean(v: unknown): string {
 function num(v: unknown): number {
   return Number(String(v ?? "").replace(/,/g, "")) || 0;
 }
+/**
+ * Identity key for a customer. The legacy ERP has no customer number (고객번호 is
+ * empty in every row), so the name IS the join key between 고객목록 and 판매내역 —
+ * and staff typed it inconsistently across three years ("YIU,Alvin" vs "YIU, Alvin",
+ * "GONZALEZ Irving" vs "GONZALEZ, Irving", "PORTILLOSANCHEZ,Oscar" vs "Oscar
+ * Portillosanchez"). Keying on the raw string splits one person into a roster tenant
+ * plus a payment-less ghost, so punctuation is dropped and tokens sorted, making the
+ * key blind to both comma style and 성/이름 order. Verified against this export: it
+ * merges 8 spelling pairs and every one is genuinely the same person.
+ */
 function normalizeName(name: string): string {
-  return clean(name).toLowerCase().replace(/\s+/g, " ");
+  return clean(name)
+    .toLowerCase()
+    .replace(/[.,()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ");
 }
 function normalizePhone(phone: string): string {
   const p = clean(phone);
@@ -116,20 +132,32 @@ function encryptRrn(plain: string): string {
 }
 
 // ── rank / branch (from import-excel.ts) ─────────────────────────────────
+/**
+ * Canonical pay grade in the app's dashed form (tenant-form RANK_GROUPS: E-1..E-9,
+ * W-1..W-5, O-1..O-11). Warrant officers are the reason this matters: the legacy
+ * export writes WO1/CW2/CW3, which `rankToGroupCode` cannot read (its pattern is
+ * ^[EWO]-?\d), so those tenants silently get no OHA limit. Dashing also makes the
+ * value match the 계급 dropdown, which only offers the dashed options.
+ * Civilian grades (GS*, CONTRACTOR) are passed through untouched — correctly no OHA.
+ */
 function normalizeRank(rank: string): string | null {
   let r = clean(rank).toUpperCase();
   if (!r) return null;
   if (r.includes("/")) {
     const parts = r.split("/").map((p) => p.trim());
-    for (const p of parts)
-      if (/^(E-?\d|O-?\d|CW\d|WO\d|W\d|GS\d)/.test(p))
-        return p.replace("-", "");
-    r = parts[0];
+    const pick = parts.find((p) =>
+      /^(E-?\d|O-?\d|CW\d|WO\d|W-?\d|GS\d)/.test(p),
+    );
+    r = pick ?? parts[0];
   }
   if (/^(E-?\d)\s+(E-?\d)$/.test(r)) r = r.split(/\s+/)[0]; // "E5 E5"
-  r = r.replace(/^E-(\d)/, "E$1"); // "E-6" → "E6"
   if (r === "오산군인") return null;
-  return r || null;
+  // warrant officer spellings → W-n  (WO1 → W-1, CW2 → W-2, CW3 → W-3)
+  let x = r.match(/^(?:CW|WO|W)-?(\d)\b/);
+  if (x) return `W-${x[1]}`;
+  x = r.match(/^([EO])-?(\d{1,2})\b/);
+  if (x) return `${x[1]}-${Number(x[2])}`; // "E5"/"E-05" → "E-5"
+  return r || null; // GS12, CONTRACTOR, … left as-is
 }
 function inferBranch(rank: string | null, memo: string): string | null {
   const m = (memo || "").toUpperCase();
@@ -179,69 +207,111 @@ function detectPropertyType(address: string): string {
 }
 
 // ── memo extractors (from migrate-crm.ts) ────────────────────────────────
+const EN_MONTHS: Record<string, string> = {
+  january: "01",
+  jan: "01",
+  february: "02",
+  feb: "02",
+  march: "03",
+  mar: "03",
+  april: "04",
+  apr: "04",
+  may: "05",
+  june: "06",
+  jun: "06",
+  july: "07",
+  jul: "07",
+  august: "08",
+  aug: "08",
+  september: "09",
+  sep: "09",
+  sept: "09",
+  october: "10",
+  oct: "10",
+  november: "11",
+  nov: "11",
+  december: "12",
+  dec: "12",
+};
+/** 2-digit year → 20xx for 00–30, else 19xx (same rule as the RRN birth parser). */
+function expandYear(y: string): number {
+  if (y.length === 4) return parseInt(y);
+  const yy = parseInt(y);
+  return yy >= 0 && yy <= 30 ? 2000 + yy : 1900 + yy;
+}
+/**
+ * DEROS (rotation date) out of a free-text memo. Staff wrote it a dozen ways over
+ * three years — "DEROS 2027년1월", "Deros2027.02", "DIROS 23.02", "Diros;2024.03,08",
+ * "DEROS 2026 April 4", "Diros sep 2024", "DEROS 확인26년3월" — so rather than one
+ * regex per spelling this anchors on the keyword, then reads the window after it
+ * with separators normalised. Day defaults to the 1st when only a month is given.
+ */
 function parseDeros(memo: string): string | null {
   const m = clean(memo);
   if (!m) return null;
-  let x: RegExpMatchArray | null;
-  if (
-    (x = m.match(
-      /[Dd디][EeIi이][Rr로][Oo][Ss스]\s*(\d{4})년\s*(\d{1,2})월?\s*(\d{1,2})?일?/,
-    ))
-  )
-    return `${x[1]}-${x[2].padStart(2, "0")}-${x[3] ? x[3].padStart(2, "0") : "01"}`;
-  if (
-    (x = m.match(
-      /[Dd디][EeIi이][Rr로][Oo][Ss스]\s*(\d{4})\.(\d{1,2})(?:\.(\d{1,2}))?/,
-    ))
-  )
-    return `${x[1]}-${x[2].padStart(2, "0")}-${x[3] ? x[3].padStart(2, "0") : "01"}`;
-  const months: Record<string, string> = {
-    january: "01",
-    jan: "01",
-    february: "02",
-    feb: "02",
-    march: "03",
-    mar: "03",
-    april: "04",
-    apr: "04",
-    may: "05",
-    june: "06",
-    jun: "06",
-    july: "07",
-    jul: "07",
-    august: "08",
-    aug: "08",
-    september: "09",
-    sep: "09",
-    october: "10",
-    oct: "10",
-    november: "11",
-    nov: "11",
-    december: "12",
-    dec: "12",
+  const kw = m.match(/[Dd디][EeIi이][Rr로][Oo][Ss스]/);
+  if (!kw) return null;
+  // window after the keyword; ; , / and stray spaces all act as separators
+  const win = m
+    .slice(kw.index! + kw[0].length, kw.index! + kw[0].length + 40)
+    .replace(/확인|예정|까지/g, " ")
+    .replace(/[;,/]/g, ".")
+    .trim();
+
+  const iso = (y: string, mo: string, d?: string) => {
+    const year = expandYear(y);
+    const mon = parseInt(mo);
+    const day = d ? parseInt(d) : 1;
+    if (mon < 1 || mon > 12 || day < 1 || day > 31) return null;
+    if (year < 2000 || year > 2100) return null;
+    return `${year}-${String(mon).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   };
+
+  let x: RegExpMatchArray | null;
+  // 2026년12월29일 / 26년3월  (2- or 4-digit year)
   if (
-    (x = m.match(
-      /[Dd][IiEe][Rr][Oo][Ss]\s*(\d{4})\s+([A-Za-z]+)\s*(\d{1,2})?/i,
-    )) &&
-    months[x[2].toLowerCase()]
-  )
-    return `${x[1]}-${months[x[2].toLowerCase()]}-${x[3] ? x[3].padStart(2, "0") : "01"}`;
-  if (
-    (x = m.match(/[Dd][IiEe][Rr][Oo][Ss]\s+([A-Za-z]+)\s*(\d{4})/i)) &&
-    months[x[1].toLowerCase()]
-  )
-    return `${x[2]}-${months[x[1].toLowerCase()]}-01`;
-  if (
-    (x = m.match(
-      /[Dd디][EeIi이][Rr로][Oo][Ss스]\s*(?:확인)?(\d{2})년\s*(\d{1,2})월?/,
+    (x = win.match(
+      /^\.*\s*(\d{2}|\d{4})\s*년\s*(\d{1,2})\s*월?\s*(\d{1,2})?\s*일?/,
     ))
+  )
+    return iso(x[1], x[2], x[3]);
+  // 2027.02 / 24.06.22 / 2024.03.08  (dotted, 2- or 4-digit year)
+  if (
+    (x = win.match(
+      /^\.*\s*(\d{2}|\d{4})\s*\.\s*(\d{1,2})(?:\s*\.\s*(\d{1,2}))?/,
+    ))
+  )
+    return iso(x[1], x[2], x[3]);
+  // 2026 April 4  (year then English month)
+  if (
+    (x = win.match(/^\.*\s*(\d{4})\s*\.?\s*([A-Za-z]+)\s*\.?\s*(\d{1,2})?/))
   ) {
-    const yy = parseInt(x[1]);
-    const year = yy >= 0 && yy <= 30 ? 2000 + yy : 1900 + yy;
-    return `${year}-${x[2].padStart(2, "0")}-01`;
+    const mo = EN_MONTHS[x[2].toLowerCase()];
+    if (mo) return iso(x[1], mo, x[3]);
+  }
+  // sep 2024  (English month then year)
+  if (
+    (x = win.match(/^\.*\s*([A-Za-z]+)\s*\.?\s*(\d{1,2})?\s*\.?\s*(\d{4})/))
+  ) {
+    const mo = EN_MONTHS[x[1].toLowerCase()];
+    if (mo) return iso(x[3], mo, x[2]);
   }
   return null;
+}
+/**
+ * 현관/출입 door code out of a memo ("출입비번 3482", "입구 종7165"). Goes to
+ * property.front_door_password (migration 027) so staff stop digging through 메모.
+ * 출입카드 is deliberately excluded — that is an access-card serial, not a code.
+ */
+function parseDoorPassword(memo: string): string | null {
+  const m = clean(memo).replace(/[\r\n]+/g, " ");
+  const x = m.match(
+    /(?:공동현관|현관|출입비번|출입문|입구|도어록|도어락|비밀번호|비번)\s*[:：]?\s*([가-힣]?[#*]?\d{3,8}[*#]?)/,
+  );
+  if (!x) return null;
+  if (/출입카드/.test(m.slice(Math.max(0, x.index! - 4), x.index! + 6)))
+    return null;
+  return x[1];
 }
 function parseDeposit(memo: string): number {
   const m = clean(memo).match(/보증금\s*[:\s]*([\d,]+)/);
@@ -846,8 +916,45 @@ interface SalesRow {
   memo: string;
 }
 
+/**
+ * Fold repeat 고객목록 rows for one person into a single record. Re-registrations
+ * (a renewal keyed in as a new customer) leave two rows where the newer one is often
+ * the emptier: Tyler Perry's DEROS and david,zarvontay's "MOVE OUT" both sit in the
+ * older row. Taking the first row and dropping the rest silently loses those facts,
+ * so instead every field falls back to the first row that has a value, and distinct
+ * memos are joined — the memo drives DEROS / realty fee / appliance / 퇴거 detection.
+ */
+function mergeCustomerRows(rows: CustomerRow[]): CustomerRow {
+  const first = <K extends keyof CustomerRow>(k: K): CustomerRow[K] =>
+    rows.find((r) => clean(r[k] as unknown as string) !== "")?.[k] ??
+    rows[0][k];
+  const memos = [...new Set(rows.map((r) => clean(r.memo)).filter(Boolean))];
+  return {
+    ...rows[0],
+    name: first("name"),
+    group: rows.some((r) => r.group.toUpperCase().includes("MOVE OUT"))
+      ? rows.find((r) => r.group.toUpperCase().includes("MOVE OUT"))!.group
+      : first("group"),
+    phone: first("phone"),
+    address: first("address"),
+    memo: memos.join("\n"),
+    rank: first("rank"),
+    unit: first("unit"),
+    pet: first("pet"),
+    rent: rows.find((r) => r.rent > 0)?.rent ?? 0,
+    deposit: rows.find((r) => r.deposit > 0)?.deposit ?? 0,
+    start: first("start"),
+    end: first("end"),
+    familyPhone: first("familyPhone"),
+    owner: first("owner"),
+    ownerPhone: first("ownerPhone"),
+    extra: first("extra"),
+    familyText: first("familyText"),
+  };
+}
+
 async function main() {
-  const customers: CustomerRow[] = loadSheet(CUSTOMERS_PATH)
+  const customerRows: CustomerRow[] = loadSheet(CUSTOMERS_PATH)
     .filter((r) => pick(r, "고객명"))
     .map((r) => ({
       name: pick(r, "고객명"),
@@ -868,6 +975,16 @@ async function main() {
       extra: pick(r, "추가금액"),
       familyText: pick(r, "가족"),
     }));
+  const customerGroups = new Map<string, CustomerRow[]>();
+  for (const c of customerRows) {
+    const k = normalizeName(c.name);
+    if (!customerGroups.has(k)) customerGroups.set(k, []);
+    customerGroups.get(k)!.push(c);
+  }
+  const customers: CustomerRow[] = [...customerGroups.values()].map(
+    mergeCustomerRows,
+  );
+  const mergedCustomerRows = customerRows.length - customers.length;
   const sales: SalesRow[] = loadSheet(SALES_PATH)
     .filter((r) => pick(r, "판매일시") && pick(r, "고객명"))
     .map((r) => ({
@@ -981,6 +1098,7 @@ async function main() {
     monthly_rent: number;
     deposit: number;
     management_phone: string | null;
+    door_password: string | null;
     unit: string | null;
     appliances: ApplianceModel[];
     recurring: RecurringModel[];
@@ -1056,6 +1174,7 @@ async function main() {
       monthly_rent: monthly,
       deposit,
       management_phone: parseManagementPhone(memo),
+      door_password: parseDoorPassword(memo),
       appliances: parseAppliances(
         memo,
         [c.extra, ...tSales.map((s) => s.extra)].join(" "),
@@ -1072,7 +1191,12 @@ async function main() {
     });
   }
 
-  // sales-only customers (in Sales, not in Customers) → minimal tenant
+  // Sales-only customers (in Sales, not in Customers) → 퇴거 archive record.
+  // The 고객목록 export is the authoritative *current* roster, so anyone who
+  // only survives in 판매내역 has already moved out. They come in inactive with a
+  // terminated lease so the live roster stays the ~150 real tenants — the point
+  // of importing them at all is to keep their payment history and the landlord
+  // link for the house they used to rent.
   for (const [key, tSales] of salesByCustomer) {
     if (tenants.has(key)) continue;
     const contractSale =
@@ -1080,37 +1204,44 @@ async function main() {
       tSales.find((s) => clean(s.end)) ||
       tSales[0];
     const rentAny = tSales.find((s) => /\d{4}년\s*\d{1,2}월/.test(s.items));
+    // last 판매일시 stands in for the move-out date when 계약만료 is missing
+    const lastSaleDate = tSales
+      .map((s) => clean(s.date).slice(0, 10))
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort()
+      .pop();
     tenants.set(key, {
       key,
       name: contractSale.customer,
       phone: "",
       rank: null,
-      status: "active",
+      status: "inactive",
       branch: null,
       deros: null,
       dependent_status: null,
-      notes: "판매내역에만 존재 (Customers.xlsx 없음)",
+      notes: "판매내역에만 존재 (고객목록 없음) — 과거 고객",
       pets: 0,
       family: [],
       unit: null,
       address: "주소 미등록",
       address_detail: null,
       property_type: "house",
-      property_status: "occupied",
+      property_status: "vacant",
       monthly_rent: rentAny ? rentAny.total : 0,
       deposit: 0,
       management_phone: null,
+      door_password: null,
       appliances: [],
       recurring: [],
       landlordKey: landlordKeyFor(contractSale.owner, contractSale.ownerPhone),
       lease_start:
         clean(contractSale.start) ||
         (contractSale.date ? contractSale.date.slice(0, 10) : null),
-      lease_end: clean(contractSale.end) || null,
-      lease_status: "active",
+      lease_end: clean(contractSale.end) || lastSaleDate || null,
+      lease_status: "terminated",
       realty_fee: null,
       realty_fee_currency: null,
-      lease_notes: "계약 정보 불완전",
+      lease_notes: "계약 정보 불완전 — 판매내역에서 복원",
       fromSalesOnly: true,
     });
   }
@@ -1230,7 +1361,9 @@ async function main() {
     `\n${"=".repeat(64)}\n  KINGS REALTY DATA IMPORT — ${WRITE ? "WRITE" : "DRY RUN (no writes)"}\n${"=".repeat(64)}`,
   );
   console.log(`Sources:`);
-  console.log(`  Customers: ${CUSTOMERS_PATH}  (${customers.length} rows)`);
+  console.log(
+    `  Customers: ${CUSTOMERS_PATH}  (${customerRows.length} rows${mergedCustomerRows ? `, ${mergedCustomerRows} re-registration merged → ${customers.length}` : ""})`,
+  );
   console.log(
     `  Sales:     ${SALES_PATH}  (${sales.length} rows, ${dupCount} dup removed → ${dedupSales.length})`,
   );
@@ -1253,8 +1386,14 @@ async function main() {
     `  payments ............. ${payments.length}  (₩${paymentKrw.toLocaleString()} total, ${multiItemRows} bundled rows)`,
   );
   console.log(`  utility_bills ........ ${utilBills}`);
+  const rentDefs = tenantList.filter(
+    (t) => t.lease_status === "active" && t.monthly_rent > 0,
+  ).length;
   console.log(
     `  recurring_charge ..... ${totalRecurring}  (${activeRecurring} active / ${totalRecurring - activeRecurring} 월세포함·확인)`,
+  );
+  console.log(
+    `  └ 월세 정기 청구 ..... ${rentDefs}  (${TODAY.slice(0, 7)} 부터 매월 생성)`,
   );
   console.log(`\nDerived signals:`);
   console.log(
@@ -1271,6 +1410,9 @@ async function main() {
   );
   console.log(
     `  mgmt phone ........... ${tenantList.filter((t) => t.management_phone).length}`,
+  );
+  console.log(
+    `  door password ........ ${tenantList.filter((t) => t.door_password).length}`,
   );
   console.log(
     `  landlord birth/sex ... ${[...landlords.values()].filter((l) => l.birth).length} birth, ${[...landlords.values()].filter((l) => l.sex).length} sex`,
@@ -1504,6 +1646,7 @@ async function main() {
               status: t.property_status,
               permission_status: "approved",
               management_phone: t.management_phone,
+              front_door_password: t.door_password,
               created_by: adminId,
             })
             .returning("id")
@@ -1540,6 +1683,29 @@ async function main() {
             .returning("id")
             .executeTakeFirstOrThrow()
         ).id;
+
+        // 월세도 정기 청구다. /payments 의 미납·연체 탭과 대시보드 미납 집계는
+        // payment 가 아니라 charge_item 을 읽고, charge_item 은 recurring_charge
+        // 정의에서만 생성된다 — 이 정의가 없으면 미수 월세가 어디에도 뜨지 않는다
+        // (앱에서는 lease 생성/수정 시 syncTenantRentDef 가 만든다).
+        // start_month 는 계약 시작월이 아니라 "이번 달": 지난 달들은 이미 payment
+        // 이력으로 들어오므로, 소급 청구하면 수년 전 받은 월세가 미납으로 잡힌다.
+        if (t.lease_status === "active" && t.monthly_rent > 0)
+          await tx
+            .insertInto("recurring_charge")
+            .values({
+              tenant_id: tid,
+              label: "월세",
+              type: "rent",
+              amount: String(t.monthly_rent),
+              currency: "KRW",
+              due_day: 10,
+              active: true,
+              start_month: `${TODAY.slice(0, 7)}-01`,
+              end_month: `${t.lease_end!.slice(0, 7)}-01`,
+              created_by: adminId,
+            })
+            .execute();
 
         for (const p of payments.filter((x) => x.tenantKey === t.key)) {
           const payId = (
